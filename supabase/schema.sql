@@ -44,9 +44,9 @@ create or replace function public.skift_role()
 returns text language plpgsql stable security definer set search_path = '' as $$
 declare result text;
 begin
-  if auth.uid() is null then raise exception 'Sign in to view the schedule.'; end if;
+  if auth.uid() is null then raise exception 'Logga in för att se schemat.'; end if;
   select role into result from public.profiles where id = auth.uid();
-  if result is null then raise exception 'Your account has no workspace profile.'; end if;
+  if result is null then raise exception 'Ditt konto saknar en profil för den här arbetsytan.'; end if;
   return result;
 end;
 $$;
@@ -60,28 +60,28 @@ begin
     or state->>'schemaVersion' is distinct from '1'
     or jsonb_typeof(state->'teams') is distinct from 'array'
     or jsonb_typeof(state->'exceptions') is distinct from 'array' then
-    raise exception 'Invalid schedule structure. Expected schemaVersion 1, teams and exceptions.';
+    raise exception 'Schemafilen har ett ogiltigt format. Den ska innehålla schemaVersion 1, teams och exceptions.';
   end if;
   if octet_length(state::text) > 5000000 or jsonb_array_length(state->'teams') > 100
     or jsonb_array_length(state->'exceptions') > 25000 then
-    raise exception 'The schedule exceeds the storage limit.';
+    raise exception 'Schemat överskrider gränsen för lagringsutrymmet.';
   end if;
   for team in select value from jsonb_array_elements(state->'teams') loop
     if jsonb_typeof(team) <> 'object' or jsonb_typeof(team->'id') is distinct from 'string'
       or jsonb_typeof(team->'name') is distinct from 'string'
       or jsonb_typeof(team->'members') is distinct from 'array'
       or jsonb_typeof(team->'versions') is distinct from 'array' then
-      raise exception 'Every team needs an id and name.';
+      raise exception 'Varje team behöver ett id, ett namn, medarbetare och rotationer.';
     end if;
     if jsonb_array_length(team->'members') > 1000 or jsonb_array_length(team->'versions') > 1000 then
-      raise exception 'A team exceeds the member or version limit.';
+      raise exception 'Ett team har för många medarbetare eller rotationsversioner.';
     end if;
     for member in select value from jsonb_array_elements(team->'members') loop
       if jsonb_typeof(member) <> 'object'
         or jsonb_typeof(member->'id') is distinct from 'string'
         or jsonb_typeof(member->'name') is distinct from 'string'
         or member->>'role' is null or member->>'role' not in ('member', 'part-time') then
-        raise exception 'Every coworker needs an id, name and valid role.';
+        raise exception 'Varje medarbetare behöver ett id, ett namn och en giltig roll.';
       end if;
     end loop;
     for version in select value from jsonb_array_elements(team->'versions') loop
@@ -92,26 +92,26 @@ begin
         or jsonb_typeof(version->'shifts') is distinct from 'object'
         or version->>'effectiveFrom' is null or not (version->>'effectiveFrom' ~ '^\d{4}-\d{2}-\d{2}$')
         or version->>'referenceMonday' is null or not (version->>'referenceMonday' ~ '^\d{4}-\d{2}-\d{2}$') then
-        raise exception 'A rotation version has an invalid structure.';
+        raise exception 'En rotationsversion har ett ogiltigt format.';
       end if;
       if jsonb_array_length(version->'rotation') < 1 or jsonb_array_length(version->'rotation') > 104 then
-        raise exception 'A rotation must contain between 1 and 104 weeks.';
+        raise exception 'En rotation måste innehålla mellan 1 och 104 veckor.';
       end if;
       for shift in select key, value as content from jsonb_each(version->'shifts') loop
         if jsonb_typeof(shift.content) <> 'object'
           or shift.content->>'start' is null or not (shift.content->>'start' ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
           or shift.content->>'end' is null or not (shift.content->>'end' ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
           or shift.content->>'start' = shift.content->>'end' then
-          raise exception 'A shift has invalid working hours.';
+          raise exception 'Ett arbetspass har ogiltiga arbetstider.';
         end if;
       end loop;
       for row_data in select value from jsonb_array_elements(version->'rotation') loop
-        if jsonb_typeof(row_data) <> 'array' then raise exception 'A rotation week must have seven days.'; end if;
-        if jsonb_array_length(row_data) <> 7 then raise exception 'A rotation week must have seven days.'; end if;
+        if jsonb_typeof(row_data) <> 'array' then raise exception 'En rotationsvecka måste innehålla sju dagar.'; end if;
+        if jsonb_array_length(row_data) <> 7 then raise exception 'En rotationsvecka måste innehålla sju dagar.'; end if;
         for cell in select value from jsonb_array_elements(row_data) loop
-          if jsonb_typeof(cell) <> 'string' then raise exception 'Shift codes must be text.'; end if;
+          if jsonb_typeof(cell) <> 'string' then raise exception 'Passkoder måste vara text.'; end if;
           if cell #>> '{}' <> '' and not (version->'shifts' ? (cell #>> '{}')) then
-            raise exception 'A rotation refers to an unknown shift code.';
+            raise exception 'En rotation hänvisar till en okänd passkod.';
           end if;
         end loop;
       end loop;
@@ -124,7 +124,7 @@ begin
       or jsonb_typeof(item->'memberId') is distinct from 'string'
       or (item->>'date') is null or not (item->>'date' ~ '^\d{4}-\d{2}-\d{2}$')
       or (item->>'type') is null or item->>'type' not in ('vacation', 'sick', 'pension', 'custom', 'off') then
-      raise exception 'An individual schedule change has an invalid structure.';
+      raise exception 'En individuell schemaändring har ett ogiltigt format.';
     end if;
   end loop;
 end;
@@ -180,7 +180,7 @@ declare access_role text; current_workspace public.workspace%rowtype;
 begin
   access_role := public.skift_role();
   select * into current_workspace from public.workspace where id = 1;
-  if not found then raise exception 'The shared workspace has not been configured.'; end if;
+  if not found then raise exception 'Den delade arbetsytan är inte konfigurerad.'; end if;
   return jsonb_build_object(
     'role', access_role,
     'working', case when access_role = 'admin' then current_workspace.draft else current_workspace.published end,
@@ -196,12 +196,12 @@ create or replace function public.save_draft(p_draft jsonb, p_expected_revision 
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare current_revision bigint;
 begin
-  if public.skift_role() <> 'admin' then raise exception 'Administrator access required.'; end if;
+  if public.skift_role() <> 'admin' then raise exception 'Administratörsbehörighet krävs.'; end if;
   perform public.skift_validate_state(p_draft);
   select revision into current_revision from public.workspace where id = 1 for update;
-  if not found then raise exception 'The shared workspace has not been configured.'; end if;
+  if not found then raise exception 'Den delade arbetsytan är inte konfigurerad.'; end if;
   if p_expected_revision is null or current_revision <> p_expected_revision then
-    raise exception 'Workspace revision changed. Reload before saving.';
+    raise exception 'Schemat har ändrats. Ladda om sidan innan du sparar.';
   end if;
   update public.workspace set draft = p_draft, revision = revision + 1, updated_at = now() where id = 1;
   return public.get_workspace();
@@ -214,12 +214,12 @@ create or replace function public.publish_workspace(p_draft jsonb, p_expected_re
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare current_revision bigint; new_published jsonb;
 begin
-  if public.skift_role() <> 'admin' then raise exception 'Administrator access required.'; end if;
+  if public.skift_role() <> 'admin' then raise exception 'Administratörsbehörighet krävs.'; end if;
   perform public.skift_validate_state(p_draft);
   select revision into current_revision from public.workspace where id = 1 for update;
-  if not found then raise exception 'The shared workspace has not been configured.'; end if;
+  if not found then raise exception 'Den delade arbetsytan är inte konfigurerad.'; end if;
   if p_expected_revision is null or current_revision <> p_expected_revision then
-    raise exception 'Workspace revision changed. Reload before publishing.';
+    raise exception 'Schemat har ändrats. Ladda om sidan innan du publicerar.';
   end if;
   new_published := public.skift_public_state(p_draft);
   update public.workspace set

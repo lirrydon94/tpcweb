@@ -121,9 +121,9 @@ test('publication clones the draft and rejects invalid hours and duplicate chang
   const published = publishState(state);
   assert.ok(published.publishedAt);
   state.teams[0].members[0].name = 'Changed';
-  assert.equal(published.teams[0].members[0].name, 'You');
+  assert.equal(published.teams[0].members[0].name, 'Du');
   state.teams[0].versions[0].shifts.A.start = '25:00';
-  assert.throws(() => publishState(state), /valid.*start and end times/);
+  assert.throws(() => publishState(state), /giltiga och olika start- och sluttider/);
 });
 
 test('malformed imported entries produce errors instead of crashing validation', () => {
@@ -158,7 +158,7 @@ test('full-day absence makes a coworker unavailable as a replacement and leaves 
     assert.equal(source.needsCoverage, true);
     assert.equal(source.uncoveredMinutes, 540);
     assert.ok(!getDayAssignments(state, 'team-1', '2026-10-12').some(item => item.memberId === 'member-2'));
-    assert.throws(() => publishState(state), /unavailable for replacement/);
+    assert.throws(() => publishState(state), /kan inte arbeta som ersättare.*frånvaro/);
   }
 });
 
@@ -168,17 +168,17 @@ test('replacement shifts cannot fall before a start date or on/after a removal d
     Object.assign(state.teams[0].members[1], dates);
     state.exceptions.push({ id: 'needs-cover', teamId: 'team-1', memberId: 'member-1', date: '2026-10-12', type: 'sick', replacementId: 'member-2' });
     assert.equal(getShift(state, 'team-1', 'member-1', '2026-10-12').uncoveredMinutes, 540);
-    assert.throws(() => publishState(state), /outside their active dates/);
+    assert.throws(() => publishState(state), /utanför medarbetarens aktiva period/);
   }
 });
 
 test('publication rejects replacements that overlap regular or overnight shifts', () => {
   const state = seedState();
   state.exceptions.push({ id: 'needs-cover', teamId: 'team-1', memberId: 'member-1', date: '2026-10-12', type: 'sick', replacementId: 'member-4' });
-  assert.throws(() => publishState(state), /overlapping shifts on 2026-10-12/);
+  assert.throws(() => publishState(state), /överlappande pass den 2026-10-12/);
   state.exceptions[0].replacementId = 'member-2';
   state.exceptions.push({ id: 'night', teamId: 'team-1', memberId: 'member-2', date: '2026-10-11', type: 'custom', start: '22:00', end: '14:00' });
-  assert.throws(() => publishState(state), /overlapping shifts on 2026-10-12/);
+  assert.throws(() => publishState(state), /överlappande pass den 2026-10-12/);
 });
 
 test('a reduced pension shift can accept a cover only outside its own working hours', () => {
@@ -188,7 +188,7 @@ test('a reduced pension shift can accept a cover only outside its own working ho
   assert.deepEqual(validateState(state), []);
   assert.equal(getShift(state, 'team-1', 'member-1', '2026-10-12').needsCoverage, false);
   state.exceptions[1].replacementStart = '11:00';
-  assert.throws(() => publishState(state), /overlapping shifts/);
+  assert.throws(() => publishState(state), /överlappande pass/);
 });
 
 test('cover-only part-timers remain outside the regular rotation when a version is resized', () => {

@@ -11,9 +11,9 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 
 function checkState(state) {
   if (!state || state.schemaVersion !== 1 || !Array.isArray(state.teams) || !Array.isArray(state.exceptions)) {
-    throw new Error('Choose a Skift schedule file containing schemaVersion 1, teams, and exceptions.');
+    throw new Error('Välj en schemafil från Skift som innehåller schemaVersion 1, teams och exceptions.');
   }
-  if (JSON.stringify(state).length > 5_000_000) throw new Error('The schedule is too large (maximum 5 MB).');
+  if (JSON.stringify(state).length > 5_000_000) throw new Error('Schemat är för stort (högst 5 MB).');
   return clone(state);
 }
 
@@ -69,27 +69,46 @@ async function request(path, body, token) {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch {
-    throw new Error('Could not connect to the shared schedule. Check your internet connection.');
+    throw new Error('Kunde inte ansluta till det delade schemat. Kontrollera din internetanslutning.');
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (/revision|changed|ändrat/i.test(data.message || '')) {
-      throw new Error('The schedule changed in another session. Reload the page before saving.');
+    if (/revision|changed|(?:version(?:en)?\s+(?:har\s+)?)?ändrats?/i.test(data.message || '')) {
+      throw new Error('Schemat har ändrats i en annan session. Ladda om sidan innan du sparar.');
     }
-    throw new Error(data.msg || data.error_description || data.message || `The server returned error ${response.status}.`);
+    const knownErrors = {
+      invalid_credentials: 'Fel e-postadress eller lösenord.',
+      email_not_confirmed: 'Bekräfta din e-postadress innan du loggar in.',
+      user_banned: 'Kontot är spärrat. Kontakta din administratör.',
+      over_request_rate_limit: 'För många försök. Vänta en stund och försök igen.',
+      over_email_send_rate_limit: 'För många e-postförfrågningar. Vänta en stund och försök igen.',
+      session_not_found: 'Din inloggning har gått ut. Logga in igen.',
+      refresh_token_not_found: 'Din inloggning har gått ut. Logga in igen.',
+      refresh_token_already_used: 'Din inloggning behöver förnyas. Logga in igen.',
+      PGRST301: 'Din inloggning är ogiltig. Logga in igen.',
+      PGRST302: 'Logga in för att öppna det delade schemat.',
+    };
+    const rawMessage = data.msg || data.error_description || data.message;
+    const knownMessage = knownErrors[data.error_code || data.code]
+      || (rawMessage === 'Invalid login credentials' ? 'Fel e-postadress eller lösenord.' : null)
+      || (rawMessage === 'Email not confirmed' ? 'Bekräfta din e-postadress innan du loggar in.' : null)
+      || (rawMessage === 'JWT expired' ? 'Din inloggning har gått ut. Logga in igen.' : null)
+      || (rawMessage === 'Invalid API key' ? 'Supabase-nyckeln är ogiltig. Kontrollera config.js.' : null)
+      || (response.status === 429 ? 'För många försök. Vänta en stund och försök igen.' : null);
+    throw new Error(knownMessage || rawMessage || `Servern svarade med fel ${response.status}.`);
   }
   return data;
 }
 
 async function accessToken() {
-  if (!session) throw new Error('Sign in to open the shared schedule.');
+  if (!session) throw new Error('Logga in för att öppna det delade schemat.');
   if (session.expires_at <= Math.floor(Date.now() / 1000) + 60) {
     try {
       const refreshed = await request('/auth/v1/token?grant_type=refresh_token', { refresh_token: session.refresh_token });
       rememberSession(normalizeSession(refreshed));
     } catch (error) {
       rememberSession(null);
-      throw new Error(`Please sign in again. ${error.message}`);
+      throw new Error(`Logga in igen. ${error.message}`);
     }
   }
   return session.access_token;
@@ -116,7 +135,7 @@ function saveLocal(value) {
   try {
     localStorage.setItem(LOCAL_KEY, JSON.stringify({ working: value.working, published: value.published, revision: value.revision }));
   } catch {
-    throw new Error('Could not save on this device. Check your browser storage space.');
+    throw new Error('Kunde inte spara på den här enheten. Kontrollera webbläsarens lagringsutrymme.');
   }
   snapshot = value;
   return clone(snapshot);
@@ -124,7 +143,7 @@ function saveLocal(value) {
 
 export async function init() {
   if (cloud) {
-    if (!config.supabaseUrl || !config.supabaseAnonKey) return signedOut('Fill in both the Supabase URL and public key in config.js.');
+    if (!config.supabaseUrl || !config.supabaseAnonKey) return signedOut('Fyll i både Supabase-adressen och den publika nyckeln i config.js.');
     try {
       session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
       if (!session?.access_token || !session?.refresh_token) {
@@ -143,15 +162,22 @@ export async function init() {
     if (saved) {
       checkState(saved.working);
       checkState(saved.published);
-      if (!Number.isSafeInteger(saved.revision) || saved.revision < 0) throw new Error('Invalid revision');
+      if (!Number.isSafeInteger(saved.revision) || saved.revision < 0) throw new Error('Ogiltigt versionsnummer.');
     }
   } catch {
     saved = null;
-    warning = 'The saved demo could not be read. A new example is shown; export a backup after making changes.';
+    warning = 'Det sparade demoschemat kunde inte läsas. Ett nytt exempel visas. Exportera en säkerhetskopia efter dina ändringar.';
   }
   if (!saved) {
     const working = seedState();
     saved = { working, published: publicState(working), revision: 0 };
+  }
+  // Rename only the original built-in demo identity; preserve custom and cloud names.
+  for (const state of [saved.working, saved.published]) {
+    const builtInTeam = state.teams.find(team => team?.id === 'team-1');
+    const builtInMember = Array.isArray(builtInTeam?.members)
+      ? builtInTeam.members.find(member => member?.id === 'member-1') : null;
+    if (builtInMember?.name === 'You') builtInMember.name = 'Du';
   }
   snapshot = { mode: 'demo', role: 'admin', ...saved, ...(warning ? { error: warning } : {}) };
   return clone(snapshot);
@@ -159,7 +185,7 @@ export async function init() {
 
 export async function saveDraft(state) {
   const working = checkState(state);
-  if (!snapshot) throw new Error('Open the schedule before saving.');
+  if (!snapshot) throw new Error('Öppna schemat innan du sparar.');
   if (cloud) {
     const result = await request('/rest/v1/rpc/save_draft', {
       p_draft: working, p_expected_revision: snapshot.revision,
@@ -174,7 +200,7 @@ export async function publish(state) {
   const working = checkState(state);
   // Validate the full rotation before making it visible to coworkers.
   const published = publicState(working);
-  if (!snapshot) throw new Error('Open the schedule before publishing.');
+  if (!snapshot) throw new Error('Öppna schemat innan du publicerar.');
   if (cloud) {
     const result = await request('/rest/v1/rpc/publish_workspace', {
       p_draft: working, p_expected_revision: snapshot.revision,
@@ -186,7 +212,7 @@ export async function publish(state) {
 }
 
 export async function login(email, password) {
-  if (!cloud) throw new Error('The local demo does not use sign-in.');
+  if (!cloud) throw new Error('Den lokala demon använder ingen inloggning.');
   const result = await request('/auth/v1/token?grant_type=password', { email: email.trim(), password });
   rememberSession(normalizeSession(result));
   try {
@@ -210,7 +236,7 @@ export async function logout() {
 }
 
 export function exportData() {
-  if (!snapshot?.working || snapshot.role !== 'admin') throw new Error('Only an administrator can export the schedule.');
+  if (!snapshot?.working || snapshot.role !== 'admin') throw new Error('Endast en administratör kan exportera schemat.');
   return clone(snapshot.working);
 }
 

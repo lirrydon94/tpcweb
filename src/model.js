@@ -8,10 +8,10 @@ export function uid() {
 
 function civilDate(value) {
   const text = value instanceof Date ? value.toISOString().slice(0, 10) : String(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw new RangeError('Use a date in YYYY-MM-DD format.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw new RangeError('Ange ett datum i formatet ÅÅÅÅ-MM-DD.');
   const timestamp = Date.parse(`${text}T00:00:00Z`);
   if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== text) {
-    throw new RangeError('Choose a valid date.');
+    throw new RangeError('Välj ett giltigt datum.');
   }
   return new Date(timestamp);
 }
@@ -249,7 +249,7 @@ export function getCoworkers(state, teamId, memberId, date) {
       seen.add(key);
       coworkers.push({
         ...other,
-        name: findMember(state, other.memberId, other.date)?.member.name || 'Coworker',
+        name: findMember(state, other.memberId, other.date)?.member.name || 'Medarbetare',
         overlapStart: clockTime(start),
         overlapEnd: clockTime(end),
         overlapMinutes: end - start,
@@ -278,7 +278,7 @@ export function weekStats(state, teamId, memberId, date) {
 export function createVersion(team, effectiveFrom, length) {
   const date = dateString(civilDate(effectiveFrom));
   const count = Number(length);
-  if (!Number.isInteger(count) || count < 1 || count > 104) throw new RangeError('A rotation must contain between 1 and 104 weeks.');
+  if (!Number.isInteger(count) || count < 1 || count > 104) throw new RangeError('Ett schema måste innehålla mellan 1 och 104 veckor.');
   const base = activeVersion(team, date) || [...(team.versions || [])].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
   const referenceMonday = mondayOf(date);
   return {
@@ -298,9 +298,9 @@ export function createVersion(team, effectiveFrom, length) {
 
 export function archiveMember(team, memberId, date) {
   const member = team.members.find(item => item.id === memberId);
-  if (!member) throw new Error('This coworker could not be found.');
+  if (!member) throw new Error('Medarbetaren kunde inte hittas.');
   const effectiveDate = dateString(civilDate(date));
-  if (member.activeFrom && effectiveDate < member.activeFrom) throw new Error('The removal date must be after the coworker joins.');
+  if (member.activeFrom && effectiveDate < member.activeFrom) throw new Error('Medarbetaren kan inte tas bort före sitt startdatum.');
   member.activeUntil = effectiveDate;
   return member;
 }
@@ -309,79 +309,79 @@ export function validateState(state) {
   const errors = [];
   const checkDate = (date, label) => {
     try { civilDate(date); return true; }
-    catch { errors.push(`${label}: choose a valid date.`); return false; }
+    catch { errors.push(`${label}: välj ett giltigt datum.`); return false; }
   };
   if (!state || state.schemaVersion !== 1 || !Array.isArray(state.teams) || !Array.isArray(state.exceptions)) {
-    return ['This schedule file has an unsupported format.'];
+    return ['Schemafilens format stöds inte.'];
   }
-  if (!state.teams.length) errors.push('Add at least one team.');
+  if (!state.teams.length) errors.push('Lägg till minst ett team.');
   const teamIds = new Set();
   const memberIds = new Set();
   const allMembers = new Map();
   for (const team of state.teams) {
     if (!team || typeof team !== 'object' || Array.isArray(team)) {
-      errors.push('A team has an unsupported format.');
+      errors.push('Ett team har ett format som inte stöds.');
       continue;
     }
-    if (!team.id || teamIds.has(team.id)) errors.push('Every team needs a unique ID.');
+    if (!team.id || teamIds.has(team.id)) errors.push('Varje team behöver ett unikt ID.');
     teamIds.add(team.id);
-    if (typeof team.name !== 'string' || !team.name.trim()) errors.push('Every team needs a name.');
+    if (typeof team.name !== 'string' || !team.name.trim()) errors.push('Varje team behöver ett namn.');
     if (!Array.isArray(team.members) || !Array.isArray(team.versions)) {
-      errors.push(`${team.name || 'Team'}: members and rotations are missing.`);
+      errors.push(`${team.name || 'Team'}: medarbetare och scheman saknas.`);
       continue;
     }
     for (const member of team.members) {
       if (!member || typeof member !== 'object' || Array.isArray(member)) {
-        errors.push(`${team.name || 'Team'}: a coworker has an unsupported format.`);
+        errors.push(`${team.name || 'Team'}: en medarbetare har ett format som inte stöds.`);
         continue;
       }
-      if (!member.id || memberIds.has(member.id)) errors.push('Every coworker needs a unique ID.');
+      if (!member.id || memberIds.has(member.id)) errors.push('Varje medarbetare behöver ett unikt ID.');
       memberIds.add(member.id);
       allMembers.set(member.id, member);
-      if (typeof member.name !== 'string' || !member.name.trim()) errors.push(`${team.name}: a coworker needs a name.`);
-      if (!['member', 'part-time'].includes(member.role)) errors.push(`${member.name}: choose a valid role.`);
-      if (member.activeFrom) checkDate(member.activeFrom, `${member.name} start date`);
+      if (typeof member.name !== 'string' || !member.name.trim()) errors.push(`${team.name}: en medarbetare behöver ett namn.`);
+      if (!['member', 'part-time'].includes(member.role)) errors.push(`${member.name}: välj en giltig roll.`);
+      if (member.activeFrom) checkDate(member.activeFrom, `${member.name}, startdatum`);
       if (member.activeUntil) {
-        checkDate(member.activeUntil, `${member.name} removal date`);
-        if (member.activeFrom && member.activeUntil < member.activeFrom) errors.push(`${member.name}: removal comes before their start date.`);
+        checkDate(member.activeUntil, `${member.name}, avslutsdatum`);
+        if (member.activeFrom && member.activeUntil < member.activeFrom) errors.push(`${member.name}: avslutsdatumet ligger före startdatumet.`);
       }
     }
-    if (!team.versions.length) errors.push(`${team.name}: add a rotation.`);
+    if (!team.versions.length) errors.push(`${team.name}: lägg till ett schema.`);
     const effectiveDates = new Set();
     const versionIds = new Set();
     for (const version of team.versions) {
-      const label = `${team.name} rotation`;
+      const label = `${team.name}, schema`;
       if (!version || typeof version !== 'object' || Array.isArray(version)) {
-        errors.push(`${label}: an entry has an unsupported format.`);
+        errors.push(`${label}: en post har ett format som inte stöds.`);
         continue;
       }
-      if (!version.id || versionIds.has(version.id)) errors.push(`${label}: every version needs a unique ID.`);
+      if (!version.id || versionIds.has(version.id)) errors.push(`${label}: varje version behöver ett unikt ID.`);
       versionIds.add(version.id);
-      checkDate(version.effectiveFrom, `${label} effective date`);
-      if (effectiveDates.has(version.effectiveFrom)) errors.push(`${label}: two versions start on the same date.`);
+      checkDate(version.effectiveFrom, `${label}, giltigt från`);
+      if (effectiveDates.has(version.effectiveFrom)) errors.push(`${label}: två versioner börjar samma datum.`);
       effectiveDates.add(version.effectiveFrom);
-      if (checkDate(version.referenceMonday, `${label} reference Monday`) && mondayOf(version.referenceMonday) !== version.referenceMonday) {
-        errors.push(`${label}: the reference date must be a Monday.`);
+      if (checkDate(version.referenceMonday, `${label}, referensmåndag`) && mondayOf(version.referenceMonday) !== version.referenceMonday) {
+        errors.push(`${label}: referensdatumet måste vara en måndag.`);
       }
       if (!Array.isArray(version.rotation) || !version.rotation.length || version.rotation.length > 104) {
-        errors.push(`${label}: choose between 1 and 104 weeks.`);
+        errors.push(`${label}: välj mellan 1 och 104 veckor.`);
         continue;
       }
       if (!version.shifts || typeof version.shifts !== 'object' || Array.isArray(version.shifts)) {
-        errors.push(`${label}: define shift codes and hours.`);
+        errors.push(`${label}: ange passkoder och arbetstider.`);
         continue;
       }
       for (const [code, shift] of Object.entries(version.shifts)) {
-        if (!code.trim() || !shift || !duration(shift.start, shift.end)) errors.push(`${label}: ${code || 'a shift'} needs valid, different start and end times.`);
+        if (!code.trim() || !shift || !duration(shift.start, shift.end)) errors.push(`${label}: pass ${code || '(utan kod)'} måste ha giltiga och olika start- och sluttider.`);
       }
       for (const [index, row] of version.rotation.entries()) {
         if (!Array.isArray(row) || row.length !== 7) {
-          errors.push(`${label}: week ${index + 1} must have seven days.`);
+          errors.push(`${label}: schemavecka ${index + 1} måste ha sju dagar.`);
           continue;
         }
         for (const code of row) {
           if (typeof code !== 'string' || (code && !Object.hasOwn(version.shifts, code))) {
-            errors.push(`${label}: week ${index + 1} refers to an unknown shift.`);
+            errors.push(`${label}: schemavecka ${index + 1} hänvisar till en okänd passkod.`);
           }
         }
       }
@@ -395,7 +395,7 @@ export function validateState(state) {
         if (nextEffectiveDate && member.activeFrom && member.activeFrom >= nextEffectiveDate) continue;
         const position = Number(version.positions?.[member.id]);
         if (!Number.isInteger(position) || position < 1 || position > version.rotation.length) {
-          errors.push(`${label}: choose a starting week for ${member.name}.`);
+          errors.push(`${label}: välj en startvecka för ${member.name}.`);
         }
       }
     }
@@ -404,35 +404,35 @@ export function validateState(state) {
   const exceptionKeys = new Set();
   for (const exception of state.exceptions) {
     if (!exception || typeof exception !== 'object' || Array.isArray(exception)) {
-      errors.push('A schedule change has an unsupported format.');
+      errors.push('En schemaändring har ett format som inte stöds.');
       continue;
     }
-    if (!exception.id || exceptionIds.has(exception.id)) errors.push('Every schedule change needs a unique ID.');
+    if (!exception.id || exceptionIds.has(exception.id)) errors.push('Varje schemaändring behöver ett unikt ID.');
     exceptionIds.add(exception.id);
     const team = state.teams.find(item => item?.id === exception.teamId);
     const member = Array.isArray(team?.members) ? team.members.find(item => item?.id === exception.memberId) : null;
-    if (!member) errors.push('A schedule change refers to a missing coworker or team.');
-    checkDate(exception.date, 'Schedule change date');
+    if (!member) errors.push('En schemaändring hänvisar till en medarbetare eller ett team som saknas.');
+    checkDate(exception.date, ['vacation', 'sick', 'pension', 'off'].includes(exception.type) ? 'Frånvarodatum' : 'Datum för schemaändring');
     const key = `${exception.teamId}:${exception.memberId}:${exception.date}`;
-    if (exceptionKeys.has(key)) errors.push('Keep one schedule change per person per date.');
+    if (exceptionKeys.has(key)) errors.push('Ange endast en schemaändring per medarbetare och datum.');
     exceptionKeys.add(key);
-    if (!ABSENCE_TYPES.has(exception.type)) errors.push('Choose a valid schedule change type.');
+    if (!ABSENCE_TYPES.has(exception.type)) errors.push('Välj en giltig typ av schemaändring.');
     if (exception.type === 'custom' || exception.start || exception.end) {
-      if (!duration(exception.start, exception.end)) errors.push('Changed shifts need valid, different start and end times.');
+      if (!duration(exception.start, exception.end)) errors.push('Ändrade pass måste ha giltiga och olika start- och sluttider.');
     }
     if (exception.replacementId) {
-      if (!allMembers.has(exception.replacementId)) errors.push('A replacement coworker could not be found.');
-      if (exception.replacementId === exception.memberId) errors.push('A coworker cannot replace themselves.');
+      if (!allMembers.has(exception.replacementId)) errors.push('Ersättaren kunde inte hittas.');
+      if (exception.replacementId === exception.memberId) errors.push('En medarbetare kan inte ersätta sig själv.');
       const replacement = allMembers.get(exception.replacementId);
       if (replacement && !isActive(replacement, exception.date)) {
-        errors.push(`${replacement.name}: the replacement date is outside their active dates.`);
+        errors.push(`${replacement.name}: ersättningsdatumet ligger utanför medarbetarens aktiva period.`);
       } else if (replacement && currentExceptions(state, exception.date).some(item => item.memberId === replacement.id
         && (['vacation', 'sick', 'off'].includes(item.type)
           || (item.type === 'pension' && !duration(item.start, item.end))))) {
-        errors.push(`${replacement.name}: unavailable for replacement on ${exception.date}.`);
+        errors.push(`${replacement.name}: kan inte arbeta som ersättare den ${exception.date} på grund av frånvaro.`);
       }
       if ((exception.replacementStart || exception.replacementEnd) && !duration(exception.replacementStart, exception.replacementEnd)) {
-        errors.push('Replacement shifts need valid, different start and end times.');
+        errors.push('Ersättningspass måste ha giltiga och olika start- och sluttider.');
       }
     }
   }
@@ -445,8 +445,8 @@ export function validateState(state) {
       for (const assignment of assignmentsWithConflicts(state, date)) {
         if (!assignment.conflict || reported.has(`${assignment.memberId}:${date}`)) continue;
         reported.add(`${assignment.memberId}:${date}`);
-        const name = allMembers.get(assignment.memberId)?.name || 'A coworker';
-        errors.push(`${name}: overlapping shifts on ${date}. Change the replacement hours or coworker before publishing.`);
+        const name = allMembers.get(assignment.memberId)?.name || 'En medarbetare';
+        errors.push(`${name}: överlappande pass den ${date}. Ändra ersättarens arbetstider eller välj en annan medarbetare före publicering.`);
       }
     }
   }
@@ -462,7 +462,7 @@ export function publishState(state) {
 export function seedState(referenceDate = '2026-10-12') {
   const referenceMonday = mondayOf(referenceDate);
   const effectiveFrom = mondayOf(`${referenceMonday.slice(0, 4)}-01-07`);
-  const names = ['You', 'Anna', 'Erik', 'Sara', 'Johan', 'Maria', 'David'];
+  const names = ['Du', 'Anna', 'Erik', 'Sara', 'Johan', 'Maria', 'David'];
   const members = names.map((name, index) => ({ id: `member-${index + 1}`, name, role: 'member', activeFrom: effectiveFrom, activeUntil: null }));
   const shifts = {
     A: { start: '07:00', end: '16:00', color: 'amber' },

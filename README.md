@@ -1,86 +1,86 @@
 # Skift
 
-A mobile-friendly shift schedule with a personal view, team view, and administrator tools. The interface is in English. The first example reproduces the supplied 11-week rotation, with seven placeholder coworkers starting in consecutive positions. Monday 12 October 2026 is the **example** reference date; replace it with your real reference Monday and names before use.
+Ett mobilvänligt arbetsschema med personligt schema, teamöversikt och verktyg för administratören. Gränssnittet är på svenska. Exemplet använder den angivna rotationen på 11 veckor, med sju exempelmedarbetare som börjar på olika positioner. Måndag 12 oktober 2026 är **exemplets** referensdatum. Byt ut namnen och ange er verkliga referensmåndag innan ni börjar använda schemat.
 
-## Try it locally
+## Prova lokalt
 
-Install Node.js, then run:
+Installera Node.js och kör:
 
 ```sh
 npm run dev
 ```
 
-Open the address printed by the server. No dependency installation or build is required. Keep the server running while using the preview. Use `npm test` for schedule calculation checks and `npm run check` for JavaScript syntax checks.
+Öppna adressen som servern visar. Du behöver inte installera några beroenden eller bygga projektet. Låt servern vara igång medan du använder förhandsvisningen. `npm test` kontrollerar schemaberäkningarna och `npm run check` kontrollerar JavaScript-syntaxen.
 
-When `config.js` is empty, the website is a **local demo**. Edits are stored in this browser only. They do not reach coworkers, other phones, or other browser profiles. Export a JSON backup to preserve your changes. Do not distribute the demo as a shared schedule: configure the protected cloud workspace below first.
+När `config.js` är tom används en **lokal demo**. Ändringar sparas bara i den här webbläsaren och syns inte för kollegor, på andra telefoner eller i andra webbläsarprofiler. Exportera en JSON-fil via **Säkerhetskopia** för att spara dina ändringar. Konfigurera den skyddade molnanslutningen nedan innan ni använder webbplatsen som ett gemensamt schema.
 
-## Schedule model
+## Så fungerar schemat
 
-- Every team has its own shift codes, working hours, members, and rotation versions. Member count and rotation length are independent.
-- A rotation version has an effective Monday, a reference Monday, a repeating table of weeks, and each person's starting position.
-- Changing a rotation creates a new version from the selected Monday. Older dates continue to use the earlier version. Removing someone uses an end date so past shifts remain available.
-- Vacation, sickness, pension days, changed hours, and replacements are changes on specific dates. The rotation continues to advance during an absence.
-- The weekday/weekend blanks in the supplied table mean days off. Shift hours are elapsed clock hours; this version does not calculate unpaid breaks or payroll.
-- A replacement can cover all or part of a shift. Coverage and overlap checks use the actual assigned hours. Replacement coworkers can belong to another team.
-- Saved drafts and published schedules are separate. Coworkers see the last published schedule. An administrator can preview the published view before sharing.
+- Varje team har egna passkoder, arbetstider, medarbetare och rotationsversioner. Antalet medarbetare och rotationens längd kan ändras oberoende av varandra.
+- En rotationsversion har en startmåndag, en referensmåndag, en återkommande tabell med veckor och en startposition för varje medarbetare.
+- När rotationen ändras skapas en ny version från den valda måndagen. Tidigare datum använder fortfarande den äldre versionen. En medarbetare tas bort från ett valt slutdatum, så att tidigare arbetspass finns kvar.
+- Semester, sjukfrånvaro, pensionsdagar, ändrade arbetstider och ersättare registreras på bestämda datum. Rotationens veckor fortsätter att gå framåt under frånvaron.
+- Tomma rutor i den ursprungliga tabellen betyder ledigt. Visade arbetstimmar är tiden mellan start och slut. Den här versionen räknar inte bort obetalda raster och beräknar inte lön.
+- En ersättare kan täcka hela eller delar av ett pass. Kontroller av täckning och överlappning använder de faktiska arbetstiderna. Ersättaren kan tillhöra ett annat team.
+- Sparade utkast och publicerade scheman hålls isär. Kollegorna ser det senast publicerade schemat. Administratören kan förhandsgranska det innan det delas.
 
-The website supports date selection, ISO calendar week numbers, rotation positions, week/month/year navigation, and links for opening a particular team. QR codes contain a link; they do not grant permission to view private data.
+Under **Schema** kan du välja datum, se kalenderveckor och rotationsveckor samt växla mellan vecka, månad och år. En teamlänk öppnar rätt team direkt. QR-koder innehåller en länk och ger ingen behörighet att se privata uppgifter.
 
-## Use a shared, private workspace
+## Använd en gemensam, privat arbetsyta
 
-The optional cloud mode uses Supabase email/password accounts and a protected database. GitHub hosts the public application files; Supabase stores the employee data. [Supabase documents password authentication](https://supabase.com/docs/guides/auth/passwords) and [database access controls](https://supabase.com/docs/guides/database/postgres/row-level-security).
+Molnläget använder Supabase-konton med e-post och lösenord samt en skyddad databas. GitHub lagrar webbplatsens publika programfiler. Supabase lagrar uppgifterna om medarbetarna. Läs Supabases dokumentation om [inloggning med lösenord](https://supabase.com/docs/guides/auth/passwords) och [databasens behörigheter](https://supabase.com/docs/guides/database/postgres/row-level-security).
 
-1. Create a Supabase project.
-2. Open its SQL editor and run the complete contents of `supabase/schema.sql`.
-3. Under Authentication → Users, create your account with an email and password. Use a confirmed account so you can sign in. Create coworker accounts the same way. Disable public sign-ups in Supabase authentication settings: this app treats every authenticated account in the project as a workspace viewer.
-4. Promote your account using the SQL editor:
+1. Skapa ett Supabase-projekt.
+2. Öppna projektets SQL-redigerare och kör hela innehållet i `supabase/schema.sql`.
+3. Under **Authentication → Users** skapar du ditt konto med e-post och lösenord. Använd ett bekräftat konto så att du kan logga in. Skapa kollegornas konton på samma sätt. Stäng av offentlig registrering i Supabases inloggningsinställningar: appen ger alla inloggade konton i projektet läsbehörighet till arbetsytan.
+4. Ge ditt konto administratörsbehörighet i SQL-redigeraren:
 
    ```sql
    update public.profiles set role = 'admin'
-   where id = (select id from auth.users where email = 'your-real-email@example.com');
+   where id = (select id from auth.users where email = 'din-riktiga-epost@example.com');
    ```
 
-   Other accounts remain `viewer`. Account roles cannot be changed from the application or through a user's browser token.
+   Övriga konton behåller rollen `viewer`. Kontoroller kan inte ändras genom appen eller med en användares inloggningstoken i webbläsaren.
 
-5. Put your project URL and browser **publishable/anon key** into `config.js`:
+5. Lägg in projektets adress och dess publika **publishable/anon-nyckel** i `config.js`:
 
    ```js
    export const config = {
-     supabaseUrl: 'https://YOUR-PROJECT.supabase.co',
-     supabaseAnonKey: 'YOUR-PUBLIC-BROWSER-KEY',
+     supabaseUrl: 'https://DITT-PROJEKT.supabase.co',
+     supabaseAnonKey: 'DIN-PUBLIKA-WEBBLASARNYCKEL',
    };
    ```
 
-   The public browser key is designed to be visible in website source. Never add a secret/service-role key, database password, access token, employee export, or medical notes to GitHub. The database functions check the authenticated user's role before reading drafts or editing.
+   Den publika nyckeln är avsedd att synas i webbplatsens källkod. Lägg aldrig en hemlig nyckel eller `service-role`-nyckel, databaslösenord, inloggningstoken, medarbetarexport eller medicinska anteckningar på GitHub. Databasfunktionerna kontrollerar användarens roll innan utkast läses eller ändras.
 
-6. Open the website and sign in as the administrator. A new cloud workspace starts empty. Add a team or import a raw state JSON backup from the demo, replace the sample names/reference date, save your draft, then publish. Import updates the draft only.
-7. Sign in with a coworker account to verify that it receives the published schedule and cannot edit it. Coworkers select their own name for the personal view.
+6. Öppna webbplatsen och logga in som administratör. En ny molnarbetsyta är tom. Under **Hantera** lägger du till ett team eller importerar en JSON-säkerhetskopia från demon. Byt ut exempelnamnen och referensdatumet, spara utkastet och välj sedan **Publicera ändringar**. Import ändrar bara utkastet.
+7. Logga in med ett kollegakonto och kontrollera att det publicerade schemat visas och att kontot inte kan redigera. Kollegor väljer sitt eget namn för att se sitt personliga schema.
 
-Authentication tokens are kept in this tab's session storage. Sessions can be refreshed while the tab is open. The first version has no self-service password reset screen or in-app account invitation flow; manage accounts and password recovery in Supabase.
+Inloggningstoken sparas i flikens sessionslagring. Inloggningen kan förnyas medan fliken är öppen. Den första versionen har ingen egen vy för lösenordsåterställning eller kontoinbjudningar. Hantera konton och lösenordsåterställning i Supabase.
 
-Drafts include absence categories and administrator notes. The server removes private note/reason fields and replaces sickness, vacation, and pension categories with generic unavailability or adjusted working hours before publication. Viewers cannot directly read the draft table, and private details are removed **before** the response reaches their browser.
+Utkast innehåller frånvarotyper och administratörens anteckningar. Servern tar bort privata anteckningar och orsaker. Sjukfrånvaro, semester och pensionsdagar visas som ledigt eller ändrade arbetstider i det publicerade schemat. Konton med läsbehörighet kan inte läsa utkasttabellen direkt. Privata uppgifter tas bort **innan** svaret skickas till kollegans webbläsare.
 
-The database rejects stale revisions when two administrators edit concurrently. Reload before retrying after a conflict. This version uses one shared workspace; all permitted coworker accounts can view all teams in it. Separate workplace permissions would require additional membership rules.
+Databasen avvisar gamla versionsnummer om två administratörer redigerar samtidigt. Ladda om sidan innan du försöker igen efter en sådan konflikt. Den här versionen använder en gemensam arbetsyta. Alla godkända kollegakonton kan se alla team i den. Separata behörigheter för olika arbetsplatser kräver ytterligare medlemskapsregler.
 
-## Publish on GitHub Pages
+## Publicera på GitHub Pages
 
-1. Create a public GitHub repository and upload the application files, including `.github/workflows/pages.yml`.
-2. Use `main` as the default branch, or update the workflow's branch name to match yours.
-3. In the repository, open Settings → Pages and choose **GitHub Actions** as the source.
-4. Push to `main` or manually run the “Publish schedule to GitHub Pages” workflow.
-5. Open the URL reported by the deployment. It will normally be `https://YOUR-NAME.github.io/YOUR-REPOSITORY/`.
-6. Use the app's sharing tools to create a team QR code from that deployed URL. A QR code created for `localhost` will not work on coworkers' phones.
+1. Skapa ett publikt GitHub-arkiv och lägg upp programfilerna, inklusive `.github/workflows/pages.yml`.
+2. Använd `main` som standardgren eller ändra grenens namn i arbetsflödet så att det stämmer med ditt arkiv.
+3. Öppna **Settings → Pages** i arkivet och välj **GitHub Actions** som källa.
+4. Skicka ändringarna till `main` eller kör arbetsflödet **Publish schedule to GitHub Pages** manuellt.
+5. Öppna adressen som publiceringen visar. Den är vanligtvis `https://DITT-NAMN.github.io/DITT-ARKIV/`.
+6. Använd appens delningsverktyg för att skapa en QR-kod för teamet med den publicerade adressen. En QR-kod som pekar på `localhost` fungerar inte på kollegornas telefoner.
 
-The workflow publishes only website assets, not the SQL schema, tests, README, or backups. Relative URLs work under a GitHub repository subpath. GitHub Pages is [available for public repositories on GitHub Free](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
+Arbetsflödet publicerar bara webbplatsens filer. SQL-schema, tester, README och säkerhetskopior publiceras inte. Relativa länkar fungerar även när webbplatsen ligger i en undermapp för GitHub-arkivet. GitHub Pages är [tillgängligt för publika arkiv med GitHub Free](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
 
-Supabase has a [free tier with limits](https://supabase.com/pricing); free projects may pause after inactivity. This is a reasonable starting setup for a small team, subject to the services' current limits. No external account or website has been created or deployed by the local setup.
+Supabase har en [gratisnivå med begränsningar](https://supabase.com/pricing). Gratisprojekt kan pausas efter inaktivitet. Det här är en möjlig start för ett litet team, inom tjänsternas aktuella gränser. Den lokala installationen skapar inga externa konton och publicerar ingen webbplats.
 
-## Backup and maintain
+## Säkerhetskopiera och underhåll
 
-Export the administrator's draft as a JSON file before major changes. Importing a backup replaces the current draft; review it and publish explicitly. Keep employee backups private. Supabase project backups and retention are separate from browser exports.
+Exportera administratörens utkast som en JSON-fil via **Säkerhetskopia** innan större ändringar. När en säkerhetskopia importeras ersätts det aktuella utkastet. Granska det och välj **Publicera ändringar** när det är klart. Förvara säkerhetskopior med medarbetaruppgifter privat. Supabase-projektets säkerhetskopior och lagringstid hanteras separat från exporterna i webbläsaren.
 
-`schemaVersion: 1` exports contain the raw schedule state (`teams`, `exceptions`, and `publishedAt`). The importer accepts that raw state, rather than a browser-storage wrapper. Cloud connection or permission failures are shown as errors; cloud mode never silently switches to local demo storage.
+Exporter med `schemaVersion: 1` innehåller schemats data direkt: `teams`, `exceptions` och `publishedAt`. Importen accepterar dessa data, inte webbläsarlagringens omslag med utkast och publicerat schema. Anslutningsfel och behörighetsfel i molnläget visas som felmeddelanden. Molnläget byter aldrig automatiskt till lokal demodata.
 
-For repeating pension days, choose a date range and select the weekdays to apply the reduced hours or absence. This creates individual dated changes that you can edit afterward. Notifications, payroll calculations, open-ended repeating absence rules, and login-to-person mapping are future additions.
+För återkommande pensionsdagar väljer du ett datumintervall och de veckodagar där kortare arbetstid eller frånvaro ska gälla. Det skapar individuella datumändringar som kan redigeras senare. Aviseringar, löneberäkning, återkommande frånvaroregler utan slutdatum och koppling mellan inloggning och person ingår ännu inte.
 
-Published rotation versions are read-only in the editor. Use **New rotation** to set a new effective Monday and rotation length, then review the copied pattern and starting positions. On an unpublished version, **Edit start date** lets you set its reference Monday. Part-time coworkers can be assigned **Cover only** to stay outside the regular rotation.
+Publicerade rotationsversioner är låsta för redigering. Välj **Ny rotation** under **Hantera** för att ange en ny startmåndag och rotationslängd. Granska sedan det kopierade mönstret och medarbetarnas startpositioner. I ett opublicerat utkast kan du använda **Redigera startdatum** för att ändra referensmåndagen. Timanställda kan anges som **Endast ersättare** för att stå utanför den ordinarie rotationen.
