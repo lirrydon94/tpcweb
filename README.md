@@ -12,7 +12,7 @@ npm run dev
 
 Öppna adressen som servern visar. Du behöver inte installera några beroenden eller bygga projektet. Låt servern vara igång medan du använder förhandsvisningen. `npm test` kontrollerar schemaberäkningarna och `npm run check` kontrollerar JavaScript-syntaxen.
 
-När `config.js` är tom används en **lokal demo**. Ändringar sparas bara i den här webbläsaren och syns inte för kollegor, på andra telefoner eller i andra webbläsarprofiler. Exportera en JSON-fil via **Säkerhetskopia** för att spara dina ändringar. Konfigurera den skyddade molnanslutningen nedan innan ni använder webbplatsen som ett gemensamt schema.
+När `config.js` är tom används det förkonfigurerade schemat i `src/default-data.js`. När du gör ändringar lokalt med `npm run dev` sparas de automatiskt till `src/default-data.js`. Om du redigerar i en separat webbläsare eller Live Server kan du köra `npm run sync` för att synka dina senaste ändringar direkt till projektfilen innan du pushar till Git. Alla medarbetare och inställningar följer då med till GitHub och GitHub Pages! Exportera även gärna en JSON-fil via **Säkerhetskopia** som extra backup.
 
 ## Så fungerar schemat
 

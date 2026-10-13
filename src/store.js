@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { seedState, publishState, validateState } from './model.js';
+import { defaultWorkspace } from './default-data.js';
 
 const LOCAL_KEY = 'skift-workspace-v1';
 const SESSION_KEY = 'skift-session-v1';
@@ -131,6 +132,25 @@ async function readCloud() {
   return clone(snapshot);
 }
 
+function syncToFile(value) {
+  if (typeof location === 'undefined') return;
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+  const payload = JSON.stringify({ working: value.working, published: value.published, revision: value.revision });
+  fetch('/api/save-workspace', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: payload,
+  }).catch(() => {
+    if (location.port !== '5173') {
+      fetch('http://127.0.0.1:5173/api/save-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(() => {});
+    }
+  });
+}
+
 function saveLocal(value) {
   try {
     localStorage.setItem(LOCAL_KEY, JSON.stringify({ working: value.working, published: value.published, revision: value.revision }));
@@ -138,6 +158,7 @@ function saveLocal(value) {
     throw new Error('Kunde inte spara på den här enheten. Kontrollera webbläsarens lagringsutrymme.');
   }
   snapshot = value;
+  syncToFile(value);
   return clone(snapshot);
 }
 
@@ -168,9 +189,8 @@ export async function init() {
     saved = null;
     warning = 'Det sparade demoschemat kunde inte läsas. Ett nytt exempel visas. Exportera en säkerhetskopia efter dina ändringar.';
   }
-  if (!saved) {
-    const working = seedState();
-    saved = { working, published: publicState(working), revision: 0 };
+  if (!saved || (defaultWorkspace?.revision && (saved.revision || 0) < defaultWorkspace.revision)) {
+    saved = clone(defaultWorkspace || { working: seedState(), published: publicState(seedState()), revision: 0 });
   }
   // Rename only the original built-in demo identity; preserve custom and cloud names.
   for (const state of [saved.working, saved.published]) {
