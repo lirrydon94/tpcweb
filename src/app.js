@@ -1,6 +1,5 @@
 import * as model from './model.js';
 import * as store from './store.js';
-import qrcode from '../assets/qrcode.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const esc = (value = '') => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -12,7 +11,6 @@ const icons = {
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   plus:'<path d="M12 5v14M5 12h14"/>', check:'<path d="m5 12 4 4L19 6"/>',
   arrow:'<path d="M5 12h14m-5-5 5 5-5 5"/>', leaf:'<path d="M20 4c-9-2-16 2-16 9a6 6 0 0 0 6 6c7 0 10-6 10-15ZM5 19l9-9"/>',
-  share:'<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3v3h3v3h-6v-3m6-3v-3M3 12h3m6-9v3m0 6h3"/>',
   download:'<path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/>',
   edit:'<path d="m16 3 5 5L9 20l-6 1 1-6L16 3ZM13 6l5 5"/>',
   close:'<path d="m6 6 12 12M18 6 6 18"/>', moon:'<path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z"/>',
@@ -53,15 +51,14 @@ function shell() {
   const team = currentTeam(), member = currentMember(team);
   const nav = (mobile = false) => [['schedule','calendar','Schema'],...(admin() ? [['admin','settings','Hantera']] : [])].map(([view,ico,text]) => `<button class="nav-item ${ui.view === view ? 'active' : ''}" data-action="view" data-view="${view}">${icon(ico)}<span>${text}</span>${!mobile && ui.view === view ? '<span class="nav-dot"></span>' : ''}</button>`).join('');
   $('#app').innerHTML = `<div class="app-shell">
-    <aside class="sidebar"><a class="brand" href="./" aria-label="Skift startsida"><span class="brand-mark">${icon('calendar')}</span>skift<span class="brand-period">.</span></a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav><div class="sidebar-bottom"><div class="help-card">${icon('leaf')}<strong>Mindre planering.<br>Mer tid för livet.</strong><p>Ditt nästa pass, alltid nära.</p></div><div class="profile">${avatar({name:admin()?'Schemaadministratör':'Medarbetare'},0)}<div><strong>${admin()?'Schemaadministratör':'Medarbetare'}</strong><span>${workspace.mode === 'demo' ? 'Demoläge' : esc(workspace.user?.email || 'Inloggad')}</span></div>${workspace.mode === 'cloud' ? `<button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button>` : ''}</div></div></aside>
-    <div class="main-shell"><header class="topbar"><a class="brand mobile-brand" href="./"><span class="brand-mark">${icon('calendar')}</span>skift<span class="brand-period">.</span></a><div class="top-context"><span class="live-dot"></span> Teamets arbetsyta</div><div class="top-actions">${team ? `<label class="team-select">${icon('team')}<select id="team-select" aria-label="Välj team">${(ui.view==='admin'?workspace.working.teams:data()?.teams || []).map(t => `<option value="${esc(t.id)}" ${t.id===team.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label>` : ''}${admin() ? `<button class="icon-btn" data-action="share" aria-label="Dela teamets schema">${icon('share')}</button>` : ''}${avatar(member || {name:'Skift'},2,true)}</div></header>
-    ${workspace.mode === 'demo' ? `<div class="demo-notice"><span>${icon('info')}<strong>Demoläge</strong> <span class="demo-detail">Ändringar sparas på den här enheten.</span></span><button data-action="setup">Anslut ditt team ${icon('arrow')}</button></div>` : ''}
+    <aside class="sidebar"><a class="brand" href="./" aria-label="RSSB startsida"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav>${workspace.mode === 'cloud' ? `<div class="sidebar-bottom"><button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button></div>` : ''}</aside>
+    <div class="main-shell"><header class="topbar"><a class="brand mobile-brand" href="./"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><div class="top-context"><span class="live-dot"></span> Teamets arbetsyta</div><div class="top-actions">${team ? `<label class="team-select">${icon('team')}<select id="team-select" aria-label="Välj team">${(ui.view==='admin'?workspace.working.teams:data()?.teams || []).map(t => `<option value="${esc(t.id)}" ${t.id===team.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label>` : ''}</div></header>
     <main id="content" tabindex="-1">${ui.view==='admin' ? adminView() : team ? scheduleView() : emptyWorkspace()}</main>
     <footer class="page-footer"><span>För en enklare arbetsdag.</span><span>${workspace.published?.publishedAt ? `Publicerat ${new Date(workspace.published.publishedAt).toLocaleDateString('sv-SE',{day:'numeric',month:'short'})}` : 'Inget schema publicerat ännu'}</span></footer>
     </div><nav class="mobile-nav" aria-label="Mobilnavigation">${nav(true)}</nav>
   </div>`;
   if(workspace.mode==='cloud'){const refresh=document.createElement('button');refresh.className='icon-btn';refresh.dataset.action='refresh';refresh.setAttribute('aria-label','Uppdatera schemat');refresh.innerHTML=icon('refresh');$('.top-actions').prepend(refresh);}
-  if (ui.view === 'admin' && ui.adminTab === 'rotation') { lockPublishedVersion(); bindRotationDrag(); }
+  if (ui.view === 'admin' && ui.adminTab === 'rotation') { setupRotationAdmin(); bindRotationDrag(); }
 }
 
 function dateRange() {
@@ -74,7 +71,7 @@ function heading() {
   const week = model.isoWeek(ui.date);
   return `<div class="page-heading"><div><div class="eyebrow">${ui.period==='week' ? `KALENDERVECKA ${week.week}` : 'TEAMETS SCHEMA'}</div><h1>Teamets schema.</h1><p>Se vilka som jobbar och när ni arbetar tillsammans.</p></div></div>
   <div class="schedule-toolbar"><div class="date-navigation"><button class="icon-btn" data-action="navigate" data-step="-1" aria-label="Föregående ${periodLabel(ui.period).toLowerCase()}">${icon('left')}</button><strong>${dateRange()}</strong><button class="icon-btn" data-action="navigate" data-step="1" aria-label="Nästa ${periodLabel(ui.period).toLowerCase()}">${icon('right')}</button><button class="today-btn" data-action="today">Idag</button></div><div class="view-controls"><label class="date-picker" title="Gå till ett datum">${icon('calendar')}<span>Välj datum</span><input id="jump-date" type="date" value="${ui.date}" aria-label="Gå till ett datum"></label><div class="segmented" aria-label="Schemaperiod">${['week','month'].map(p=>`<button data-action="period" data-period="${p}" class="${ui.period===p?'selected':''}" aria-pressed="${ui.period===p}">${periodLabel(p)}</button>`).join('')}</div></div></div>
-  ${admin() ? `<div class="published-label"><span class="${ui.previewDraft?'draft-dot':'live-dot'}"></span>${ui.previewDraft ? 'Förhandsvisning av utkast' : 'Publicerat schema'}<label class="preview-toggle"><input id="preview-draft" type="checkbox" ${ui.previewDraft?'checked':''}> Visa utkast</label></div>` : ''}`;
+  ${admin() && ui.previewDraft ? `<div class="published-label"><span class="draft-dot"></span>Förhandsvisning av utkast</div>` : ''}`;
 }
 
 function scheduleView() {
@@ -104,16 +101,49 @@ function rosterView(team) {
   const home=team.members.filter(m=>(!m.activeUntil||m.activeUntil>dates[0])&&m.activeFrom<=dates[6]);
   const visitors=[...new Set(Object.values(assignments).flat().map(s=>s.memberId))].filter(id=>!home.some(m=>m.id===id)).map(findMember).filter(Boolean);
   const members=[...home,...visitors], version=model.activeVersion(team,ui.date);
-  const control=(text,kind,member,date,canEdit)=>canEdit?'<button class="roster-control '+kind+'" data-action="roster-edit" data-member="'+esc(member.id)+'" data-date="'+date+'" aria-label="'+(kind==='status'?'Status':'Ersättare')+' för '+esc(member.name)+', '+fmt(date,{day:'numeric',month:'long'})+'"><span>'+esc(text)+'</span>'+icon('edit')+'</button>':'<span class="roster-value '+kind+'">'+esc(text)+'</span>';
+  const control=(text,kind,member,date,canEdit)=>{
+    if(!text)return '';
+    return canEdit?'<button class="roster-control '+kind+'" data-action="roster-edit" data-member="'+esc(member.id)+'" data-date="'+date+'" aria-label="'+(kind==='status'?'Status':'Ersättare')+' för '+esc(member.name)+', '+fmt(date,{day:'numeric',month:'long'})+'"><span>'+esc(text)+'</span>'+icon('edit')+'</button>':'<span class="roster-value '+kind+'">'+esc(text)+'</span>';
+  };
   const rows=members.map((m,i)=>{
     const isHome=home.some(p=>p.id===m.id), position=isHome&&version?model.rotationPosition(version,m.id,ui.date):0;
     const cells=dates.map(d=>({date:d,shifts:assignments[d].filter(a=>a.memberId===m.id),exception:state.exceptions.find(e=>e.teamId===team.id&&e.memberId===m.id&&e.date===d),main:isHome?model.getShift(state,team.id,m.id,d):null,active:isHome&&m.activeFrom<=d&&(!m.activeUntil||m.activeUntil>d)}));
-    const shiftCells=cells.map(c=>'<td class="'+(c.date===today()?'roster-today':'')+'">'+(c.shifts.length?c.shifts.map(a=>'<div class="roster-shift '+esc(a.color||colorFor(team,c.date,a.code))+'"><b>'+esc(a.code||'↗')+(a.type==='cover'?' ↗':'')+'</b><span>'+a.start+'–'+a.end+'</span></div>').join(''):'<div class="roster-off">'+(c.exception&&c.main?.code?'<s>'+esc(c.main.code)+'</s>':'—')+'<span>'+(c.active?'Ledig':isHome?'Ej aktiv':'Inget pass')+'</span></div>')+'</td>').join('');
-    const statuses=cells.map(c=>'<td>'+control(c.exception?(editable?label(c.exception.type):c.shifts.length?'Anpassat pass':'Ledig'):c.shifts.some(a=>a.type==='cover')?'Ersättningspass':c.shifts.length?'Ordinarie':'—','status',m,c.date,editable&&c.active)+'</td>').join('');
-    const replacements=cells.map(c=>{const replacement=c.exception?.replacementId?findMember(c.exception.replacementId):null;return '<td>'+control(replacement?.name||(editable&&c.main?.needsCoverage?'Behövs':'—'),'replacement',m,c.date,editable&&c.active)+(replacement?'<small class="roster-cover-time">'+(c.exception.replacementStart||c.main?.originalStart||'')+'–'+(c.exception.replacementEnd||c.main?.originalEnd||'')+'</small>':'')+'</td>';}).join('');
-    return '<tbody class="roster-person"><tr class="roster-shifts"><th scope="row" class="roster-name"><div class="roster-person-label">'+avatar(m,i,true)+'<span>'+esc(m.name)+'<small>'+(position?'Schemavecka '+position:isHome?'Timvikarie':'Gästande ersättare')+'</small></span></div></th>'+shiftCells+'</tr><tr class="roster-meta"><th scope="row">Status</th>'+statuses+'</tr><tr class="roster-meta roster-last"><th scope="row">Ersättare</th>'+replacements+'</tr></tbody>';
+    const shiftCells=cells.map(c=>{
+      const isToday=c.date===today();
+      const editAttr=(editable&&c.active)?' data-action="roster-edit" data-member="'+esc(m.id)+'" data-date="'+c.date+'" role="button" tabindex="0" title="Ändra pass för '+esc(m.name)+', '+fmt(c.date,{day:'numeric',month:'short'})+'"':'';
+      const offText=c.exception?label(c.exception.type):(c.active?'Ledig':isHome?'Ej aktiv':'Inget pass');
+      const content=c.shifts.length?c.shifts.map(a=>'<div class="roster-shift '+esc(a.color||colorFor(team,c.date,a.code))+'"><b>'+esc(a.code||'↗')+(a.type==='cover'?' ↗':'')+'</b><span>'+a.start+'–'+a.end+'</span></div>').join(''):'<div class="roster-off">'+(c.exception&&c.main?.code?'<s>'+esc(c.main.code)+'</s>':'—')+'<span>'+offText+'</span></div>';
+      return '<td class="'+(isToday?'roster-today':'')+(editable&&c.active?' roster-editable':'')+'"'+editAttr+'>'+content+'</td>';
+    }).join('');
+
+    const hasAnyStatus=cells.some(c=>c.exception||c.shifts.some(a=>a.type==='cover'));
+    const hasAnyReplacement=cells.some(c=>c.exception?.replacementId||(editable&&c.main?.needsCoverage));
+
+    const statuses=cells.map(c=>{
+      const text=c.exception?label(c.exception.type):c.shifts.some(a=>a.type==='cover')?'Ersättningspass':'';
+      return '<td>'+control(text,'status',m,c.date,editable&&c.active)+'</td>';
+    }).join('');
+
+    const replacements=cells.map(c=>{
+      const replacement=c.exception?.replacementId?findMember(c.exception.replacementId):null;
+      const text=replacement?.name||(editable&&c.main?.needsCoverage?'Behövs':'');
+      const time=replacement?'<small class="roster-cover-time">'+(c.exception.replacementStart||c.main?.originalStart||'')+'–'+(c.exception.replacementEnd||c.main?.originalEnd||'')+'</small>':'';
+      return '<td>'+(text?control(text,'replacement',m,c.date,editable&&c.active)+time:'')+'</td>';
+    }).join('');
+
+    let metaRows='';
+    if(hasAnyStatus&&hasAnyReplacement){
+      metaRows='<tr class="roster-meta"><th scope="row">Status</th>'+statuses+'</tr><tr class="roster-meta roster-last"><th scope="row">Ersättare</th>'+replacements+'</tr>';
+    }else if(hasAnyStatus){
+      metaRows='<tr class="roster-meta roster-last"><th scope="row">Status</th>'+statuses+'</tr>';
+    }else if(hasAnyReplacement){
+      metaRows='<tr class="roster-meta roster-last"><th scope="row">Ersättare</th>'+replacements+'</tr>';
+    }
+
+    const shiftRowClass=metaRows?'roster-shifts':'roster-shifts roster-last';
+    return '<tbody class="roster-person"><tr class="'+shiftRowClass+'"><th scope="row" class="roster-name"><div class="roster-person-label">'+avatar(m,i,true)+'<span>'+esc(m.name)+'<small>'+(position?'Schemavecka '+position:isHome?'Timvikarie':'Gästande ersättare')+'</small></span></div></th>'+shiftCells+'</tr>'+metaRows+'</tbody>';
   }).join('');
-  return '<section class="roster-panel"><div class="roster-heading"><div><div class="eyebrow">VECKANS BEMANNING</div><h2>'+esc(team.name)+'</h2><p>'+members.length+' medarbetare · '+Object.values(assignments).flat().length+' pass</p></div>'+(admin()?'<button class="'+(editable?'secondary-btn':'primary-btn')+'" data-action="'+(editable?'roster-publish':'roster-draft')+'">'+icon(editable?'check':'edit')+(editable?'Publicera ändringar':'Redigera veckan')+'</button>':'')+'</div><div class="roster-guide">'+icon('info')+'<span>'+(editable?'Tryck på status eller ersättare för att ändra ett pass. Ändringar sparas som utkast.':'Passkod och arbetstid visas överst. Status och ersättare visas under varje pass.')+'</span><span class="swipe-hint">Svep för fler dagar →</span></div><div class="roster-scroll" tabindex="0" role="region" aria-label="Teamets veckoschema, rulla i sidled för fler dagar"><table class="roster-table"><caption class="sr-only">'+esc(team.name)+', kalendervecka '+model.isoWeek(ui.date).week+'</caption><colgroup><col class="roster-name-col">'+dates.map(()=>'<col>').join('')+'</colgroup><thead><tr><th scope="col" class="roster-corner">Medarbetare<span>Vecka '+model.isoWeek(ui.date).week+'</span></th>'+dates.map((d,i)=>'<th scope="col" class="'+(d===today()?'roster-today':'')+' '+(i>4?'roster-weekend':'')+'"><span>'+weekdayNames[i]+'</span><strong>'+fmt(d,{day:'numeric',month:'short'})+'</strong>'+(d===today()?'<small>Idag</small>':'')+'</th>').join('')+'</tr></thead>'+rows+'</table></div><div class="roster-legend">'+Object.entries(version?.shifts||{}).map(([code,shift])=>'<span><b class="code-badge '+esc(shift.color)+'">'+esc(code)+'</b>'+shift.start+'–'+shift.end+'</span>').join('')+'</div></section>';
+  return '<section class="roster-panel"><div class="roster-guide">'+icon('info')+'<span>'+(editable?'Tryck på ett pass, status eller ersättare för att ändra. Ändringar sparas som utkast.':'Passkod och arbetstid visas i schemat. Ändrad status och ersättare visas för de dagar som avviker från ordinarie.')+'</span><span class="swipe-hint">Svep för fler dagar →</span></div><div class="roster-scroll" tabindex="0" role="region" aria-label="Teamets veckoschema, rulla i sidled för fler dagar"><table class="roster-table"><caption class="sr-only">'+esc(team.name)+', kalendervecka '+model.isoWeek(ui.date).week+'</caption><colgroup><col class="roster-name-col">'+dates.map(()=>'<col>').join('')+'</colgroup><thead><tr><th scope="col" class="roster-corner">Medarbetare<span>Vecka '+model.isoWeek(ui.date).week+'</span></th>'+dates.map((d,i)=>'<th scope="col" class="'+(d===today()?'roster-today':'')+' '+(i>4?'roster-weekend':'')+'"><span>'+weekdayNames[i]+'</span><strong>'+fmt(d,{day:'numeric',month:'short'})+'</strong>'+(d===today()?'<small>Idag</small>':'')+'</th>').join('')+'</tr></thead>'+rows+'</table></div><div class="roster-legend">'+Object.entries(version?.shifts||{}).map(([code,shift])=>'<span><b class="code-badge '+esc(shift.color)+'">'+esc(code)+'</b>'+shift.start+'–'+shift.end+'</span>').join('')+'</div></section>';
 }
 const findMember = id => (ui.view==='admin'?workspace.working?.teams:data()?.teams || []).flatMap(t=>t.members).find(m=>m.id===id);
 
@@ -122,7 +152,7 @@ function emptyWorkspace() {return empty('Din arbetsyta är redo','Lägg till dit
 function adminView() {
   const teams=workspace.working.teams, team=teams.find(t=>t.id===ui.teamId)||teams[0];
   const tabs=[['people','Medarbetare'],['rotation','Grundschema'],['changes','Ändringar']];
-  return `<div class="page-heading admin-heading"><div><div class="eyebrow">SCHEMAADMINISTRATION</div><h1>Ett schema som passar.</h1><p>Hantera teamets grundschema och individuella ändringar.</p></div><button class="primary-btn" data-action="publish" ${ui.busy?'disabled':''}>${icon('check')} Publicera ändringar</button></div><div class="admin-status">${icon('edit')}<span>Arbetsutkast · ändringar visas för medarbetarna efter publicering.</span><button class="text-button" data-action="preview">Förhandsvisa ${icon('arrow')}</button></div><div class="admin-toolbar"><label>Team<select id="admin-team-select">${teams.map(t=>`<option value="${esc(t.id)}" ${t.id===team?.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label><button class="secondary-btn" data-action="add-team">${icon('plus')} Lägg till team</button><button class="icon-btn" data-action="settings" aria-label="Teaminställningar" ${!team?'disabled':''}>${icon('settings')}</button><button class="icon-btn" data-action="share" aria-label="Dela team" ${!team?'disabled':''}>${icon('share')}</button></div>${team?`<div class="admin-tabs" role="tablist">${tabs.map(([id,name])=>`<button role="tab" aria-selected="${ui.adminTab===id}" class="${ui.adminTab===id?'active':''}" data-action="admin-tab" data-tab="${id}">${name}${id==='changes'?`<span>${workspace.working.exceptions.filter(e=>e.teamId===team.id).length}</span>`:''}</button>`).join('')}</div>${ui.adminTab==='people'?peopleAdmin(team):ui.adminTab==='rotation'?rotationAdmin(team):changesAdmin(team)}`:emptyWorkspace()}<div class="backup-bar"><span>${icon('download')} Spara en kopia av ditt schema.</span><button class="text-button" data-action="export">Exportera säkerhetskopia</button><label class="text-button import-label">Importera säkerhetskopia<input id="import-file" type="file" accept="application/json,.json"></label></div>`;
+  return `<div class="page-heading admin-heading"><div><div class="eyebrow">SCHEMAADMINISTRATION</div><h1>Ett schema som passar.</h1><p>Hantera teamets grundschema och individuella ändringar.</p></div><button class="primary-btn" data-action="publish" ${ui.busy?'disabled':''}>${icon('check')} Publicera ändringar</button></div><div class="admin-status">${icon('edit')}<span>Arbetsutkast · ändringar visas för medarbetarna efter publicering.</span><button class="text-button" data-action="preview">Förhandsvisa ${icon('arrow')}</button></div><div class="admin-toolbar"><label>Team<select id="admin-team-select">${teams.map(t=>`<option value="${esc(t.id)}" ${t.id===team?.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label><button class="secondary-btn" data-action="add-team">${icon('plus')} Lägg till team</button><button class="icon-btn" data-action="settings" aria-label="Teaminställningar" ${!team?'disabled':''}>${icon('settings')}</button></div>${team?`<div class="admin-tabs" role="tablist">${tabs.map(([id,name])=>`<button role="tab" aria-selected="${ui.adminTab===id}" class="${ui.adminTab===id?'active':''}" data-action="admin-tab" data-tab="${id}">${name}${id==='changes'?`<span>${workspace.working.exceptions.filter(e=>e.teamId===team.id).length}</span>`:''}</button>`).join('')}</div>${ui.adminTab==='people'?peopleAdmin(team):ui.adminTab==='rotation'?rotationAdmin(team):changesAdmin(team)}`:emptyWorkspace()}<div class="backup-bar"><span>${icon('download')} Spara en kopia av ditt schema.</span><button class="text-button" data-action="export">Exportera säkerhetskopia</button><label class="text-button import-label">Importera säkerhetskopia<input id="import-file" type="file" accept="application/json,.json"></label></div>`;
 }
 function peopleAdmin(team) {
   const version=model.activeVersion(team,ui.date)||team.versions.at(-1), members=team.members;
@@ -133,7 +163,11 @@ function rotationAdmin(team) {
   const version=team.versions.find(v=>v.id===editingVersionId)||model.activeVersion(team,ui.date)||team.versions.at(-1);
   if(!version)return empty('Inget grundschema ännu','Skapa ett grundschema för teamet.','new-rotation','Skapa grundschema');
   editingVersionId=version.id;
-  return `<section class="admin-panel rotation-panel"><div class="panel-heading"><div><h2>Det återkommande grundschemat</h2><p>Välj ett pass i varje ruta. En tom ruta betyder ledig.</p></div><button class="secondary-btn" data-action="new-rotation">${icon('plus')} Ny rotation</button></div><div class="rotation-settings"><label>Schemaversion<select id="version-select">${[...team.versions].sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom)).map(v=>`<option value="${esc(v.id)}" ${v.id===version.id?'selected':''}>Från ${v.effectiveFrom} · ${weeksLabel(v.rotation.length)}</option>`).join('')}</select></label><div><span>Referensmåndag</span><strong>${fmt(version.referenceMonday,{day:'numeric',month:'short',year:'numeric'})}</strong></div><div><span>Antal schemaveckor</span><strong>${weeksLabel(version.rotation.length)}</strong></div></div><div class="rotation-scroll"><table class="rotation-table"><thead><tr><th>Vecka</th>${weekdayLabels.map(d=>`<th>${d}</th>`).join('')}<th></th></tr></thead><tbody>${version.rotation.map((row,i)=>`<tr draggable="true" data-row="${i}"><th><span class="drag-handle" title="Dra för att ändra ordning">⠿</span> ${i+1}</th>${row.map((code,j)=>`<td><select class="rotation-cell ${version.shifts[code]?.color || ''}" data-row="${i}" data-day="${j}" aria-label="Vecka ${i+1}, ${weekdayNames[j]}"><option value="">—</option>${Object.keys(version.shifts).map(c=>`<option value="${esc(c)}" ${c===code?'selected':''}>${esc(c)}</option>`).join('')}</select></td>`).join('')}<td><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="-1" aria-label="Flytta vecka ${i+1} uppåt" ${i===0?'disabled':''}>↑</button><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="1" aria-label="Flytta vecka ${i+1} nedåt" ${i===version.rotation.length-1?'disabled':''}>↓</button></td></tr>`).join('')}</tbody></table></div><div class="rotation-footnote">${icon('info')} På mobilen kan du svepa tabellen i sidled. Använd pilarna för att ändra veckornas ordning.</div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Startpositioner</h2><p>Varje medarbetares schemavecka den ${fmt(version.referenceMonday,{day:'numeric',month:'short',year:'numeric'})}.</p></div></div><div class="positions-list">${team.members.map((m,i)=>`<label>${avatar(m,i,true)}<span>${esc(m.name)}</span><select class="position-select" data-member="${esc(m.id)}" aria-label="Startvecka för ${esc(m.name)}">${version.rotation.map((_,j)=>`<option value="${j+1}" ${Number(version.positions[m.id])===j+1?'selected':''}>Vecka ${j+1}</option>`).join('')}</select></label>`).join('')}</div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Passtider</h2><p>Tiderna gäller för den här schemaversionen.</p></div><button class="secondary-btn" data-action="add-shift">${icon('plus')} Lägg till pass</button></div><div class="shift-definitions">${Object.entries(version.shifts).map(([code,s])=>`<button data-action="edit-shift" data-code="${esc(code)}"><span class="code-badge ${esc(s.color)}">${esc(code)}</span><strong>${s.start}–${s.end}</strong>${icon('edit')}</button>`).join('')}</div></section>`;
+  const currentMon=model.mondayOf(today());
+  const refMon=version.referenceMonday;
+  const isCurrentWeek=refMon===currentMon;
+  const weeksPassed=Math.round((Date.parse(currentMon)-Date.parse(refMon))/604800000);
+  return `<section class="admin-panel rotation-panel"><div class="panel-heading"><div><h2>Det återkommande grundschemat</h2><p>Välj ett pass i varje ruta. En tom ruta betyder ledig.</p></div><button class="secondary-btn" data-action="new-rotation">${icon('plus')} Ny rotation</button></div><div class="rotation-settings"><label>Schemaversion<select id="version-select">${[...team.versions].sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom)).map(v=>`<option value="${esc(v.id)}" ${v.id===version.id?'selected':''}>Från ${v.effectiveFrom} · ${weeksLabel(v.rotation.length)}</option>`).join('')}</select></label><div class="reference-monday-control"><label for="reference-monday-input">Startmåndag (referensvecka)<div class="reference-monday-input-wrap"><input id="reference-monday-input" type="date" value="${version.referenceMonday}" title="Välj startmåndag"><button type="button" class="secondary-btn sync-week-btn" data-action="sync-reference-today" title="Sätt startmåndag till nuvarande vecka">${isCurrentWeek?'✓ Denna vecka':`Sätt till denna vecka (v. ${model.isoWeek(today()).week})`}</button></div></label><span class="reference-monday-caption">Vecka ${model.isoWeek(refMon).week} (${fmt(refMon,{day:'numeric',month:'short',year:'numeric'})}) ${weeksPassed!==0?`· ${weeksPassed>0?`${weeksPassed} v sedan start`:`om ${Math.abs(weeksPassed)} v`}`:'· Nuvarande vecka'}</span></div><div><span>Antal schemaveckor</span><strong>${weeksLabel(version.rotation.length)}</strong></div><button class="text-button" data-action="version-dates" title="Gäller från måndag m.m.">Fler datuminställningar</button></div><div class="rotation-scroll"><table class="rotation-table"><thead><tr><th>Vecka</th>${weekdayLabels.map(d=>`<th>${d}</th>`).join('')}<th></th></tr></thead><tbody>${version.rotation.map((row,i)=>`<tr draggable="true" data-row="${i}"><th><span class="drag-handle" title="Dra för att ändra ordning">⠿</span> ${i+1}</th>${row.map((code,j)=>`<td><select class="rotation-cell ${version.shifts[code]?.color || ''}" data-row="${i}" data-day="${j}" aria-label="Vecka ${i+1}, ${weekdayNames[j]}"><option value="">—</option>${Object.keys(version.shifts).map(c=>`<option value="${esc(c)}" ${c===code?'selected':''}>${esc(c)}</option>`).join('')}</select></td>`).join('')}<td><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="-1" aria-label="Flytta vecka ${i+1} uppåt" ${i===0?'disabled':''}>↑</button><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="1" aria-label="Flytta vecka ${i+1} nedåt" ${i===version.rotation.length-1?'disabled':''}>↓</button></td></tr>`).join('')}</tbody></table></div><div class="rotation-footnote">${icon('info')} På mobilen kan du svepa tabellen i sidled. Använd pilarna för att ändra veckornas ordning.</div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Startpositioner & Veckorotation</h2><p>Varje medarbetares schemavecka den ${fmt(version.referenceMonday,{day:'numeric',month:'short',year:'numeric'})} (v. ${model.isoWeek(version.referenceMonday).week}).</p></div><div class="rotation-shift-actions"><span class="shift-hint">Flytta teamets vecka:</span><div class="button-group"><button type="button" class="secondary-btn shift-btn" data-action="shift-team-rotation" data-step="-1" title="Flytta alla medarbetares rotation 1 vecka bakåt">◀ -1 vecka</button><button type="button" class="secondary-btn shift-btn" data-action="shift-team-rotation" data-step="1" title="Flytta alla medarbetares rotation 1 vecka framåt">+1 vecka ▶</button></div></div></div><div class="positions-list">${team.members.map((m,i)=>`<div class="position-row">${avatar(m,i,true)}<div class="position-info"><strong>${esc(m.name)}</strong></div><select class="position-select" data-member="${esc(m.id)}" aria-label="Startvecka för ${esc(m.name)}">${m.role==='part-time'?`<option value="0" ${!version.positions[m.id]?'selected':''}>Endast ersättningspass</option>`:''}${version.rotation.map((_,j)=>`<option value="${j+1}" ${Number(version.positions[m.id])===j+1?'selected':''}>Vecka ${j+1}</option>`).join('')}</select></div>`).join('')}</div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Passtider</h2><p>Tiderna gäller för den här schemaversionen.</p></div><button class="secondary-btn" data-action="add-shift">${icon('plus')} Lägg till pass</button></div><div class="shift-definitions">${Object.entries(version.shifts).map(([code,s])=>`<button data-action="edit-shift" data-code="${esc(code)}"><span class="code-badge ${esc(s.color)}">${esc(code)}</span><strong>${s.start}–${s.end}</strong>${icon('edit')}</button>`).join('')}</div></section>`;
 }
 function changesAdmin(team) {
   const changes=workspace.working.exceptions.filter(e=>e.teamId===team.id).sort((a,b)=>b.date.localeCompare(a.date));
@@ -155,24 +189,16 @@ async function save(next, message='Sparat i ditt utkast') {
 const workingTeam = () => workspace.working.teams.find(t=>t.id===ui.teamId)||workspace.working.teams[0];
 const editingVersion = team => team.versions.find(v=>v.id===editingVersionId)||team.versions.at(-1);
 const copy = () => structuredClone(workspace.working);
-const versionPublished = version => workspace.published?.teams.some(t=>t.versions.some(v=>v.id===version?.id));
-function lockPublishedVersion() {
-  const team=workingTeam(), version=editingVersion(team), published=versionPublished(version);
-  if(published){
-    document.querySelectorAll('.rotation-cell,.position-select,.row-move,.shift-definitions button,[data-action="add-shift"]').forEach(el=>el.disabled=true);
-    document.querySelectorAll('.rotation-table tbody tr').forEach(el=>el.draggable=false);
-    const notice=document.createElement('div');notice.className='info-card rotation-lock';notice.innerHTML=`${icon('check')}<p><strong>Den här versionen är publicerad.</strong> Skapa ett nytt grundschema för framtida ändringar. Tidigare scheman bevaras.</p><button class="text-button" data-action="new-rotation">Ny rotation ${icon('arrow')}</button>`;$('.rotation-panel').before(notice);
-  }else {
-    const button=document.createElement('button');button.className='text-button';button.dataset.action='version-dates';button.textContent='Ändra startdatum';$('.rotation-settings').append(button);
-  }
+function setupRotationAdmin() {
+  const team=workingTeam(), version=editingVersion(team);
   document.querySelectorAll('.position-select').forEach(select=>{
     const member=team.members.find(m=>m.id===select.dataset.member);
-    if(member?.role==='part-time'){const option=document.createElement('option');option.value='0';option.textContent='Endast ersättningspass';select.prepend(option);if(!version.positions[member.id])select.value='0';}
+    if(member?.role==='part-time'&&!select.querySelector('option[value="0"]')){const option=document.createElement('option');option.value='0';option.textContent='Endast ersättningspass';select.prepend(option);if(!version.positions[member.id])select.value='0';}
   });
 }
 function versionDates() {
-  const team=workingTeam(),version=editingVersion(team);if(versionPublished(version))throw new Error('Skapa ett nytt grundschema för att ändra en publicerad version.');
-  modal('Välj grundschemats startdatum.','Startpositionerna gäller på referensmåndagen. Kontrollera dem när du ändrar datumen.',`<label>Gäller från måndag<input name="effective" type="date" value="${version.effectiveFrom}" required></label><label>Referensmåndag<input name="reference" type="date" value="${version.referenceMonday}" required></label>`,async f=>{const effective=f.get('effective'),reference=f.get('reference');if(model.mondayOf(effective)!==effective||model.mondayOf(reference)!==reference)throw new Error('Båda datumen måste vara måndagar.');if(team.versions.some(v=>v.id!==version.id&&v.effectiveFrom===effective))throw new Error('En annan version börjar redan det datumet.');const next=copy(),target=next.teams.find(t=>t.id===team.id).versions.find(v=>v.id===version.id);target.effectiveFrom=effective;target.referenceMonday=reference;await save(next,'Schemats datum har uppdaterats');});
+  const team=workingTeam(),version=editingVersion(team);
+  modal('Välj grundschemats startdatum.','Startpositionerna gäller på referensmåndagen. Kontrollera dem när du ändrar datumen.',`<label>Gäller från måndag<input name="effective" type="date" value="${version.effectiveFrom}" required></label><label>Referensmåndag<input name="reference" type="date" value="${version.referenceMonday}" required></label>`,async f=>{const effective=model.mondayOf(f.get('effective')),reference=model.mondayOf(f.get('reference'));if(team.versions.some(v=>v.id!==version.id&&v.effectiveFrom===effective))throw new Error('En annan version börjar redan det datumet.');const next=copy(),target=next.teams.find(t=>t.id===team.id).versions.find(v=>v.id===version.id);target.effectiveFrom=effective;target.referenceMonday=reference;await save(next,'Schemats datum har uppdaterats');});
 }
 
 function addTeam() {
@@ -203,7 +229,6 @@ function newRotation() {
 }
 function shiftModal(code) {
   const team=workingTeam(), version=editingVersion(team), shift=version.shifts[code];
-  if(versionPublished(version))throw new Error('Skapa ett nytt grundschema för att ändra publicerade passtider.');
   modal(code?`Redigera pass ${esc(code)}`:'Lägg till ett pass','Välj passkod, tider och färg för den här schemaversionen.',`<label>Passkod<input name="code" value="${esc(code||'')}" required maxlength="6" ${code?'readonly':''} pattern="[A-Za-z0-9]+"></label><div class="form-grid"><label>Börjar<input name="start" type="time" value="${shift?.start||'07:00'}" required></label><label>Slutar<input name="end" type="time" value="${shift?.end||'16:00'}" required></label></div><label>Färg<select name="color">${['amber','mint','blue','lavender','purple','teal','rose','peach','sage'].map(c=>`<option value="${c}" ${shift?.color===c?'selected':''}>${colorLabel(c)}</option>`).join('')}</select></label><p class="field-note">Om sluttiden är tidigare än starttiden fortsätter passet nästa dag.</p>`,async f=>{
     const newCode=f.get('code').toUpperCase();if(!code&&version.shifts[newCode])throw new Error('Den här passkoden finns redan.');if(f.get('start')===f.get('end'))throw new Error('Start- och sluttid måste vara olika.');const next=copy(), target=next.teams.find(t=>t.id===team.id).versions.find(v=>v.id===version.id);target.shifts[newCode]={start:f.get('start'),end:f.get('end'),color:f.get('color')};await save(next,'Passet har sparats');
   });
@@ -234,46 +259,21 @@ function teamSettings() {
   modal('Teaminställningar','Ge teamet ett namn som medarbetarna känner igen.',`<label>Teamnamn<input name="name" value="${esc(team.name)}" required maxlength="60"></label>`,async f=>{const name=f.get('name').trim();if(!name)throw new Error('Ange ett teamnamn.');const next=copy();next.teams.find(t=>t.id===team.id).name=name;await save(next);});
 }
 
-function websiteUrl(value) {
-  try { return new URL(value); } catch { throw new Error('Ange en giltig webbadress.'); }
-}
-function shareModal() {
-  const team=workingTeam()||currentTeam();if(!team)return;
-  const local=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-  const base=local?(localStorage.getItem('skift-published-url')||''):location.origin+location.pathname;
-  modal('En skanning. Hela veckan.',local?'Ange adressen till den publicerade webbplatsen för att skapa en QR-kod som medarbetarna kan skanna.':'Skriv ut koden för teamet. Den öppnar alltid den aktuella veckan.',`<label>Publicerad webbadress<input name="url" type="url" id="share-url" value="${esc(base)}" placeholder="https://dittnamn.github.io/ditt-repository/" required></label><div id="qr-output" class="qr-output"><span>Teamets QR-kod visas här.</span></div><p class="field-note">Team: ${esc(team.name)}. QR-koden innehåller bara länken till webbplatsen. Medarbetarna loggar in när teamet är anslutet.</p>`,async f=>{
-    const url=websiteUrl(f.get('url'));if(!['https:','http:'].includes(url.protocol))throw new Error('Använd en webbadress som börjar med https://.');if(['localhost','127.0.0.1'].includes(url.hostname))throw new Error('Använd den publicerade adressen så att mobiler kan öppna den.');url.search='';url.searchParams.set('team',team.id);localStorage.setItem('skift-published-url',f.get('url'));drawQR(url.toString());
-    try {await navigator.clipboard.writeText(url.toString());toast('Teamlänken har kopierats');}catch{toast('Teamlänken visas under koden.');}
-  },{submit:'Kopiera teamlänk',eyebrow:'DELA TEAMETS SCHEMA'});
-  const field=$('#share-url');field.addEventListener('input',()=>{try{const url=websiteUrl(field.value);if(!['https:','http:'].includes(url.protocol))return;url.search='';url.searchParams.set('team',team.id);drawQR(url.toString());}catch{$('#qr-output').textContent='Ange en fullständig webbadress.';}});
-  if(base)field.dispatchEvent(new Event('input'));
-  // Copying is a repeatable action; keep the dialog open for downloading or printing.
-  $('#modal-form').onsubmit=async e=>{e.preventDefault();try{const url=websiteUrl(field.value);if(!['https:','http:'].includes(url.protocol)||['localhost','127.0.0.1'].includes(url.hostname))throw new Error('Ange den publicerade webbadressen först.');url.search='';url.searchParams.set('team',team.id);localStorage.setItem('skift-published-url',field.value);drawQR(url.toString());try{await navigator.clipboard.writeText(url.toString());toast('Teamlänken har kopierats');}catch{toast('Länken kunde inte kopieras. Kopiera teamlänken under QR-koden.');}}catch(error){$('.form-error',$('#modal')).textContent=error.message;}};
-}
-function drawQR(url) {
-  const qr=qrcode(0,'M');qr.addData(url);qr.make();$('#qr-output').innerHTML=`${qr.createSvgTag({cellSize:5,margin:20,scalable:true})}<a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a><button class="secondary-btn" type="button" data-action="download-qr">${icon('download')} Ladda ner QR-kod</button>`;
-  $('#qr-output svg').setAttribute('role','img');$('#qr-output svg').setAttribute('aria-label','QR-kod för teamets schema');
-}
 function download(content,type,name) {const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function setupModal() {
-  modal('Redo att dela med teamet?','Demot fungerar på din enhet. Anslut en databas för att dela scheman säkert mellan mobiler.',`<ol class="setup-steps"><li>Lägg projektet i ett GitHub-repository och aktivera GitHub Pages.</li><li>Skapa ett Supabase-projekt och kör den medföljande databasinstallationen.</li><li>Lägg till projektets webbadress och publika nyckel i <strong>config.js</strong>.</li><li>Skapa ett administratörskonto och bjud sedan in medarbetare enligt installationsguiden.</li></ol><p class="field-note">Fullständiga instruktioner finns i README.md. Exportera en säkerhetskopia här och importera den sedan som utkast i den anslutna arbetsytan.</p>`,async()=>{}, {submit:'Jag förstår'});
-}
 function renderLogin(error='') {
-  $('#app').innerHTML=`<main class="login-page"><a class="brand" href="./"><span class="brand-mark">${icon('calendar')}</span>skift<span class="brand-period">.</span></a><section class="login-card"><div class="eyebrow">DITT TEAM, SAMORDNAT</div><h1>Ditt nästa pass<br>börjar här.</h1><p>Logga in för att se ditt schema och vilka du ska arbeta med.</p><form id="login-form"><label>E-post<input name="email" type="email" autocomplete="username" required placeholder="du@exempel.se"></label><label>Lösenord<input name="password" type="password" autocomplete="current-password" required minlength="6"></label><p class="form-error" role="alert">${esc(error)}</p><button class="primary-btn" type="submit">Logga in ${icon('arrow')}</button></form><small>Din administratör skapar ditt konto. Kontakta administratören om du behöver åtkomst eller ett nytt lösenord.</small></section><p class="login-caption">Ett tydligt schema. En lugnare vecka.</p></main>`;
+  $('#app').innerHTML=`<main class="login-page"><a class="brand" href="./"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><section class="login-card"><div class="eyebrow">DITT TEAM, SAMORDNAT</div><h1>Ditt nästa pass<br>börjar här.</h1><p>Logga in för att se ditt schema och vilka du ska arbeta med.</p><form id="login-form"><label>E-post<input name="email" type="email" autocomplete="username" required placeholder="du@exempel.se"></label><label>Lösenord<input name="password" type="password" autocomplete="current-password" required minlength="6"></label><p class="form-error" role="alert">${esc(error)}</p><button class="primary-btn" type="submit">Logga in ${icon('arrow')}</button></form><small>Din administratör skapar ditt konto. Kontakta administratören om du behöver åtkomst eller ett nytt lösenord.</small></section><p class="login-caption">Ett tydligt schema. En lugnare vecka.</p></main>`;
   $('#login-form').onsubmit=async e=>{e.preventDefault();e.submitter.disabled=true;const f=new FormData(e.target);try{workspace=await store.login(f.get('email'),f.get('password'));shell();}catch(err){renderLogin(err.message);}};
 }
 function bindRotationDrag() {
   let source;
   document.querySelectorAll('.rotation-table tbody tr').forEach(row=>{row.ondragstart=e=>{if(e.target.closest('select,button')){e.preventDefault();return;}source=Number(row.dataset.row);e.dataTransfer.effectAllowed='move';};row.ondragover=e=>{e.preventDefault();};row.ondrop=async e=>{e.preventDefault();const target=Number(row.dataset.row);if(source===undefined||source===target)return;await reorderRow(source,target);};});
 }
-async function reorderRow(from,to) {const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id),v=editingVersion(team);if(versionPublished(v))throw new Error('Skapa ett nytt grundschema för att ändra ordningen på publicerade veckor.');const [row]=v.rotation.splice(from,1);v.rotation.splice(to,0,row);await save(next,'Veckornas ordning har ändrats i utkastet');}
+async function reorderRow(from,to) {const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id),v=editingVersion(team);const [row]=v.rotation.splice(from,1);v.rotation.splice(to,0,row);await save(next,'Veckornas ordning har ändrats i utkastet');}
 async function handleAction(button) {
   const action=button.dataset.action;
   switch(action) {
-    case 'roster-draft':if(admin()){ui.previewDraft=true;shell();}break;
-    case 'roster-publish':await handleAction({dataset:{action:'publish'}});break;
     case 'roster-edit':if(admin()&&ui.previewDraft){const existing=workspace.working.exceptions.find(e=>e.teamId===currentTeam().id&&e.memberId===button.dataset.member&&e.date===button.dataset.date);exceptionModal({id:existing?.id,memberId:button.dataset.member,date:button.dataset.date});}break;
-    case 'view': ui.view=button.dataset.view;shell();window.scrollTo({top:0,behavior:'smooth'});break;
+    case 'view': ui.view=button.dataset.view;if(button.dataset.view==='schedule')ui.previewDraft=false;shell();window.scrollTo({top:0,behavior:'smooth'});break;
     case 'admin':ui.view='admin';shell();break;
     case 'navigate': {const step=Number(button.dataset.step);if(ui.period==='week')ui.date=model.addDays(ui.date,step*7);else{const d=new Date(ui.date+'T12:00:00Z');d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+step);ui.date=d.toISOString().slice(0,10);}shell();break;}
     case 'today':ui.date=today();shell();break;
@@ -286,21 +286,39 @@ async function handleAction(button) {
     case 'edit-person':if(admin())personModal(button.dataset.member);break;
     case 'new-rotation':if(admin())newRotation();break;
     case 'version-dates':if(admin())versionDates();break;
+    case 'sync-reference-today':if(admin()){
+      const currentMonday=model.mondayOf(today());
+      const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id),v=editingVersion(team);
+      for(const m of team.members){
+        const curPos=model.rotationPosition(v,m.id,currentMonday);
+        if(curPos)v.positions[m.id]=curPos;
+      }
+      v.referenceMonday=currentMonday;
+      await save(next,`Startmåndag har synkats till denna vecka (v. ${model.isoWeek(currentMonday).week})`);
+    }break;
+    case 'shift-team-rotation':if(admin()){
+      const step=Number(button.dataset.step);
+      const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id),v=editingVersion(team);
+      const len=v.rotation.length;
+      if(!len)return;
+      for(const m of team.members){
+        const cur=Number(v.positions[m.id]);
+        if(cur)v.positions[m.id]=((cur-1+step)%len+len)%len+1;
+      }
+      await save(next,step>0?'Teamets rotation flyttades 1 vecka framåt':'Teamets rotation flyttades 1 vecka bakåt');
+    }break;
     case 'add-shift':if(admin())shiftModal();break;
     case 'edit-shift':if(admin())shiftModal(button.dataset.code);break;
     case 'exception':if(admin())exceptionModal({date:button.dataset.date,memberId:button.dataset.member});break;
     case 'edit-exception':if(admin())exceptionModal({id:button.dataset.id});break;
     case 'delete-exception':if(admin()){const next=copy();next.exceptions=next.exceptions.filter(e=>e.id!==button.dataset.id);await save(next,'Ändringen har tagits bort');$('#modal').close();}break;
     case 'settings':if(admin())teamSettings();break;
-    case 'share':shareModal();break;
-    case 'setup':setupModal();break;
-    case 'download-qr':{const svg=$('#qr-output svg');if(svg)download(new XMLSerializer().serializeToString(svg),'image/svg+xml',`skift-${workingTeam()?.name||'team'}-qr.svg`);break;}
     case 'preview':ui.previewDraft=true;ui.view='schedule';shell();break;
     case 'publish':if(admin()){
       const errors=model.validateState(workspace.working);if(errors.length)throw new Error(errors[0]);
       modal('Redo att publicera?','Publicering uppdaterar schemat som medarbetarna ser. Privata anteckningar och frånvaroorsaker visas bara i administrationsvyn.',`<div class="publish-overview">${workspace.working.teams.length} team · ${workspace.working.teams.reduce((n,t)=>n+t.members.filter(m=>!m.activeUntil||m.activeUntil>today()).length,0)} aktiva medarbetare</div>`,async()=>{workspace={...workspace,...await store.publish(workspace.working)};ui.previewDraft=false;shell();toast('Schemat har publicerats');},{submit:'Publicera schema'});
     }break;
-    case 'export':if(admin())download(JSON.stringify(workspace.working,null,2),'application/json',`skift-backup-${today()}.json`);break;
+    case 'export':if(admin())download(JSON.stringify(workspace.working,null,2),'application/json',`rssb-backup-${today()}.json`);break;
     case 'move-row':if(admin())await reorderRow(Number(button.dataset.row),Number(button.dataset.row)+Number(button.dataset.dir));break;
     case 'logout':await store.logout();workspace=await store.init();shell();break;
     case 'refresh':if(!ui.busy){workspace=await store.init();shell();if(workspace.error)toast(workspace.error,true);else toast('Schemat har uppdaterats');}break;
@@ -312,11 +330,21 @@ document.addEventListener('change',async e=>{
   try {
     if(['team-select','admin-team-select'].includes(target.id)){ui.teamId=target.value;editingVersionId=undefined;localStorage.setItem('skift-team',ui.teamId);shell();}
     else if(target.id==='jump-date'){if(target.value){ui.date=target.value;shell();}}
-    else if(target.id==='preview-draft'){ui.previewDraft=target.checked;shell();}
     else if(target.id==='version-select'){editingVersionId=target.value;shell();}
+    else if(target.id==='reference-monday-input'&&admin()){
+      if(target.value){
+        const monday=model.mondayOf(target.value);
+        target.value=monday;
+        const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id),v=editingVersion(team);
+        if(v.referenceMonday!==monday){
+          v.referenceMonday=monday;
+          await save(next,`Startmåndag ändrad till ${monday} (v. ${model.isoWeek(monday).week})`);
+        }
+      }
+    }
     else if(target.classList.contains('rotation-cell')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);editingVersion(team).rotation[Number(target.dataset.row)][Number(target.dataset.day)]=target.value;await save(next,'Passet har uppdaterats i utkastet');}
-    else if(target.classList.contains('position-select')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);if(versionPublished(editingVersion(team)))throw new Error('Skapa ett nytt grundschema för att ändra publicerade startpositioner.');if(Number(target.value))editingVersion(team).positions[target.dataset.member]=Number(target.value);else delete editingVersion(team).positions[target.dataset.member];await save(next,'Startpositionen har uppdaterats');}
-    else if(target.id==='import-file'&&admin()&&target.files[0]){let state;try{state=JSON.parse(await target.files[0].text());}catch{throw new Error('Filen kunde inte läsas. Välj en giltig säkerhetskopia från Skift.');}const errors=model.validateState(state);if(errors.length)throw new Error(errors[0]);modal('Ersätta ditt arbetsutkast?','Det publicerade schemat är tillgängligt tills du publicerar det importerade utkastet.',`<p>${state.teams.length} team i säkerhetskopian.</p>`,async()=>{workspace={...workspace,...await store.importData(state)};ui.teamId=undefined;editingVersionId=undefined;shell();toast('Säkerhetskopian har importerats som utkast');},{submit:'Importera utkast'});}
+    else if(target.classList.contains('position-select')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);if(Number(target.value))editingVersion(team).positions[target.dataset.member]=Number(target.value);else delete editingVersion(team).positions[target.dataset.member];await save(next,'Startpositionen har uppdaterats');}
+    else if(target.id==='import-file'&&admin()&&target.files[0]){let state;try{state=JSON.parse(await target.files[0].text());}catch{throw new Error('Filen kunde inte läsas. Välj en giltig säkerhetskopia från RSSB.');}const errors=model.validateState(state);if(errors.length)throw new Error(errors[0]);modal('Ersätta ditt arbetsutkast?','Det publicerade schemat är tillgängligt tills du publicerar det importerade utkastet.',`<p>${state.teams.length} team i säkerhetskopian.</p>`,async()=>{workspace={...workspace,...await store.importData(state)};ui.teamId=undefined;editingVersionId=undefined;shell();toast('Säkerhetskopian har importerats som utkast');},{submit:'Importera utkast'});}
   }catch(error){toast(error.message,true);shell();}
 });
 $('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const rect=e.target.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)e.target.close();}});
