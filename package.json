@@ -1,0 +1,14 @@
+{
+  "name": "skift-schedule",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/app.js && node --check src/model.js && node --check src/store.js"
+  },
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
+  }
+}
