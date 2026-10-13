@@ -15,12 +15,12 @@ const icons = {
   edit:'<path d="m16 3 5 5L9 20l-6 1 1-6L16 3ZM13 6l5 5"/>',
   close:'<path d="m6 6 12 12M18 6 6 18"/>', moon:'<path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z"/>',
   refresh:'<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18a8 8 0 0 1-13-2"/>',
-  logout:'<path d="M9 5H4v14h5m5-14 7 7-7 7m-6-7h13"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>'
+  logout:'<path d="M9 5H4v14h5m5-14 7 7-7 7m-6-7h13"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
+  down:'<path d="m6 9 6 6 6-6"/>'
 };
 const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.calendar}</svg>`;
 const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const fmt = (date, options) => new Intl.DateTimeFormat('sv-SE', {...options,timeZone:'UTC'}).format(new Date(date + 'T12:00:00Z'));
-const periodLabel = period => ({week:'Vecka',month:'Månad'}[period] || period);
 const weekdayLabels = ['Mån','Tis','Ons','Tor','Fre','Lör','Sön'];
 const weekdayNames = ['måndag','tisdag','onsdag','torsdag','fredag','lördag','söndag'];
 const daysOffLabel = count => `${count} ${count===1?'ledig dag':'lediga dagar'}`;
@@ -29,7 +29,7 @@ const colorLabel = color => ({amber:'Bärnsten',mint:'Mintgrön',blue:'Blå',lav
 const initials = name => name.split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase();
 const avatar = (member, i = 0, small = false) => `<span class="avatar tone-${i % 5} ${small ? 'small' : ''}" title="${esc(member.name)}">${esc(initials(member.name))}</span>`;
 const urlParams = new URLSearchParams(location.search);
-const ui = {view:'schedule',period:'week',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:urlParams.get('team') || localStorage.getItem('skift-team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',previewDraft:false,busy:false};
+const ui = {view:'schedule',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:urlParams.get('team') || localStorage.getItem('skift-team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',previewDraft:false,busy:false};
 let workspace;
 const admin = () => workspace?.role === 'admin';
 const data = () => admin() && ui.previewDraft ? workspace.working : workspace.published;
@@ -52,49 +52,34 @@ function shell() {
   const nav = (mobile = false) => [['schedule','calendar','Schema'],...(admin() ? [['admin','settings','Hantera']] : [])].map(([view,ico,text]) => `<button class="nav-item ${ui.view === view ? 'active' : ''}" data-action="view" data-view="${view}">${icon(ico)}<span>${text}</span>${!mobile && ui.view === view ? '<span class="nav-dot"></span>' : ''}</button>`).join('');
   $('#app').innerHTML = `<div class="app-shell">
     <aside class="sidebar"><a class="brand" href="./" aria-label="RSSB startsida"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav>${workspace.mode === 'cloud' ? `<div class="sidebar-bottom"><button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button></div>` : ''}</aside>
-    <div class="main-shell"><header class="topbar"><a class="brand mobile-brand" href="./"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><div class="top-context"><span class="live-dot"></span> Teamets arbetsyta</div><div class="top-actions">${team ? `<label class="team-select">${icon('team')}<select id="team-select" aria-label="Välj team">${(ui.view==='admin'?workspace.working.teams:data()?.teams || []).map(t => `<option value="${esc(t.id)}" ${t.id===team.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label>` : ''}</div></header>
+    <div class="main-shell">
     <main id="content" tabindex="-1">${ui.view==='admin' ? adminView() : team ? scheduleView() : emptyWorkspace()}</main>
     <footer class="page-footer"><span>För en enklare arbetsdag.</span><span>${workspace.published?.publishedAt ? `Publicerat ${new Date(workspace.published.publishedAt).toLocaleDateString('sv-SE',{day:'numeric',month:'short'})}` : 'Inget schema publicerat ännu'}</span></footer>
     </div><nav class="mobile-nav" aria-label="Mobilnavigation">${nav(true)}</nav>
   </div>`;
-  if(workspace.mode==='cloud'){const refresh=document.createElement('button');refresh.className='icon-btn';refresh.dataset.action='refresh';refresh.setAttribute('aria-label','Uppdatera schemat');refresh.innerHTML=icon('refresh');$('.top-actions').prepend(refresh);}
   if (ui.view === 'admin' && ui.adminTab === 'rotation') { setupRotationAdmin(); bindRotationDrag(); }
 }
 
 function dateRange() {
   const days = model.weekDates(ui.date);
-
-  if (ui.period==='month') return fmt(ui.date,{month:'long',year:'numeric'});
   return `${fmt(days[0],{day:'numeric',month:'short'})} – ${fmt(days[6],{day:'numeric',month:'short',year:'numeric'})}`;
 }
-function heading() {
+function heading(team, teams) {
   const week = model.isoWeek(ui.date);
-  return `<div class="page-heading"><div><div class="eyebrow">${ui.period==='week' ? `KALENDERVECKA ${week.week}` : 'TEAMETS SCHEMA'}</div><h1>Teamets schema.</h1><p>Se vilka som jobbar och när ni arbetar tillsammans.</p></div></div>
-  <div class="schedule-toolbar"><div class="date-navigation"><button class="icon-btn" data-action="navigate" data-step="-1" aria-label="Föregående ${periodLabel(ui.period).toLowerCase()}">${icon('left')}</button><strong>${dateRange()}</strong><button class="icon-btn" data-action="navigate" data-step="1" aria-label="Nästa ${periodLabel(ui.period).toLowerCase()}">${icon('right')}</button><button class="today-btn" data-action="today">Idag</button></div><div class="view-controls"><label class="date-picker" title="Gå till ett datum">${icon('calendar')}<span>Välj datum</span><input id="jump-date" type="date" value="${ui.date}" aria-label="Gå till ett datum"></label><div class="segmented" aria-label="Schemaperiod">${['week','month'].map(p=>`<button data-action="period" data-period="${p}" class="${ui.period===p?'selected':''}" aria-pressed="${ui.period===p}">${periodLabel(p)}</button>`).join('')}</div></div></div>
+  const opts = teams.map(t=>`<option value="${esc(t.id)}" ${t.id===team.id?'selected':''}>${esc(t.name)}</option>`).join('');
+  const teamTitle = `<div class="heading-team"><span class="heading-team-icon">${icon('team')}</span><span class="heading-team-label">${esc(team.name)}</span>${icon('down','heading-team-chevron')}<select id="team-select" aria-label="Välj team">${opts}</select></div>`;
+  return `<div class="page-heading"><div><div class="eyebrow">KALENDERVECKA ${week.week}</div>${teamTitle}</div></div>
+  <div class="schedule-toolbar"><div class="date-navigation"><button class="icon-btn" data-action="navigate" data-step="-1" aria-label="Föregående vecka">${icon('left')}</button><strong>${dateRange()}</strong><button class="icon-btn" data-action="navigate" data-step="1" aria-label="Nästa vecka">${icon('right')}</button><button class="today-btn" data-action="today">Idag</button></div><div class="view-controls"><label class="date-picker" title="Gå till ett datum">${icon('calendar')}<span>Välj datum</span><input id="jump-date" type="date" value="${ui.date}" aria-label="Gå till ett datum"></label></div></div>
   ${admin() && ui.previewDraft ? `<div class="published-label"><span class="draft-dot"></span>Förhandsvisning av utkast</div>` : ''}`;
 }
 
 function scheduleView() {
   const team=currentTeam();
-  return heading() + (ui.period==='week' ? rosterView(team) : monthView(team));
+  const teams=data()?.teams || [];
+  return heading(team, teams) + rosterView(team);
 }
 function hours(minutes) { return new Intl.NumberFormat('sv-SE',{maximumFractionDigits:1}).format(minutes / 60); }
 function colorFor(team,date,code) { return model.activeVersion(team,date)?.shifts[code]?.color || 'mint'; }
-
-function monthDays(date) {
-  const first = date.slice(0,7)+'-01', start = model.mondayOf(first);
-  const last = new Date(Date.UTC(Number(date.slice(0,4)),Number(date.slice(5,7)),0)).getUTCDate();
-  const count = Math.ceil((Math.round((new Date(first)-new Date(start))/86400000)+last)/7)*7;
-  return Array.from({length:count},(_,i)=>model.addDays(start,i));
-}
-function monthView(team) {
-  const days=monthDays(ui.date), assignments=Object.fromEntries(days.map(d=>[d,model.getDayAssignments(data(),team.id,d)]));
-  const total=days.filter(d=>d.slice(0,7)===ui.date.slice(0,7)).reduce((n,d)=>n+assignments[d].length,0);
-  return '<div class="month-summary"><span>'+total+' pass i teamet den här månaden</span><span>Tryck på en dag för att se hela teamets vecka</span></div><section class="month-calendar"><div class="calendar-weekdays">'+weekdayLabels.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="calendar-grid">'+days.map(d=>{
-    const shifts=assignments[d], names=[...new Set(shifts.map(a=>findMember(a.memberId)?.name||'Medarbetare'))];
-    return '<button class="calendar-cell '+(d.slice(0,7)!==ui.date.slice(0,7)?'other-month':'')+' '+(d===today()?'cell-today':'')+'" data-action="open-week" data-date="'+d+'" aria-label="'+fmt(d,{weekday:'long',day:'numeric',month:'long'})+', '+shifts.length+' pass. '+esc(names.join(', '))+'"><span class="cell-number">'+fmt(d,{day:'numeric'})+'</span>'+(shifts.length?'<span class="calendar-shift mint"><b>'+shifts.length+' pass</b></span><span class="month-team-names">'+esc(names.slice(0,3).join(', '))+(names.length>3?' +'+(names.length-3):'')+'</span>':'<span class="calendar-off">Inga pass</span>')+'</button>';
-  }).join('')+'</div></section>';
-}
 function rosterView(team) {
   const state=data(), dates=model.weekDates(ui.date), editable=admin()&&ui.previewDraft;
   const assignments=Object.fromEntries(dates.map(d=>[d,model.getDayAssignments(state,team.id,d)]));
@@ -275,10 +260,8 @@ async function handleAction(button) {
     case 'roster-edit':if(admin()&&ui.previewDraft){const existing=workspace.working.exceptions.find(e=>e.teamId===currentTeam().id&&e.memberId===button.dataset.member&&e.date===button.dataset.date);exceptionModal({id:existing?.id,memberId:button.dataset.member,date:button.dataset.date});}break;
     case 'view': ui.view=button.dataset.view;if(button.dataset.view==='schedule')ui.previewDraft=false;shell();window.scrollTo({top:0,behavior:'smooth'});break;
     case 'admin':ui.view='admin';shell();break;
-    case 'navigate': {const step=Number(button.dataset.step);if(ui.period==='week')ui.date=model.addDays(ui.date,step*7);else{const d=new Date(ui.date+'T12:00:00Z');d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+step);ui.date=d.toISOString().slice(0,10);}shell();break;}
+    case 'navigate': ui.date=model.addDays(ui.date,Number(button.dataset.step)*7);shell();break;
     case 'today':ui.date=today();shell();break;
-    case 'period':ui.period=button.dataset.period;shell();break;
-    case 'open-week':ui.date=button.dataset.date;ui.period='week';shell();break;
     case 'admin-tab':ui.adminTab=button.dataset.tab;shell();break;
     case 'close-modal':$('#modal').close();break;
     case 'add-team':if(admin())addTeam();break;
