@@ -22,7 +22,7 @@ const icons = {
 const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.calendar}</svg>`;
 const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const fmt = (date, options) => new Intl.DateTimeFormat('sv-SE', {...options,timeZone:'UTC'}).format(new Date(date + 'T12:00:00Z'));
-const periodLabel = period => ({week:'Vecka',month:'Månad',year:'År'}[period] || period);
+const periodLabel = period => ({week:'Vecka',month:'Månad'}[period] || period);
 const weekdayLabels = ['Mån','Tis','Ons','Tor','Fre','Lör','Sön'];
 const weekdayNames = ['måndag','tisdag','onsdag','torsdag','fredag','lördag','söndag'];
 const daysOffLabel = count => `${count} ${count===1?'ledig dag':'lediga dagar'}`;
@@ -51,12 +51,12 @@ function shell() {
   normalizeSelection();
   if (workspace.role === 'signed-out') { renderLogin(workspace.error || ''); return; }
   const team = currentTeam(), member = currentMember(team);
-  const nav = (mobile = false) => [['schedule','calendar','Schema'],['team','team','Team'],...(admin() ? [['admin','settings','Hantera']] : [])].map(([view,ico,text]) => `<button class="nav-item ${ui.view === view ? 'active' : ''}" data-action="view" data-view="${view}">${icon(ico)}<span>${text}</span>${!mobile && ui.view === view ? '<span class="nav-dot"></span>' : ''}</button>`).join('');
+  const nav = (mobile = false) => [['schedule','calendar','Schema'],...(admin() ? [['admin','settings','Hantera']] : [])].map(([view,ico,text]) => `<button class="nav-item ${ui.view === view ? 'active' : ''}" data-action="view" data-view="${view}">${icon(ico)}<span>${text}</span>${!mobile && ui.view === view ? '<span class="nav-dot"></span>' : ''}</button>`).join('');
   $('#app').innerHTML = `<div class="app-shell">
     <aside class="sidebar"><a class="brand" href="./" aria-label="Skift startsida"><span class="brand-mark">${icon('calendar')}</span>skift<span class="brand-period">.</span></a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav><div class="sidebar-bottom"><div class="help-card">${icon('leaf')}<strong>Mindre planering.<br>Mer tid för livet.</strong><p>Ditt nästa pass, alltid nära.</p></div><div class="profile">${avatar({name:admin()?'Schemaadministratör':'Medarbetare'},0)}<div><strong>${admin()?'Schemaadministratör':'Medarbetare'}</strong><span>${workspace.mode === 'demo' ? 'Demoläge' : esc(workspace.user?.email || 'Inloggad')}</span></div>${workspace.mode === 'cloud' ? `<button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button>` : ''}</div></div></aside>
     <div class="main-shell"><header class="topbar"><a class="brand mobile-brand" href="./"><span class="brand-mark">${icon('calendar')}</span>skift<span class="brand-period">.</span></a><div class="top-context"><span class="live-dot"></span> Teamets arbetsyta</div><div class="top-actions">${team ? `<label class="team-select">${icon('team')}<select id="team-select" aria-label="Välj team">${(ui.view==='admin'?workspace.working.teams:data()?.teams || []).map(t => `<option value="${esc(t.id)}" ${t.id===team.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label>` : ''}${admin() ? `<button class="icon-btn" data-action="share" aria-label="Dela teamets schema">${icon('share')}</button>` : ''}${avatar(member || {name:'Skift'},2,true)}</div></header>
     ${workspace.mode === 'demo' ? `<div class="demo-notice"><span>${icon('info')}<strong>Demoläge</strong> <span class="demo-detail">Ändringar sparas på den här enheten.</span></span><button data-action="setup">Anslut ditt team ${icon('arrow')}</button></div>` : ''}
-    <main id="content" tabindex="-1">${ui.view==='admin' ? adminView() : team ? (ui.view==='team' ? teamView() : scheduleView()) : emptyWorkspace()}</main>
+    <main id="content" tabindex="-1">${ui.view==='admin' ? adminView() : team ? scheduleView() : emptyWorkspace()}</main>
     <footer class="page-footer"><span>För en enklare arbetsdag.</span><span>${workspace.published?.publishedAt ? `Publicerat ${new Date(workspace.published.publishedAt).toLocaleDateString('sv-SE',{day:'numeric',month:'short'})}` : 'Inget schema publicerat ännu'}</span></footer>
     </div><nav class="mobile-nav" aria-label="Mobilnavigation">${nav(true)}</nav>
   </div>`;
@@ -66,46 +66,23 @@ function shell() {
 
 function dateRange() {
   const days = model.weekDates(ui.date);
-  if (ui.period==='year') return ui.date.slice(0,4);
+
   if (ui.period==='month') return fmt(ui.date,{month:'long',year:'numeric'});
   return `${fmt(days[0],{day:'numeric',month:'short'})} – ${fmt(days[6],{day:'numeric',month:'short',year:'numeric'})}`;
 }
-function heading(teamView = false) {
-  const member = currentMember(), week = model.isoWeek(ui.date);
-  return `<div class="page-heading"><div><div class="eyebrow">${ui.period==='week' ? `KALENDERVECKA ${week.week}` : 'DITT SCHEMA'}</div><h1>${teamView ? 'Teamets schema.' : 'Din vecka i korthet.'}</h1><p>${teamView ? 'Se vilka som jobbar och när ni arbetar tillsammans.' : 'Koll på dina arbetstider. Mer plats för allt annat.'}</p></div>${!teamView && member ? `<label class="person-select"><span>Visa schema för</span><select id="person-select" aria-label="Välj medarbetare">${currentTeam().members.filter(m=>!m.activeUntil || m.activeUntil>ui.date).map(m=>`<option value="${esc(m.id)}" ${m.id===member.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>` : ''}</div>
-  <div class="schedule-toolbar"><div class="date-navigation"><button class="icon-btn" data-action="navigate" data-step="-1" aria-label="Föregående ${periodLabel(ui.period).toLowerCase()}">${icon('left')}</button><strong>${dateRange()}</strong><button class="icon-btn" data-action="navigate" data-step="1" aria-label="Nästa ${periodLabel(ui.period).toLowerCase()}">${icon('right')}</button><button class="today-btn" data-action="today">Idag</button></div><div class="view-controls"><label class="date-picker" title="Gå till ett datum">${icon('calendar')}<span>Välj datum</span><input id="jump-date" type="date" value="${ui.date}" aria-label="Gå till ett datum"></label><div class="segmented" aria-label="Schemaperiod">${['week','month','year'].map(p=>`<button data-action="period" data-period="${p}" class="${ui.period===p?'selected':''}" aria-pressed="${ui.period===p}">${periodLabel(p)}</button>`).join('')}</div></div></div>
+function heading() {
+  const week = model.isoWeek(ui.date);
+  return `<div class="page-heading"><div><div class="eyebrow">${ui.period==='week' ? `KALENDERVECKA ${week.week}` : 'TEAMETS SCHEMA'}</div><h1>Teamets schema.</h1><p>Se vilka som jobbar och när ni arbetar tillsammans.</p></div></div>
+  <div class="schedule-toolbar"><div class="date-navigation"><button class="icon-btn" data-action="navigate" data-step="-1" aria-label="Föregående ${periodLabel(ui.period).toLowerCase()}">${icon('left')}</button><strong>${dateRange()}</strong><button class="icon-btn" data-action="navigate" data-step="1" aria-label="Nästa ${periodLabel(ui.period).toLowerCase()}">${icon('right')}</button><button class="today-btn" data-action="today">Idag</button></div><div class="view-controls"><label class="date-picker" title="Gå till ett datum">${icon('calendar')}<span>Välj datum</span><input id="jump-date" type="date" value="${ui.date}" aria-label="Gå till ett datum"></label><div class="segmented" aria-label="Schemaperiod">${['week','month'].map(p=>`<button data-action="period" data-period="${p}" class="${ui.period===p?'selected':''}" aria-pressed="${ui.period===p}">${periodLabel(p)}</button>`).join('')}</div></div></div>
   ${admin() ? `<div class="published-label"><span class="${ui.previewDraft?'draft-dot':'live-dot'}"></span>${ui.previewDraft ? 'Förhandsvisning av utkast' : 'Publicerat schema'}<label class="preview-toggle"><input id="preview-draft" type="checkbox" ${ui.previewDraft?'checked':''}> Visa utkast</label></div>` : ''}`;
 }
 
 function scheduleView() {
-  const team = currentTeam(), member = currentMember(team);
-  if (!member) return `${heading()}${empty('Inga medarbetare ännu','Lägg till en medarbetare under Hantera för att börja schemalägga.','admin','Hantera team')}`;
-  return heading() + (ui.period==='week' ? weekView(team,member) : ui.period==='month' ? monthView(team,member) : yearView(team,member));
+  const team=currentTeam();
+  return heading() + (ui.period==='week' ? rosterView(team) : monthView(team));
 }
 function hours(minutes) { return new Intl.NumberFormat('sv-SE',{maximumFractionDigits:1}).format(minutes / 60); }
-function personDay(state,team,member,date) {
-  const main=model.getShift(state,team.id,member.id,date);
-  const assignments=state.teams.flatMap(t=>model.getDayAssignments(state,t.id,date)).filter(s=>s.memberId===member.id&&(s.teamId===team.id||s.type==='cover'));
-  return {...main, assignments, working:assignments.length>0, minutes:assignments.reduce((n,s)=>n+s.minutes,0), rotationWeek:model.activeVersion(team,date)?model.rotationPosition(model.activeVersion(team,date),member.id,date):0};
-}
-function weekView(team, member) {
-  const days = model.weekDates(ui.date), shifts = days.map(d=>personDay(data(),team,member,d));
-  const working = shifts.filter(s=>s.working), total = working.reduce((n,s)=>n+s.minutes,0), shiftCount=shifts.reduce((n,s)=>n+s.assignments.length,0);
-  const version = model.activeVersion(team,ui.date), position = version ? model.rotationPosition(version,member.id,ui.date) : 0;
-  return `<div class="week-strip">${days.map((d,i)=>`<button class="week-day ${d===today()?'is-today':''} ${d===ui.date?'selected':''}" data-action="select-day" data-date="${d}"><span>${fmt(d,{weekday:'short'})}</span><strong>${fmt(d,{day:'numeric'})}</strong><span class="shift-dot ${shifts[i].working ? colorFor(team,d,shifts[i].code) : 'off-dot'}"></span>${d===today()?'<span class="sr-only">Idag</span>':''}</button>`).join('')}</div>
-  <div class="schedule-layout"><section class="schedule-panel"><div class="panel-heading"><h2>Den här veckan</h2><span>${shiftCount} pass · ${daysOffLabel(7-working.length)}</span></div><div class="days-list">${days.map((d,i)=>dayCard(team,member,d,shifts[i])).join('')}</div></section>
-  <aside class="schedule-aside"><section class="summary-card"><div class="eyebrow">VECKANS ÖVERBLICK</div><h2>Din vecka i siffror</h2><div class="big-stat">${hours(total)}<span>schemalagda timmar</span></div><div class="mini-stats"><div><strong>${working.length}</strong><span>Arbetsdagar</span></div><div><strong>${7-working.length}</strong><span>Lediga dagar</span></div><div><strong>${position || '—'}<small> / ${version?.rotation.length || '—'}</small></strong><span>Schemavecka</span></div></div><p>${icon('info')}Timmar visas före rastavdrag.</p></section>
-  <section class="aside-card"><h3>${icon('team')}Ditt team den här veckan</h3><div class="team-mini">${team.members.filter(m=>!m.activeUntil || m.activeUntil>days[0]).map((m,i)=>{const pos=version?model.rotationPosition(version,m.id,ui.date):0;return `<button class="team-mini-row" data-action="person" data-member="${esc(m.id)}">${avatar(m,i,true)}<span>${esc(m.name)}${m.id===member.id?'<small>Vald</small>':''}</span><span class="rotation-tag">Vecka ${pos || '—'}</span></button>`;}).join('')}</div><button class="text-button" data-action="view" data-view="team">Visa teamets schema ${icon('arrow')}</button></section>
-  <section class="aside-card legend-card"><h3>Passöversikt</h3><div class="legend">${Object.entries(version?.shifts || {}).map(([code,s])=>`<div><span class="code-badge ${esc(s.color)}">${esc(code)}</span><span>${s.start}–${s.end}</span></div>`).join('')}</div></section></aside></div>`;
-}
 function colorFor(team,date,code) { return model.activeVersion(team,date)?.shifts[code]?.color || 'mint'; }
-function dayCard(team,member,date,shift) {
-  const coworkers = shift.working ? model.getCoworkers(data(),team.id,member.id,date) : [];
-  const isToday = date===today(), inactive = !shift.rotationWeek && member.role !== 'part-time';
-  const assignments=shift.assignments||[];
-  const title=s=>`<strong>${s.start}<span class="time-dash">–</span>${s.end}</strong><span class="code-badge ${esc(s.color||colorFor(team,date,s.code))}">${esc(s.code || '↗')}</span>${s.type==='cover'?`<span class="tiny-tag">Ersätter · ${esc(data().teams.find(t=>t.id===s.teamId)?.name||'Team')}</span>`:''}`;
-  return `<article class="day-card ${shift.working?'':'off-day'} ${isToday?'today-card':''}" id="day-${date}"><div class="day-date"><span>${fmt(date,{weekday:'short'})}</span><strong>${fmt(date,{day:'numeric'})}</strong></div><div class="day-content"><div class="shift-title">${shift.working ? title(assignments[0]) : `<strong>${inactive?'Inget schema ännu':label(shift.type)}</strong>${icon('leaf','off-leaf')}`}${isToday?'<span class="today-tag">Idag</span>':''}</div>${assignments.slice(1).map(s=>`<div class="shift-title extra-shift">${title(s)}</div>`).join('')}${shift.working ? `<div class="coworker-line">${coworkers.length?`<div class="avatar-stack">${coworkers.slice(0,3).map((c,i)=>avatar(c,i,true)).join('')}</div><span>Med ${[...new Set(coworkers.map(c=>esc(c.name)))].join(', ')}</span>`:'<span class="muted">Inga kollegor med överlappande pass</span>'}</div>${coworkers.length?`<details class="overlap-details"><summary>Visa gemensamma arbetstider</summary><div>${coworkers.map(c=>`<span>${esc(c.name)} <strong>${c.overlapStart}–${c.overlapEnd}</strong></span>`).join('')}</div></details>`:''}` : `<p class="off-caption">${inactive ? 'Ett publicerat schema visas här.' : 'Tid för dig.'}</p>`}${shift.conflict ? '<span class="coverage-warning">Överlappande pass – behöver granskas</span>':''}${admin() && ui.previewDraft && shift.needsCoverage ? `<span class="coverage-warning">${hours(shift.uncoveredMinutes || 0)} timmar behöver ersättare</span>`:''}</div>${shift.working?`<span class="duration">${hours(shift.minutes)}h</span>`:''}${admin()&&ui.previewDraft?`<button class="icon-btn edit-day" data-action="exception" data-date="${date}" data-member="${esc(member.id)}" aria-label="Redigera ${fmt(date,{weekday:'long',day:'numeric',month:'long'})}">${icon('edit')}</button>`:''}</article>`;
-}
 
 function monthDays(date) {
   const first = date.slice(0,7)+'-01', start = model.mondayOf(first);
@@ -113,20 +90,30 @@ function monthDays(date) {
   const count = Math.ceil((Math.round((new Date(first)-new Date(start))/86400000)+last)/7)*7;
   return Array.from({length:count},(_,i)=>model.addDays(start,i));
 }
-function monthView(team,member) {
-  const days = monthDays(ui.date), assignments = days.filter(d=>d.slice(0,7)===ui.date.slice(0,7)).map(d=>personDay(data(),team,member,d));
-  return `<div class="month-summary"><span>${assignments.reduce((n,s)=>n+s.assignments.length,0)} pass den här månaden</span><span>${hours(assignments.reduce((n,s)=>n+s.minutes,0))} schemalagda timmar</span><span>Tryck på en dag för att öppna veckan</span></div><section class="month-calendar"><div class="calendar-weekdays">${weekdayLabels.map(d=>`<span>${d}</span>`).join('')}</div><div class="calendar-grid">${days.map(d=>{const s=personDay(data(),team,member,d);return `<button class="calendar-cell ${d.slice(0,7)!==ui.date.slice(0,7)?'other-month':''} ${d===today()?'cell-today':''}" data-action="open-week" data-date="${d}" aria-label="${fmt(d,{weekday:'long',day:'numeric',month:'long'})}, ${s.working?s.assignments.map(a=>a.start+' till '+a.end).join(', '):label(s.type)}"><span class="cell-number">${fmt(d,{day:'numeric'})}</span>${s.working?`<span class="calendar-shift ${colorFor(team,d,s.code)}"><b>${esc(s.code||'↗')}</b><span>${s.start}<span class="cell-end">–${s.end}</span></span>${s.assignments.length>1?`<small class="extra-count">+${s.assignments.length-1} pass</small>`:''}</span>`:'<span class="calendar-off">Ledig</span>'}</button>`;}).join('')}</div></section>`;
+function monthView(team) {
+  const days=monthDays(ui.date), assignments=Object.fromEntries(days.map(d=>[d,model.getDayAssignments(data(),team.id,d)]));
+  const total=days.filter(d=>d.slice(0,7)===ui.date.slice(0,7)).reduce((n,d)=>n+assignments[d].length,0);
+  return '<div class="month-summary"><span>'+total+' pass i teamet den här månaden</span><span>Tryck på en dag för att se hela teamets vecka</span></div><section class="month-calendar"><div class="calendar-weekdays">'+weekdayLabels.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="calendar-grid">'+days.map(d=>{
+    const shifts=assignments[d], names=[...new Set(shifts.map(a=>findMember(a.memberId)?.name||'Medarbetare'))];
+    return '<button class="calendar-cell '+(d.slice(0,7)!==ui.date.slice(0,7)?'other-month':'')+' '+(d===today()?'cell-today':'')+'" data-action="open-week" data-date="'+d+'" aria-label="'+fmt(d,{weekday:'long',day:'numeric',month:'long'})+', '+shifts.length+' pass. '+esc(names.join(', '))+'"><span class="cell-number">'+fmt(d,{day:'numeric'})+'</span>'+(shifts.length?'<span class="calendar-shift mint"><b>'+shifts.length+' pass</b></span><span class="month-team-names">'+esc(names.slice(0,3).join(', '))+(names.length>3?' +'+(names.length-3):'')+'</span>':'<span class="calendar-off">Inga pass</span>')+'</button>';
+  }).join('')+'</div></section>';
 }
-function yearView(team,member) {
-  const year = ui.date.slice(0,4);
-  return `<div class="year-grid">${Array.from({length:12},(_,i)=>{const date=`${year}-${String(i+1).padStart(2,'0')}-01`; const days=monthDays(date);return `<button class="mini-month" data-action="open-month" data-date="${date}"><div><h2>${fmt(date,{month:'long'})}</h2>${icon('right')}</div><div class="mini-weekdays">${['M','T','O','T','F','L','S'].map(d=>`<span>${d}</span>`).join('')}</div><div class="mini-grid">${days.map(d=>{const s=personDay(data(),team,member,d);return `<span class="${d.slice(0,7)!==date.slice(0,7)?'dim':''} ${s.working?'mini-work':''} ${d===today()?'mini-today':''}">${fmt(d,{day:'numeric'})}</span>`;}).join('')}</div></button>`;}).join('')}</div>`;
-}
-function teamView() {
-  const team=currentTeam(), dates=model.weekDates(ui.date), homeMembers=team.members.filter(m=>!m.activeUntil||m.activeUntil>dates[0]);
-  const assignments=Object.fromEntries(dates.map(d=>[d,model.getDayAssignments(data(),team.id,d)]));
-  const visitors=[...new Set(Object.values(assignments).flat().map(s=>s.memberId))].filter(id=>!homeMembers.some(m=>m.id===id)).map(id=>findMember(id)).filter(Boolean),members=[...homeMembers,...visitors];
-  if(ui.period!=='week') ui.period='week';
-  return heading(true) + `<section class="team-panel"><div class="panel-heading"><h2>${esc(team.name)}</h2><span>${members.length} medarbetare</span></div><div class="team-table-wrap"><table class="team-table"><thead><tr><th>Medarbetare</th>${dates.map(d=>`<th class="${d===today()?'today-column':''}">${fmt(d,{weekday:'short'})}<strong>${fmt(d,{day:'numeric'})}</strong></th>`).join('')}</tr></thead><tbody>${members.map((m,i)=>`<tr><th><button data-action="person" data-member="${esc(m.id)}">${avatar(m,i,true)}<span>${esc(m.name)}<small>${homeMembers.some(p=>p.id===m.id)?`Schemavecka ${model.activeVersion(team,ui.date)?model.rotationPosition(model.activeVersion(team,ui.date),m.id,ui.date)||'—':'—'}`:'Ersättare från annat team'}</small></span></button></th>${dates.map(d=>{const shifts=assignments[d].filter(s=>s.memberId===m.id);return `<td class="${d===today()?'today-column':''}">${shifts.length?shifts.map(s=>`<div class="table-shift ${esc(s.color||colorFor(team,d,s.code))}"><strong>${esc(s.code||'↗')}${s.type==='cover'?' ↗':''}</strong><span>${s.start}<br>${s.end}</span></div>`).join(''):'<span class="table-off">—</span>'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div><div class="mobile-team-days">${dates.map(d=>{const shifts=assignments[d];return `<div class="team-day"><h3>${fmt(d,{weekday:'long',day:'numeric',month:'short'})}${d===today()?'<span class="today-tag">Idag</span>':''}</h3>${shifts.length?shifts.map((s,i)=>{const person=findMember(s.memberId);return `<div class="team-day-row">${avatar(person||{name:'Medarbetare'},i,true)}<span>${esc(person?.name||'Medarbetare')}${s.type==='cover'?'<small>Ersättningspass</small>':''}</span><strong>${s.start}–${s.end}</strong><span class="code-badge ${esc(s.color||colorFor(team,d,s.code))}">${esc(s.code||'↗')}</span></div>`;}).join(''):'<p class="muted">Inga pass schemalagda</p>'}</div>`;}).join('')}</div></section><p class="table-hint">${icon('info')}Välj en medarbetare för att se personens schema och gemensamma arbetstider.</p>`;
+function rosterView(team) {
+  const state=data(), dates=model.weekDates(ui.date), editable=admin()&&ui.previewDraft;
+  const assignments=Object.fromEntries(dates.map(d=>[d,model.getDayAssignments(state,team.id,d)]));
+  const home=team.members.filter(m=>(!m.activeUntil||m.activeUntil>dates[0])&&m.activeFrom<=dates[6]);
+  const visitors=[...new Set(Object.values(assignments).flat().map(s=>s.memberId))].filter(id=>!home.some(m=>m.id===id)).map(findMember).filter(Boolean);
+  const members=[...home,...visitors], version=model.activeVersion(team,ui.date);
+  const control=(text,kind,member,date,canEdit)=>canEdit?'<button class="roster-control '+kind+'" data-action="roster-edit" data-member="'+esc(member.id)+'" data-date="'+date+'" aria-label="'+(kind==='status'?'Status':'Ersättare')+' för '+esc(member.name)+', '+fmt(date,{day:'numeric',month:'long'})+'"><span>'+esc(text)+'</span>'+icon('edit')+'</button>':'<span class="roster-value '+kind+'">'+esc(text)+'</span>';
+  const rows=members.map((m,i)=>{
+    const isHome=home.some(p=>p.id===m.id), position=isHome&&version?model.rotationPosition(version,m.id,ui.date):0;
+    const cells=dates.map(d=>({date:d,shifts:assignments[d].filter(a=>a.memberId===m.id),exception:state.exceptions.find(e=>e.teamId===team.id&&e.memberId===m.id&&e.date===d),main:isHome?model.getShift(state,team.id,m.id,d):null,active:isHome&&m.activeFrom<=d&&(!m.activeUntil||m.activeUntil>d)}));
+    const shiftCells=cells.map(c=>'<td class="'+(c.date===today()?'roster-today':'')+'">'+(c.shifts.length?c.shifts.map(a=>'<div class="roster-shift '+esc(a.color||colorFor(team,c.date,a.code))+'"><b>'+esc(a.code||'↗')+(a.type==='cover'?' ↗':'')+'</b><span>'+a.start+'–'+a.end+'</span></div>').join(''):'<div class="roster-off">'+(c.exception&&c.main?.code?'<s>'+esc(c.main.code)+'</s>':'—')+'<span>'+(c.active?'Ledig':isHome?'Ej aktiv':'Inget pass')+'</span></div>')+'</td>').join('');
+    const statuses=cells.map(c=>'<td>'+control(c.exception?(editable?label(c.exception.type):c.shifts.length?'Anpassat pass':'Ledig'):c.shifts.some(a=>a.type==='cover')?'Ersättningspass':c.shifts.length?'Ordinarie':'—','status',m,c.date,editable&&c.active)+'</td>').join('');
+    const replacements=cells.map(c=>{const replacement=c.exception?.replacementId?findMember(c.exception.replacementId):null;return '<td>'+control(replacement?.name||(editable&&c.main?.needsCoverage?'Behövs':'—'),'replacement',m,c.date,editable&&c.active)+(replacement?'<small class="roster-cover-time">'+(c.exception.replacementStart||c.main?.originalStart||'')+'–'+(c.exception.replacementEnd||c.main?.originalEnd||'')+'</small>':'')+'</td>';}).join('');
+    return '<tbody class="roster-person"><tr class="roster-shifts"><th scope="row" class="roster-name"><div class="roster-person-label">'+avatar(m,i,true)+'<span>'+esc(m.name)+'<small>'+(position?'Schemavecka '+position:isHome?'Timvikarie':'Gästande ersättare')+'</small></span></div></th>'+shiftCells+'</tr><tr class="roster-meta"><th scope="row">Status</th>'+statuses+'</tr><tr class="roster-meta roster-last"><th scope="row">Ersättare</th>'+replacements+'</tr></tbody>';
+  }).join('');
+  return '<section class="roster-panel"><div class="roster-heading"><div><div class="eyebrow">VECKANS BEMANNING</div><h2>'+esc(team.name)+'</h2><p>'+members.length+' medarbetare · '+Object.values(assignments).flat().length+' pass</p></div>'+(admin()?'<button class="'+(editable?'secondary-btn':'primary-btn')+'" data-action="'+(editable?'roster-publish':'roster-draft')+'">'+icon(editable?'check':'edit')+(editable?'Publicera ändringar':'Redigera veckan')+'</button>':'')+'</div><div class="roster-guide">'+icon('info')+'<span>'+(editable?'Tryck på status eller ersättare för att ändra ett pass. Ändringar sparas som utkast.':'Passkod och arbetstid visas överst. Status och ersättare visas under varje pass.')+'</span><span class="swipe-hint">Svep för fler dagar →</span></div><div class="roster-scroll" tabindex="0" role="region" aria-label="Teamets veckoschema, rulla i sidled för fler dagar"><table class="roster-table"><caption class="sr-only">'+esc(team.name)+', kalendervecka '+model.isoWeek(ui.date).week+'</caption><colgroup><col class="roster-name-col">'+dates.map(()=>'<col>').join('')+'</colgroup><thead><tr><th scope="col" class="roster-corner">Medarbetare<span>Vecka '+model.isoWeek(ui.date).week+'</span></th>'+dates.map((d,i)=>'<th scope="col" class="'+(d===today()?'roster-today':'')+' '+(i>4?'roster-weekend':'')+'"><span>'+weekdayNames[i]+'</span><strong>'+fmt(d,{day:'numeric',month:'short'})+'</strong>'+(d===today()?'<small>Idag</small>':'')+'</th>').join('')+'</tr></thead>'+rows+'</table></div><div class="roster-legend">'+Object.entries(version?.shifts||{}).map(([code,shift])=>'<span><b class="code-badge '+esc(shift.color)+'">'+esc(code)+'</b>'+shift.start+'–'+shift.end+'</span>').join('')+'</div></section>';
 }
 const findMember = id => (ui.view==='admin'?workspace.working?.teams:data()?.teams || []).flatMap(t=>t.members).find(m=>m.id===id);
 
@@ -283,15 +270,15 @@ async function reorderRow(from,to) {const next=copy(),team=next.teams.find(t=>t.
 async function handleAction(button) {
   const action=button.dataset.action;
   switch(action) {
-    case 'view': ui.view=button.dataset.view;if(ui.view==='team')ui.period='week';shell();window.scrollTo({top:0,behavior:'smooth'});break;
+    case 'roster-draft':if(admin()){ui.previewDraft=true;shell();}break;
+    case 'roster-publish':await handleAction({dataset:{action:'publish'}});break;
+    case 'roster-edit':if(admin()&&ui.previewDraft){const existing=workspace.working.exceptions.find(e=>e.teamId===currentTeam().id&&e.memberId===button.dataset.member&&e.date===button.dataset.date);exceptionModal({id:existing?.id,memberId:button.dataset.member,date:button.dataset.date});}break;
+    case 'view': ui.view=button.dataset.view;shell();window.scrollTo({top:0,behavior:'smooth'});break;
     case 'admin':ui.view='admin';shell();break;
-    case 'navigate': {const step=Number(button.dataset.step);if(ui.period==='week')ui.date=model.addDays(ui.date,step*7);else{const d=new Date(ui.date+'T12:00:00Z');if(ui.period==='month'){d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+step);}else{d.setUTCMonth(0,1);d.setUTCFullYear(d.getUTCFullYear()+step);}ui.date=d.toISOString().slice(0,10);}shell();break;}
+    case 'navigate': {const step=Number(button.dataset.step);if(ui.period==='week')ui.date=model.addDays(ui.date,step*7);else{const d=new Date(ui.date+'T12:00:00Z');d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+step);ui.date=d.toISOString().slice(0,10);}shell();break;}
     case 'today':ui.date=today();shell();break;
-    case 'period':ui.period=button.dataset.period;if(ui.view==='team'&&ui.period!=='week')ui.view='schedule';shell();break;
-    case 'select-day':ui.date=button.dataset.date;shell();$(`#day-${ui.date}`)?.scrollIntoView({block:'center',behavior:'smooth'});break;
+    case 'period':ui.period=button.dataset.period;shell();break;
     case 'open-week':ui.date=button.dataset.date;ui.period='week';shell();break;
-    case 'open-month':ui.date=button.dataset.date;ui.period='month';shell();break;
-    case 'person':ui.memberId=button.dataset.member;if(!currentTeam().members.some(m=>m.id===ui.memberId))ui.teamId=data().teams.find(t=>t.members.some(m=>m.id===ui.memberId))?.id;localStorage.setItem('skift-person',ui.memberId);ui.view='schedule';shell();break;
     case 'admin-tab':ui.adminTab=button.dataset.tab;shell();break;
     case 'close-modal':$('#modal').close();break;
     case 'add-team':if(admin())addTeam();break;
@@ -324,7 +311,6 @@ document.addEventListener('change',async e=>{
   const target=e.target;
   try {
     if(['team-select','admin-team-select'].includes(target.id)){ui.teamId=target.value;editingVersionId=undefined;localStorage.setItem('skift-team',ui.teamId);shell();}
-    else if(target.id==='person-select'){ui.memberId=target.value;localStorage.setItem('skift-person',ui.memberId);shell();}
     else if(target.id==='jump-date'){if(target.value){ui.date=target.value;shell();}}
     else if(target.id==='preview-draft'){ui.previewDraft=target.checked;shell();}
     else if(target.id==='version-select'){editingVersionId=target.value;shell();}

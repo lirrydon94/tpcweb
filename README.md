@@ -24,7 +24,9 @@ När `config.js` är tom används en **lokal demo**. Ändringar sparas bara i de
 - En ersättare kan täcka hela eller delar av ett pass. Kontroller av täckning och överlappning använder de faktiska arbetstiderna. Ersättaren kan tillhöra ett annat team.
 - Sparade utkast och publicerade scheman hålls isär. Kollegorna ser det senast publicerade schemat. Administratören kan förhandsgranska det innan det delas.
 
-Under **Schema** kan du välja datum, se kalenderveckor och rotationsveckor samt växla mellan vecka, månad och år. En teamlänk öppnar rätt team direkt. QR-koder innehåller en länk och ger ingen behörighet att se privata uppgifter.
+Veckovyn öppnas som en samlad teamtabell med medarbetare på rader och måndag–söndag i kolumner. Passkod, arbetstid, status och ersättare visas tillsammans. På mobilen rullas tabellen i sidled med namnkolumnen låst. Schemat visar alltid hela teamet. Månadsvyn visar teamets antal pass per dag; välj en dag för att öppna den veckan. **Redigera veckan** öppnar utkastet där status och ersättare kan ändras och sedan publiceras.
+
+Under **Schema** kan du välja datum, se kalenderveckor och rotationsveckor samt växla mellan vecka och månad. En teamlänk öppnar rätt team direkt. QR-koder innehåller en länk och ger ingen behörighet att se privata uppgifter.
 
 ## Använd en gemensam, privat arbetsyta
 
