@@ -59,7 +59,7 @@ function shell() {
     <aside class="sidebar"><a class="brand" href="./" aria-label="RSSB startsida"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav>${workspace.mode === 'cloud' ? `<div class="sidebar-bottom"><button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button></div>` : ''}</aside>
     <div class="main-shell">
     <main id="content" tabindex="-1">${ui.view==='admin' ? adminView() : team ? scheduleView() : emptyWorkspace()}</main>
-    <footer class="page-footer"><span>För en enklare arbetsdag.</span><span>${workspace.published?.publishedAt ? `Publicerat ${new Date(workspace.published.publishedAt).toLocaleDateString('sv-SE',{day:'numeric',month:'short'})}` : 'Inget schema publicerat ännu'}</span></footer>
+    <footer class="page-footer"><span></span><span></span></footer>
     </div><nav class="mobile-nav" aria-label="Mobilnavigation">${nav(true)}</nav>
   </div>`;
   if (ui.view === 'admin' && ui.adminTab === 'rotation' && team) { setupRotationAdmin(); bindRotationDrag(); }
