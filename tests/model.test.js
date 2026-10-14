@@ -3,8 +3,39 @@ import assert from 'node:assert/strict';
 import {
   seedState, mondayOf, addDays, weekDates, isoWeek, rotationPosition,
   activeVersion, getShift, getDayAssignments, getCoworkers, weekStats,
-  createVersion, archiveMember, validateState, publishState,
+  createVersion, archiveMember, deleteTeam, validateState, publishState,
 } from '../src/model.js';
+
+test('deleting a team clears its data and cross-team covers while preserving other absences', () => {
+  const state = seedState();
+  const other = structuredClone(state.teams[0]);
+  other.id = 'other-team';
+  for (const member of other.members) {
+    const oldId = member.id;
+    member.id = `other-${oldId}`;
+    for (const version of other.versions) {
+      version.positions[member.id] = version.positions[oldId];
+      delete version.positions[oldId];
+    }
+  }
+  state.teams.push(other);
+  state.exceptions = [
+    { id: 'removed', teamId: 'team-1', memberId: 'member-1', date: '2026-10-12', type: 'off' },
+    { id: 'keep', teamId: other.id, memberId: other.members[0].id, date: '2026-10-12', type: 'sick', note: 'Bevara', replacementId: 'member-2', replacementStart: '11:30', replacementEnd: '16:00' },
+  ];
+  const before = structuredClone(state);
+  const next = deleteTeam(state, 'team-1');
+  assert.deepEqual(state, before);
+  assert.deepEqual(next.teams, [other]);
+  assert.deepEqual(next.exceptions, [{ id: 'keep', teamId: other.id, memberId: other.members[0].id, date: '2026-10-12', type: 'sick', note: 'Bevara' }]);
+  assert.deepEqual(validateState(next), []);
+  assert.equal(getShift(next, other.id, other.members[0].id, '2026-10-12').needsCoverage, true);
+  const empty = deleteTeam(next, other.id);
+  assert.deepEqual(empty.teams, []);
+  assert.deepEqual(empty.exceptions, []);
+  assert.ok(publishState(empty).publishedAt);
+  assert.throws(() => deleteTeam(state, 'missing'), /kunde inte hittas/);
+});
 
 test('ISO calendar dates work at year boundaries and daylight-saving transitions', () => {
   assert.equal(mondayOf('2027-01-03'), '2026-12-28');

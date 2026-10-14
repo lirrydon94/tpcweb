@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { seedState, publishState, validateState } from './model.js';
+import { seedState, publishState, validateState, deleteTeam } from './model.js';
 import { defaultWorkspace } from './default-data.js';
 
 const LOCAL_KEY = 'skift-workspace-v1';
@@ -7,8 +7,50 @@ const SESSION_KEY = 'skift-session-v1';
 const cloud = Boolean(config.supabaseUrl || config.supabaseAnonKey);
 let session = null;
 let snapshot = null;
+let latestDefaults = defaultWorkspace;
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+const START_DATE_FIX = 'lopare-start-date-2026-10-12';
+const START_DATE_MEMBERS = new Set([
+  '92c661cf-5f06-4fb6-ade2-8ab6fd6117a3',
+  '29c00ea2-214d-43fb-a8fd-1ba0178641ad',
+  '20059f25-50b1-4a8d-a3d6-99e63d7c6ae9',
+  'ce36d572-b884-48a0-95f2-08eb437928ed',
+]);
+
+function fixLocalStartDates(saved) {
+  if (saved.appliedFixes?.includes(START_DATE_FIX)) return false;
+  // These existing coworkers were entered on Tuesday, hiding their Monday shifts.
+  // Match only the affected records; keep intentional start dates and other edits.
+  for (const state of [saved.working, saved.published]) {
+    const team = state.teams.find(item => item.id === 'team-1');
+    for (const member of team?.members || []) {
+      if (START_DATE_MEMBERS.has(member.id) && member.activeFrom === '2026-10-13') {
+        member.activeFrom = '2026-10-12';
+      }
+    }
+  }
+  saved.appliedFixes = [...(saved.appliedFixes || []), START_DATE_FIX];
+  return true;
+}
+
+function syncRemovedTeams(saved) {
+  // Deletions saved before automatic publishing may exist only in working.
+  // Apply those deletions without publishing unrelated old draft edits.
+  const remaining = new Set(saved.working.teams.map(team => team.id));
+  const removed = saved.published.teams.filter(team => !remaining.has(team.id));
+  if (!removed.length) return false;
+  for (const team of removed) saved.published = deleteTeam(saved.published, team.id);
+  saved.published.publishedAt = new Date().toISOString();
+  saved.revision++;
+  return true;
+}
+
+const localPayload = value => JSON.stringify({
+  working: value.working, published: value.published, revision: value.revision,
+  appliedFixes: value.appliedFixes || [],
+});
 
 function checkState(state) {
   if (!state || state.schemaVersion !== 1 || !Array.isArray(state.teams) || !Array.isArray(state.exceptions)) {
@@ -135,7 +177,7 @@ async function readCloud() {
 function syncToFile(value) {
   if (typeof location === 'undefined') return;
   if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
-  const payload = JSON.stringify({ working: value.working, published: value.published, revision: value.revision });
+  const payload = localPayload(value);
   fetch('/api/save-workspace', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -153,7 +195,7 @@ function syncToFile(value) {
 
 function saveLocal(value) {
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify({ working: value.working, published: value.published, revision: value.revision }));
+    localStorage.setItem(LOCAL_KEY, localPayload(value));
   } catch {
     throw new Error('Kunde inte spara på den här enheten. Kontrollera webbläsarens lagringsutrymme.');
   }
@@ -189,8 +231,18 @@ export async function init() {
     saved = null;
     warning = 'Det sparade demoschemat kunde inte läsas. Ett nytt exempel visas. Exportera en säkerhetskopia efter dina ändringar.';
   }
-  if (!saved || (defaultWorkspace?.revision && (saved.revision || 0) < defaultWorkspace.revision)) {
-    saved = clone(defaultWorkspace || { working: seedState(), published: publicState(seedState()), revision: 0 });
+  const useDefaults = !saved || (latestDefaults?.revision && (saved.revision || 0) < latestDefaults.revision);
+  if (useDefaults) {
+    saved = clone(latestDefaults || { working: seedState(), published: publicState(seedState()), revision: 0 });
+  }
+  const fixedDates = fixLocalStartDates(saved);
+  const removedTeams = syncRemovedTeams(saved);
+  if (fixedDates || useDefaults) {
+    try {
+      localStorage.setItem(LOCAL_KEY, localPayload(saved));
+    } catch {
+      warning = 'Schemat har uppdaterats i vyn men kunde inte sparas på den här enheten.';
+    }
   }
   // Rename only the original built-in demo identity; preserve custom and cloud names.
   for (const state of [saved.working, saved.published]) {
@@ -200,7 +252,36 @@ export async function init() {
     if (builtInMember?.name === 'You') builtInMember.name = 'Du';
   }
   snapshot = { mode: 'demo', role: 'admin', ...saved, ...(warning ? { error: warning } : {}) };
+  if (removedTeams) {
+    try { return saveLocal(snapshot); }
+    catch (error) { snapshot.error = error.message; }
+  }
   return clone(snapshot);
+}
+
+export async function refresh({ canApply = () => true } = {}) {
+  const previous = snapshot;
+  let defaults;
+  if (!cloud && typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname)) {
+    try {
+      const response = await fetch(new URL('./default-data.js', import.meta.url), { cache: 'no-store' });
+      if (response.ok) {
+        // The sync scripts store a JSON object in this module. Read it as data
+        // so any local static preview works without caching new module imports.
+        const source = await response.text();
+        const value = JSON.parse(source.replace(/^\s*export const defaultWorkspace\s*=\s*/, '').replace(/;\s*$/, ''));
+        checkState(value.working);
+        checkState(value.published);
+        if (Number.isSafeInteger(value.revision) && value.revision >= 0) defaults = value;
+      }
+    } catch {
+      // A stopped preview server must not hide the saved browser schedule.
+    }
+  }
+  // A save or a newly opened editor takes precedence over a background read.
+  if (snapshot !== previous || !canApply()) return clone(snapshot);
+  if (defaults && defaults.revision > (latestDefaults?.revision || 0)) latestDefaults = defaults;
+  return init();
 }
 
 export async function saveDraft(state) {
@@ -264,5 +345,5 @@ export async function importData(state) {
   const working = checkState(state);
   const errors = validateState(working);
   if (errors.length) throw new Error(errors.join('\n'));
-  return saveDraft(working);
+  return publish(working);
 }

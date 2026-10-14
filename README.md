@@ -22,9 +22,9 @@ När `config.js` är tom används det förkonfigurerade schemat i `src/default-d
 - Semester, sjukfrånvaro, pensionsdagar, ändrade arbetstider och ersättare registreras på bestämda datum. Rotationens veckor fortsätter att gå framåt under frånvaron.
 - Tomma rutor i den ursprungliga tabellen betyder ledigt. Visade arbetstimmar är tiden mellan start och slut. Den här versionen räknar inte bort obetalda raster och beräknar inte lön.
 - En ersättare kan täcka hela eller delar av ett pass. Kontroller av täckning och överlappning använder de faktiska arbetstiderna. Ersättaren kan tillhöra ett annat team.
-- Sparade utkast och publicerade scheman hålls isär. Kollegorna ser det senast publicerade schemat. Administratören kan förhandsgranska det innan det delas.
+- Varje giltig ändring publiceras automatiskt när den sparas. Administratörens privata anteckningar och frånvaroorsaker finns bara i administrationsvyn; kollegorna ser den rensade schemaversionen.
 
-Veckovyn öppnas som en samlad teamtabell med medarbetare på rader och måndag–söndag i kolumner. Passkod, arbetstid, status och ersättare visas tillsammans. På mobilen rullas tabellen i sidled med namnkolumnen låst. Schemat visar alltid hela teamet. **Redigera veckan** öppnar utkastet där status och ersättare kan ändras och sedan publiceras.
+Veckovyn öppnas som en samlad teamtabell med medarbetare på rader och måndag–söndag i kolumner. Passkod, arbetstid, status och ersättare visas tillsammans. På mobilen rullas tabellen i sidled med namnkolumnen låst. Schemat visar alltid hela teamet. **Redigera veckan** öppnar schemat för redigering. Sparade ändringar av status och ersättare publiceras direkt.
 
 Under **Schema** kan du välja datum och se kalenderveckor och rotationsveckor. En teamlänk öppnar rätt team direkt. QR-koder innehåller en länk och ger ingen behörighet att se privata uppgifter.
 
@@ -55,7 +55,7 @@ Molnläget använder Supabase-konton med e-post och lösenord samt en skyddad da
 
    Den publika nyckeln är avsedd att synas i webbplatsens källkod. Lägg aldrig en hemlig nyckel eller `service-role`-nyckel, databaslösenord, inloggningstoken, medarbetarexport eller medicinska anteckningar på GitHub. Databasfunktionerna kontrollerar användarens roll innan utkast läses eller ändras.
 
-6. Öppna webbplatsen och logga in som administratör. En ny molnarbetsyta är tom. Under **Hantera** lägger du till ett team eller importerar en JSON-säkerhetskopia från demon. Byt ut exempelnamnen och referensdatumet, spara utkastet och välj sedan **Publicera ändringar**. Import ändrar bara utkastet.
+6. Öppna webbplatsen och logga in som administratör. En ny molnarbetsyta är tom. Under **Hantera** lägger du till ett team eller importerar en JSON-säkerhetskopia från demon. Byt ut exempelnamnen och referensdatumet och spara. Alla sparade ändringar publiceras automatiskt. Även en bekräftad import publiceras direkt.
 7. Logga in med ett kollegakonto och kontrollera att det publicerade schemat visas och att kontot inte kan redigera. Kollegor väljer sitt eget namn för att se sitt personliga schema.
 
 Inloggningstoken sparas i flikens sessionslagring. Inloggningen kan förnyas medan fliken är öppen. Den första versionen har ingen egen vy för lösenordsåterställning eller kontoinbjudningar. Hantera konton och lösenordsåterställning i Supabase.
@@ -79,10 +79,10 @@ Supabase har en [gratisnivå med begränsningar](https://supabase.com/pricing). 
 
 ## Säkerhetskopiera och underhåll
 
-Exportera administratörens utkast som en JSON-fil via **Säkerhetskopia** innan större ändringar. När en säkerhetskopia importeras ersätts det aktuella utkastet. Granska det och välj **Publicera ändringar** när det är klart. Förvara säkerhetskopior med medarbetaruppgifter privat. Supabase-projektets säkerhetskopior och lagringstid hanteras separat från exporterna i webbläsaren.
+Exportera schemat som en JSON-fil via **Säkerhetskopia** innan större ändringar. När en import bekräftas ersätts och publiceras det aktuella schemat direkt. Förvara säkerhetskopior med medarbetaruppgifter privat. Supabase-projektets säkerhetskopior och lagringstid hanteras separat från exporterna i webbläsaren.
 
 Exporter med `schemaVersion: 1` innehåller schemats data direkt: `teams`, `exceptions` och `publishedAt`. Importen accepterar dessa data, inte webbläsarlagringens omslag med utkast och publicerat schema. Anslutningsfel och behörighetsfel i molnläget visas som felmeddelanden. Molnläget byter aldrig automatiskt till lokal demodata.
 
 För återkommande pensionsdagar väljer du ett datumintervall och de veckodagar där kortare arbetstid eller frånvaro ska gälla. Det skapar individuella datumändringar som kan redigeras senare. Aviseringar, löneberäkning, återkommande frånvaroregler utan slutdatum och koppling mellan inloggning och person ingår ännu inte.
 
-Publicerade rotationsversioner är låsta för redigering. Välj **Ny rotation** under **Hantera** för att ange en ny startmåndag och rotationslängd. Granska sedan det kopierade mönstret och medarbetarnas startpositioner. I ett opublicerat utkast kan du använda **Redigera startdatum** för att ändra referensmåndagen. Timanställda kan anges som **Endast ersättare** för att stå utanför den ordinarie rotationen.
+Grundschemat kan redigeras under **Hantera** och varje sparad ändring publiceras direkt. Välj **Ny rotation** för en ny startmåndag och rotationslängd. Den nya versionen publiceras när den skapas. Referensmåndagen och startpositionerna kan sedan ändras i grundschemat. Timanställda kan anges som **Endast ersättare** för att stå utanför den ordinarie rotationen.

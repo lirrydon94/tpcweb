@@ -60,28 +60,28 @@ export const defaultWorkspace = {
             "id": "92c661cf-5f06-4fb6-ade2-8ab6fd6117a3",
             "name": "Christer",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           },
           {
             "id": "29c00ea2-214d-43fb-a8fd-1ba0178641ad",
             "name": "Martin",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           },
           {
             "id": "20059f25-50b1-4a8d-a3d6-99e63d7c6ae9",
             "name": "Mikael",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           },
           {
             "id": "ce36d572-b884-48a0-95f2-08eb437928ed",
             "name": "Bosse",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           }
         ],
@@ -490,28 +490,28 @@ export const defaultWorkspace = {
             "id": "92c661cf-5f06-4fb6-ade2-8ab6fd6117a3",
             "name": "Christer",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           },
           {
             "id": "29c00ea2-214d-43fb-a8fd-1ba0178641ad",
             "name": "Martin",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           },
           {
             "id": "20059f25-50b1-4a8d-a3d6-99e63d7c6ae9",
             "name": "Mikael",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           },
           {
             "id": "ce36d572-b884-48a0-95f2-08eb437928ed",
             "name": "Bosse",
             "role": "member",
-            "activeFrom": "2026-10-13",
+            "activeFrom": "2026-10-12",
             "activeUntil": null
           }
         ],

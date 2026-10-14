@@ -305,6 +305,23 @@ export function archiveMember(team, memberId, date) {
   return member;
 }
 
+export function deleteTeam(state, teamId) {
+  const team = state.teams.find(item => item.id === teamId);
+  if (!team) throw new Error('Teamet kunde inte hittas.');
+  const removedMembers = new Set(team.members.map(member => member.id));
+  const next = clone(state);
+  next.teams = next.teams.filter(item => item.id !== teamId);
+  next.exceptions = next.exceptions.filter(item => item.teamId !== teamId);
+  for (const exception of next.exceptions) {
+    if (removedMembers.has(exception.replacementId)) {
+      delete exception.replacementId;
+      delete exception.replacementStart;
+      delete exception.replacementEnd;
+    }
+  }
+  return next;
+}
+
 export function validateState(state) {
   const errors = [];
   const checkDate = (date, label) => {
@@ -314,7 +331,6 @@ export function validateState(state) {
   if (!state || state.schemaVersion !== 1 || !Array.isArray(state.teams) || !Array.isArray(state.exceptions)) {
     return ['Schemafilens format stöds inte.'];
   }
-  if (!state.teams.length) errors.push('Lägg till minst ett team.');
   const teamIds = new Set();
   const memberIds = new Set();
   const allMembers = new Map();
