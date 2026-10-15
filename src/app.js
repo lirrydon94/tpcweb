@@ -94,10 +94,13 @@ function scrollToToday() {
   const column = $('.roster-table thead .roster-today');
   const corner = $('.roster-corner');
   if (!scroller || !column || !corner) return;
-  const left = scroller.scrollLeft + column.getBoundingClientRect().left
-    - scroller.getBoundingClientRect().left - corner.getBoundingClientRect().width;
+  const columnRect = column.getBoundingClientRect();
+  const nameWidth = corner.getBoundingClientRect().width;
+  const visibleCenter = nameWidth + (scroller.clientWidth - nameWidth) / 2;
+  const left = scroller.scrollLeft + columnRect.left + columnRect.width / 2
+    - scroller.getBoundingClientRect().left - scroller.clientLeft - visibleCenter;
   scroller.scrollTo({
-    left: Math.max(0, left),
+    left: Math.max(0, Math.min(left, scroller.scrollWidth - scroller.clientWidth)),
     behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
   });
 }
