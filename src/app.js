@@ -29,7 +29,7 @@ const colorLabel = color => ({amber:'Bärnsten',mint:'Mintgrön',blue:'Blå',lav
 const initials = name => name.split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase();
 const avatar = (member, i = 0, small = false) => `<span class="avatar tone-${i % 5} ${small ? 'small' : ''}" title="${esc(member.name)}">${esc(initials(member.name))}</span>`;
 const urlParams = new URLSearchParams(location.search);
-const ui = {view:'schedule',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:urlParams.get('team') || localStorage.getItem('skift-team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',editingSchedule:false,busy:false};
+const ui = {view:'schedule',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:localStorage.getItem('skift-team') || urlParams.get('team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',editingSchedule:false,busy:false};
 let workspace;
 let adminUnlocked = false;
 const mobileViewport = window.matchMedia?.('(max-width: 800px)');

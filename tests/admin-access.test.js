@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import * as model from '../src/model.js';
 import { defaultWorkspace } from '../src/default-data.js';
 
-async function openApp(role = 'admin', initial = defaultWorkspace) {
+async function openApp(role = 'admin', initial = defaultWorkspace, preferences = new Map(), search = '?date=2026-10-14') {
   let saved = { ...structuredClone(initial), mode: 'demo', role };
   const listeners = {};
   let publishError = null;
@@ -33,8 +33,8 @@ async function openApp(role = 'admin', initial = defaultWorkspace) {
       addEventListener: (type, fn) => { listeners[type] = fn; },
     },
     window: { addEventListener() {}, scrollTo() {} },
-    location: { search: '?date=2026-10-14' },
-    localStorage: { getItem: () => null },
+    location: { search },
+    localStorage: { getItem: key => preferences.get(key) || null, setItem: (key, value) => preferences.set(key, value) },
     URLSearchParams, Intl, Date, structuredClone,
     FormData: class { constructor(target) { this.get = key => target[key]; } },
     setInterval() {}, setTimeout() {}, clearTimeout() {},
@@ -171,4 +171,24 @@ test('deleting the selected team removes it from the schedule dropdown and selec
   assert.ok(page.app.innerHTML.includes('<option value="remaining-team" selected>Kvarvarande team</option>'));
   assert.ok(!page.app.innerHTML.includes('Löpare'));
   assert.ok(!page.app.innerHTML.includes('<option value="team-1"'));
+});
+
+test('the selected team is restored on reopening even when the link names another team', async () => {
+  const initial = structuredClone(defaultWorkspace);
+  for (const state of [initial.working, initial.published]) {
+    const team = structuredClone(state.teams[0]);
+    team.id = 'second-team';
+    team.name = 'Andra teamet';
+    state.teams.push(team);
+  }
+  const preferences = new Map();
+  const search = '?team=' + initial.published.teams[0].id;
+  const page = await openApp('viewer', initial, preferences, search);
+  await page.change({ id: 'team-select', value: 'second-team' });
+  assert.equal(preferences.get('skift-team'), 'second-team');
+  const reopened = await openApp('viewer', initial, preferences, search);
+  assert.ok(reopened.app.innerHTML.includes('<option value="second-team" selected>'));
+  preferences.set('skift-team', 'deleted-team');
+  const fallback = await openApp('viewer', initial, preferences, search);
+  assert.ok(fallback.app.innerHTML.includes('<option value="' + initial.published.teams[0].id + '" selected>'));
 });
