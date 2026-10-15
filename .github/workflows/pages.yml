@@ -37,6 +37,7 @@ jobs:
           cp index.html styles.css config.js _site/
           cp -r src _site/src
           if [ -d assets ]; then cp -r assets _site/assets; fi
+          node scripts/version-assets.mjs _site
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
