@@ -89,6 +89,19 @@ function heading(team, teams) {
   ${admin() && ui.editingSchedule ? `<div class="published-label"><span class="draft-dot"></span>Redigerar schema</div>` : ''}`;
 }
 
+function scrollToToday() {
+  const scroller = $('.roster-scroll');
+  const column = $('.roster-table thead .roster-today');
+  const corner = $('.roster-corner');
+  if (!scroller || !column || !corner) return;
+  const left = scroller.scrollLeft + column.getBoundingClientRect().left
+    - scroller.getBoundingClientRect().left - corner.getBoundingClientRect().width;
+  scroller.scrollTo({
+    left: Math.max(0, left),
+    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+  });
+}
+
 function scheduleView() {
   const team=currentTeam();
   const teams=data()?.teams || [];
@@ -312,7 +325,7 @@ async function handleAction(button) {
     case 'view': if(button.dataset.view==='admin'){openAdmin();break;}ui.view='schedule';ui.editingSchedule=false;adminUnlocked=false;shell();window.scrollTo({top:0,behavior:'smooth'});break;
     case 'admin':openAdmin();break;
     case 'navigate': ui.date=model.addDays(ui.date,Number(button.dataset.step)*7);shell();break;
-    case 'today':ui.date=today();shell();break;
+    case 'today':ui.date=today();shell();scrollToToday();break;
     case 'admin-tab':if(admin()){ui.adminTab=button.dataset.tab;shell();}break;
     case 'close-modal':$('#modal').close();break;
     case 'add-team':if(admin())addTeam();break;

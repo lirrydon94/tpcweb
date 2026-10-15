@@ -112,3 +112,44 @@
   .schedule-header .page-heading{flex-basis:76px}
 }
 .roster-table thead th.roster-corner{text-align:center;padding-left:8px;padding-right:8px}
+
+/* Comfortable touch targets without moving controls to another row. */
+@media(max-width:640px){
+  .schedule-header{gap:6px}
+  .schedule-header .page-heading{flex:0 0 88px}
+  .schedule-header .heading-team{min-height:48px;padding:8px;border-radius:10px}
+  .schedule-header .heading-team-label{font-size:13px}
+  .schedule-header .heading-team-chevron{width:14px;height:14px}
+  .schedule-header .date-navigation{gap:4px}
+  .schedule-header .date-navigation strong{font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+  .schedule-header .date-navigation .icon-btn,
+  .schedule-header .today-btn,
+  .schedule-header .date-picker{width:44px;min-width:44px;height:48px;min-height:48px;padding:0;border-radius:10px;touch-action:manipulation;color:var(--green)}
+  .schedule-header .today-btn{font-size:12px;font-weight:600}
+  .schedule-header .date-picker .icon{width:20px;height:20px}
+  .schedule-header .heading-team:active,
+  .schedule-header .date-navigation .icon-btn:active,
+  .schedule-header .today-btn:active,
+  .schedule-header .date-picker:active{background:#dcebdd;border-color:#86ad9b}
+  .schedule-header .heading-team:focus-within,
+  .schedule-header .date-picker:focus-within{outline:3px solid #56a68d;outline-offset:2px}
+}
+@media(max-width:370px){
+  .schedule-header{gap:4px}
+  .schedule-header .page-heading{flex-basis:64px}
+  .schedule-header .heading-team{padding:6px 4px;gap:2px}
+  .schedule-header .heading-team-label{font-size:12px}
+  .schedule-header .date-navigation strong{font-size:11px}
+}
+
+/* Keep the mobile page fixed; only the roster owns scrolling. */
+@media screen and (max-width:800px){
+  html:has(.app-shell),body:has(.app-shell){overflow:hidden;overscroll-behavior:none}
+  .app-shell{position:fixed;inset:0;width:100%;height:100vh;height:100dvh;min-height:0;overflow:hidden}
+  .main-shell{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
+  main#content{display:flex;flex-direction:column;flex:1;width:100%;min-height:0;overflow:hidden;padding: max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+  .schedule-header{flex-shrink:0}
+  .roster-panel{display:flex;flex-direction:column;flex:1;min-height:0;margin-top:0}
+  .roster-scroll{flex:1;min-height:0;max-height:none;overflow:auto;overscroll-behavior:none}
+  .page-footer{display:none}
+}
