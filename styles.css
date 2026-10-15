@@ -153,3 +153,4 @@
   .roster-scroll{flex:1;min-height:0;max-height:none;overflow:auto;overscroll-behavior:none}
   .page-footer{display:none}
 }
+.roster-table .roster-name{text-align:center;padding-left:8px;padding-right:8px}.roster-person-label{justify-content:center;text-align:center}
