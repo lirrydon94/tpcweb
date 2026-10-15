@@ -116,15 +116,15 @@
 /* Comfortable touch targets without moving controls to another row. */
 @media(max-width:640px){
   .schedule-header{gap:6px}
-  .schedule-header .page-heading{flex:0 0 88px}
-  .schedule-header .heading-team{min-height:48px;padding:8px;border-radius:10px}
+  .schedule-header .page-heading{flex:0 0 72px}
+  .schedule-header .heading-team{min-height:48px;padding:6px 4px;gap:2px;border-radius:10px}
   .schedule-header .heading-team-label{font-size:13px}
   .schedule-header .heading-team-chevron{width:14px;height:14px}
   .schedule-header .date-navigation{gap:4px}
   .schedule-header .date-navigation strong{font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
   .schedule-header .date-navigation .icon-btn,
   .schedule-header .today-btn,
-  .schedule-header .date-picker{width:44px;min-width:44px;height:48px;min-height:48px;padding:0;border-radius:10px;touch-action:manipulation;color:var(--green)}
+  .schedule-header .date-picker{width:48px;min-width:48px;height:52px;min-height:52px;padding:0;border-radius:10px;touch-action:manipulation;color:var(--green)}
   .schedule-header .today-btn{font-size:12px;font-weight:600}
   .schedule-header .date-picker .icon{width:20px;height:20px}
   .schedule-header .heading-team:active,
@@ -136,7 +136,7 @@
 }
 @media(max-width:370px){
   .schedule-header{gap:4px}
-  .schedule-header .page-heading{flex-basis:64px}
+  .schedule-header .page-heading{flex-basis:56px}
   .schedule-header .heading-team{padding:6px 4px;gap:2px}
   .schedule-header .heading-team-label{font-size:12px}
   .schedule-header .date-navigation strong{font-size:11px}
