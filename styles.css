@@ -90,3 +90,25 @@
   .date-navigation strong{font-size:10px}
   .date-picker{width:32px}
 }
+
+.date-range-compact{display:none}
+@media(max-width:640px){
+  .schedule-header{display:flex;align-items:center;gap:6px;margin-bottom:13px}
+  .schedule-header .page-heading{flex:0 1 100px;min-width:0;margin:0}
+  .schedule-header .heading-team{width:100%;min-height:39px;padding:6px;gap:4px;border-radius:8px}
+  .schedule-header .heading-team-icon{display:none}
+  .schedule-header .heading-team-label{font-size:12px;letter-spacing:0;min-width:0;max-width:none;flex:1}
+  .schedule-header .heading-team-chevron{width:12px;height:12px}
+  .schedule-header .schedule-toolbar{flex:1;min-width:0;margin:0;gap:4px}
+  .schedule-header .date-navigation{gap:3px}
+  .schedule-header .date-navigation .icon-btn{width:30px;min-width:30px}
+  .schedule-header .today-btn{padding:6px;margin:0}
+  .schedule-header .date-picker{width:30px}
+  .date-range-full{display:none}
+  .date-range-compact{display:inline}
+}
+@media(max-width:370px){
+  .schedule-header{gap:4px}
+  .schedule-header .page-heading{flex-basis:76px}
+}
+.roster-table thead th.roster-corner{text-align:center;padding-left:8px;padding-right:8px}
