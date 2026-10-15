@@ -64,3 +64,21 @@
 @media(max-width:370px){.heading-team-label{font-size:19px}}
 
 
+/* Mobile shows only the schedule. */
+@media(max-width:800px){.mobile-nav{display:none}.page-footer{padding-bottom:max(24px,env(safe-area-inset-bottom))}.toast{bottom:24px}}
+
+/* Keep week navigation and the date picker together on phones. */
+@media(max-width:640px){
+  .schedule-toolbar{display:flex;flex-wrap:nowrap;gap:6px;align-items:center}
+  .date-navigation{flex:1;min-width:0;gap:5px}
+  .date-navigation strong{font-size:11px}
+  .view-controls{flex:0 0 auto;margin-top:0}
+  .date-picker{justify-content:center;width:36px;min-height:39px;padding:0;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .date-picker span{display:none}
+}
+@media(max-width:370px){
+  .schedule-toolbar{gap:4px}
+  .date-navigation{gap:3px}
+  .date-navigation strong{font-size:10px}
+  .date-picker{width:32px}
+}

@@ -32,7 +32,17 @@ const urlParams = new URLSearchParams(location.search);
 const ui = {view:'schedule',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:urlParams.get('team') || localStorage.getItem('skift-team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',editingSchedule:false,busy:false};
 let workspace;
 let adminUnlocked = false;
-const hasAdminRole = () => workspace?.role === 'admin';
+const mobileViewport = window.matchMedia?.('(max-width: 800px)');
+const hasAdminRole = () => workspace?.role === 'admin' && !mobileViewport?.matches;
+mobileViewport?.addEventListener('change', () => {
+  if (mobileViewport.matches) {
+    adminUnlocked = false;
+    ui.editingSchedule = false;
+    ui.view = 'schedule';
+    $('#modal').close();
+  }
+  if (workspace) shell();
+});
 const admin = () => hasAdminRole() && adminUnlocked;
 const data = () => admin() && ui.editingSchedule ? workspace.working : workspace.published;
 const currentTeam = (state = ui.view === 'admin' ? workspace?.working : data()) => state?.teams.find(t => t.id === ui.teamId) || state?.teams[0];
@@ -90,6 +100,16 @@ function rosterView(team) {
   const home=team.members.filter(m=>(!m.activeUntil||m.activeUntil>dates[0])&&m.activeFrom<=dates[6]);
   const visitors=[...new Set(Object.values(assignments).flat().map(s=>s.memberId))].filter(id=>!home.some(m=>m.id===id)).map(findMember).filter(Boolean);
   const members=[...home,...visitors], version=model.activeVersion(team,ui.date);
+  const todayAssignments = assignments[today()];
+  if (todayAssignments) {
+    const firstStarts = new Map();
+    for (const shift of todayAssignments) {
+      if (shift.start && (!firstStarts.has(shift.memberId) || shift.start < firstStarts.get(shift.memberId))) {
+        firstStarts.set(shift.memberId, shift.start);
+      }
+    }
+    members.sort((a, b) => (firstStarts.get(a.id) || '99:99').localeCompare(firstStarts.get(b.id) || '99:99'));
+  }
   const control=(text,kind,member,date,canEdit)=>{
     if(!text)return '';
     return canEdit?'<button class="roster-control '+kind+'" data-action="roster-edit" data-member="'+esc(member.id)+'" data-date="'+date+'" aria-label="'+(kind==='status'?'Status':'Ersättare')+' för '+esc(member.name)+', '+fmt(date,{day:'numeric',month:'long'})+'"><span>'+esc(text)+'</span>'+icon('edit')+'</button>':'<span class="roster-value '+kind+'">'+esc(text)+'</span>';
