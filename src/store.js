@@ -186,12 +186,14 @@ function syncToFile(value) {
     headers: { 'Content-Type': 'application/json' },
     body: payload,
   };
-  fetch('/api/save-workspace', options).then(response => {
-    if (response.ok || location.port === '5173') return;
-    return fetch('http://127.0.0.1:5173/api/save-workspace', options);
-  }).catch(() => {
-    if (location.port !== '5173') fetch('http://127.0.0.1:5173/api/save-workspace', options).catch(() => {});
-  });
+  const save = async url => {
+    const response = await fetch(url, options);
+    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return false;
+    return (await response.json()).ok === true;
+  };
+  save('/api/save-workspace').then(saved => {
+    if (!saved && location.port !== '5173') return save('http://127.0.0.1:5173/api/save-workspace');
+  }).catch(() => {});
 }
 
 function saveLocal(value) {

@@ -96,28 +96,30 @@ const server = http.createServer(async (req, res) => {
         if (body.length > 5_000_000) { res.writeHead(413).end('Workspace too large'); return; }
       }
       const data = JSON.parse(body);
-      if (data && data.working && data.published) {
-        // GitHub Pages is public. Publish only the already-sanitized schedule,
-        // never the local admin draft or private notes.
-        const publicWorkspace = {
-          working: data.published,
+      const validState = state => state?.schemaVersion === 1
+        && Array.isArray(state.teams) && Array.isArray(state.exceptions);
+      if (data && validState(data.working) && validState(data.published)
+        && Number.isSafeInteger(data.revision) && data.revision >= 0) {
+        // The user chose to publish the complete local workspace to this public repo.
+        const workspace = {
+          working: data.working,
           published: data.published,
-          revision: Math.max(0, (Number.isSafeInteger(data.revision) ? data.revision : 0) - 1),
-          appliedFixes: data.appliedFixes || [],
+          revision: data.revision,
+          appliedFixes: Array.isArray(data.appliedFixes) ? data.appliedFixes : [],
         };
-        const fileContent = `export const defaultWorkspace = ${JSON.stringify(publicWorkspace, null, 2)};\n`;
+        const fileContent = `export const defaultWorkspace = ${JSON.stringify(workspace, null, 2)};\n`;
         const target = path.join(root, 'src', 'default-data.js');
         const previous = await fs.readFile(target, 'utf8').catch(() => '');
         try {
           const previousData = JSON.parse(previous.replace(/^\s*export const defaultWorkspace\s*=\s*/, '').replace(/;\s*$/, ''));
-          if (JSON.stringify(previousData.published) === JSON.stringify(publicWorkspace.published)) {
+          if (JSON.stringify(previousData) === JSON.stringify(workspace)) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true, revision: data.revision, unchanged: true }));
             return;
           }
         } catch {}
         await fs.writeFile(target, fileContent, 'utf8');
-        console.log(`[Auto-Sync] Public schedule saved to src/default-data.js (revision ${data.revision})`);
+        console.log(`[Auto-Sync] Complete local workspace saved to src/default-data.js (revision ${data.revision})`);
         queueGitHubPublish();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, revision: data.revision, publishing: true }));

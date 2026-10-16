@@ -75,7 +75,7 @@ Databasen avvisar gamla versionsnummer om två administratörer redigerar samtid
 5. Öppna adressen som publiceringen visar. Den är vanligtvis `https://DITT-NAMN.github.io/DITT-ARKIV/`.
 6. Använd appens delningsverktyg för att skapa en QR-kod för teamet med den publicerade adressen. En QR-kod som pekar på `localhost` fungerar inte på kollegornas telefoner.
 
-När du använder den lokala sidan via `npm run dev` sparas publicerade schemaändringar automatiskt i `src/default-data.js`. Den lokala servern skapar en Git-commit och skickar den till `main`; GitHub Actions publicerar sedan den nya versionen. Din lokala arbetskopia måste vara på grenen `main` och GitHub-autentiseringen måste fungera. Endast det publicerade schemat skickas. Utkast, privata anteckningar och frånvaroorsaker stannar lokalt. Eftersom GitHub Pages och arkivet är publika kan alla som hittar adressen se det publicerade schemat.
+När du använder den lokala sidan via `npm run dev` sparas hela arbetsytan automatiskt i `src/default-data.js`: utkast, publicerat schema, team, ledigheter och anteckningar. Den lokala servern skapar en Git-commit och skickar den till `main`; GitHub Actions publicerar sedan den nya versionen. Din lokala arbetskopia måste vara på grenen `main` och GitHub-autentiseringen måste fungera. GitHub Pages och arkivet är publika, så alla som hittar adressen kan se hela arbetsytan.
 
 Arbetsflödet publicerar bara webbplatsens filer. SQL-schema, tester, README och säkerhetskopior publiceras inte. Relativa länkar fungerar även när webbplatsen ligger i en undermapp för GitHub-arkivet. GitHub Pages är [tillgängligt för publika arkiv med GitHub Free](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
 
