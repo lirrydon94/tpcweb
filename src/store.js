@@ -265,7 +265,7 @@ export async function init() {
     try { return saveLocal(snapshot); }
     catch (error) { snapshot.error = error.message; }
   }
-  syncToFile(snapshot);
+  if (typeof location !== 'undefined' && location.port !== '5173') syncToFile(snapshot);
   return clone(snapshot);
 }
 
