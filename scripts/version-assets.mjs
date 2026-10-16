@@ -18,7 +18,7 @@ await fs.writeFile(htmlPath, html
 for (const file of files.filter(file => file.endsWith('.js'))) {
   const filename = path.join(root, file);
   const source = await fs.readFile(filename, 'utf8');
-  await fs.writeFile(filename, source.replace(
+  await fs.writeFile(filename, source.replaceAll('__APP_BUILD_VERSION__', version).replace(
     /(from\s+['"])(\.{1,2}\/[^'"?]+\.js)(['"])/g,
     `$1$2?v=${version}$3`,
   ));

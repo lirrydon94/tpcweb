@@ -27,7 +27,7 @@ const daysOffLabel = count => `${count} ${count===1?'ledig dag':'lediga dagar'}`
 const weeksLabel = count => `${count} ${count===1?'vecka':'veckor'}`;
 const colorLabel = color => ({amber:'Bärnsten',mint:'Mintgrön',blue:'Blå',lavender:'Lavendel',purple:'Lila',teal:'Turkos',rose:'Rosa',peach:'Persika',sage:'Salviagrön',red:'Röd',orange:'Orange',yellow:'Gul',cyan:'Cyan',indigo:'Indigo',pink:'Rosa',slate:'Gråblå'}[color] || color);
 const urlParams = new URLSearchParams(location.search);
-const deployedAssetVersion = new URL(import.meta.url).searchParams.get('v');
+const deployedAssetVersion = '__APP_BUILD_VERSION__';
 const ui = {view:'schedule',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:localStorage.getItem('skift-team') || urlParams.get('team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',editingSchedule:false,busy:false};
 let workspace;
 const adminRememberKey = 'skift-admin-remembered';
@@ -639,10 +639,10 @@ $('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const rect=e
 let refreshingSchedule = false;
 let checkingDeployment = false;
 async function reloadForNewDeployment() {
-  if (!deployedAssetVersion || checkingDeployment) return;
+  if (!deployedAssetVersion || deployedAssetVersion.includes('APP_BUILD_VERSION') || checkingDeployment) return;
   checkingDeployment = true;
   try {
-    const url = new URL('../build-version.json', import.meta.url);
+    const url = new URL('build-version.json', location.href);
     url.searchParams.set('check', Date.now());
     const response = await fetch(url, {cache:'no-store'});
     if (!response.ok) return;
