@@ -35,6 +35,21 @@ function fixLocalStartDates(saved) {
   return true;
 }
 
+function restoreAbsenceStatuses(saved) {
+  let changed = false;
+  for (const entry of saved.published.exceptions) {
+    if (entry.type !== 'off') continue;
+    const original = saved.working.exceptions.find(item => item.id === entry.id
+      && item.teamId === entry.teamId && item.memberId === entry.memberId && item.date === entry.date);
+    if (original && ['vacation', 'sick', 'leave', 'pension'].includes(original.type)
+      && !original.start && !original.end) {
+      entry.type = original.type;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function syncRemovedTeams(saved) {
   // Deletions saved before automatic publishing may exist only in working.
   // Apply those deletions without publishing unrelated old draft edits.
@@ -65,18 +80,6 @@ function publicState(state) {
   const result = JSON.parse(JSON.stringify(published, (key, value) => (
     ['note', 'reason', 'adminNote', 'medicalDetails'].includes(key) ? undefined : value
   )));
-  // Coworkers see hours and unavailability. Only administrators see the reason.
-  result.exceptions = result.exceptions.map((entry) => {
-    const copy = { ...entry };
-    delete copy.note;
-    delete copy.reason;
-    delete copy.adminNote;
-    delete copy.medicalDetails;
-    if (['sick', 'vacation', 'pension'].includes(copy.type)) {
-      copy.type = copy.type === 'pension' && copy.start && copy.end ? 'custom' : 'off';
-    }
-    return copy;
-  });
   return result;
 }
 
@@ -236,8 +239,9 @@ export async function init() {
     saved = clone(latestDefaults || { working: seedState(), published: publicState(seedState()), revision: 0 });
   }
   const fixedDates = fixLocalStartDates(saved);
+  const restoredStatuses = restoreAbsenceStatuses(saved);
   const removedTeams = syncRemovedTeams(saved);
-  if (fixedDates || useDefaults) {
+  if (fixedDates || restoredStatuses || useDefaults) {
     try {
       localStorage.setItem(LOCAL_KEY, localPayload(saved));
     } catch {
@@ -262,12 +266,13 @@ export async function init() {
 export async function refresh({ canApply = () => true } = {}) {
   const previous = snapshot;
   let defaults;
-  if (!cloud && typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname)) {
+  if (!cloud && typeof location !== 'undefined') {
     try {
       const response = await fetch(new URL('./default-data.js', import.meta.url), { cache: 'no-store' });
       if (response.ok) {
         // The sync scripts store a JSON object in this module. Read it as data
-        // so any local static preview works without caching new module imports.
+        // so both previews and the hosted site receive newly published schedules
+        // without keeping the initial module import cached until a page reload.
         const source = await response.text();
         const value = JSON.parse(source.replace(/^\s*export const defaultWorkspace\s*=\s*/, '').replace(/;\s*$/, ''));
         checkState(value.working);
@@ -275,7 +280,7 @@ export async function refresh({ canApply = () => true } = {}) {
         if (Number.isSafeInteger(value.revision) && value.revision >= 0) defaults = value;
       }
     } catch {
-      // A stopped preview server must not hide the saved browser schedule.
+      // A network outage must not hide the saved browser schedule.
     }
   }
   // A save or a newly opened editor takes precedence over a background read.

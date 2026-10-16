@@ -123,7 +123,7 @@ begin
       or jsonb_typeof(item->'teamId') is distinct from 'string'
       or jsonb_typeof(item->'memberId') is distinct from 'string'
       or (item->>'date') is null or not (item->>'date' ~ '^\d{4}-\d{2}-\d{2}$')
-      or (item->>'type') is null or item->>'type' not in ('vacation', 'sick', 'pension', 'custom', 'off') then
+      or (item->>'type') is null or item->>'type' not in ('vacation', 'sick', 'pension', 'custom', 'off', 'leave') then
       raise exception 'En individuell schemaändring har ett ogiltigt format.';
     end if;
   end loop;
@@ -157,18 +157,9 @@ revoke all on function public.skift_strip_private(jsonb) from public, anon, auth
 
 create or replace function public.skift_public_state(state jsonb)
 returns jsonb language plpgsql stable set search_path = '' as $$
-declare result jsonb; entries jsonb;
+declare result jsonb;
 begin
   result := public.skift_strip_private(state);
-  select coalesce(jsonb_agg(
-    case when entry->>'type' in ('sick', 'vacation', 'pension') then
-      jsonb_set(entry, '{type}', to_jsonb(case
-        when entry->>'type' = 'pension' and nullif(entry->>'start', '') is not null
-          and nullif(entry->>'end', '') is not null then 'custom'
-        else 'off' end))
-    else entry end order by ordinal), '[]'::jsonb)
-  into entries from jsonb_array_elements(result->'exceptions') with ordinality as items(entry, ordinal);
-  result := jsonb_set(result, '{exceptions}', entries);
   return jsonb_set(result, '{publishedAt}', to_jsonb(now()));
 end;
 $$;

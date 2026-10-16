@@ -1,6 +1,7 @@
 // Civil dates use UTC internally so rotations do not change at daylight-saving boundaries.
 const DAY = 86_400_000;
-const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'custom', 'off']);
+const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'custom', 'off', 'leave']);
+export const PERSONAL_ABSENCE_TYPES = ['off', 'leave', 'vacation', 'sick', 'pension'];
 
 export function uid() {
   return globalThis.crypto?.randomUUID?.() || `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -75,8 +76,10 @@ function isActive(member, date) {
 }
 
 function findMember(state, memberId, date) {
+  const hourly=state.employees?.find(e=>e.id===memberId&&e.role==='part-time'&&isActive(e,date));
+  if(hourly)return {member:hourly,team:null};
   for (const team of state.teams || []) {
-    const member = team.members.find(item => item.id === memberId && isActive(item, date));
+    const member = team.members.find(item => item.id === memberId && isActive(item, date) && belongsToGroup(state, memberId, team.id, date));
     if (member) return { member, team };
   }
   return null;
@@ -97,17 +100,87 @@ export function rotationPosition(version, memberId, date) {
   return mod(startPosition - 1 + weeksPassed, length) + 1;
 }
 
+export function personalScheduleOn(version, memberId, date) {
+  return [...(version?.personalSchedules || [])]
+    .filter(item => item.memberId === memberId && item.effectiveFrom <= date)
+    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0] || null;
+}
+
+// Keep personal days attached to their group rotation week when rows move.
+export function remapPersonalSchedules(version, indices) {
+  for (const schedule of version.personalSchedules || []) {
+    schedule.rotation = indices.map(index => clone(schedule.rotation[index] || Array(7).fill(null)));
+  }
+}
+
+export function savePersonalSchedule(state, teamId, versionId, schedule, { previousEffectiveFrom } = {}) {
+  const team = state.teams.find(item => item.id === teamId);
+  const version = team?.versions.find(item => item.id === versionId);
+  const date = dateString(civilDate(schedule.effectiveFrom));
+  if (!version || activeVersion(team, date)?.id !== versionId
+    || !isActive(team.members.find(item => item.id === schedule.memberId), date)
+    || !belongsToGroup(state, schedule.memberId, teamId, date)) {
+    throw new Error('Välj ett startdatum då personen tillhör den här gruppen och schemaversionen gäller.');
+  }
+  const errors = validatePersonalSchedules(team, version, [schedule]);
+  if (errors.length) throw new Error(errors[0]);
+  if (previousEffectiveFrom && previousEffectiveFrom !== date && version.personalSchedules?.some(item =>
+    item.memberId === schedule.memberId && item.effectiveFrom === date)) {
+    throw new Error('Det finns redan ett personligt schema med det startdatumet. Öppna det sparade schemat för att redigera det.');
+  }
+  version.personalSchedules = [...(version.personalSchedules || []).filter(item =>
+    item.memberId !== schedule.memberId || (item.effectiveFrom !== date && item.effectiveFrom !== previousEffectiveFrom)), clone(schedule)];
+}
+
+function validatePersonalSchedules(team, version, schedules = version.personalSchedules) {
+  if (schedules === undefined) return [];
+  if (!Array.isArray(schedules)) return ['Personliga scheman måste vara en lista.'];
+  const errors = [], keys = new Set();
+  for (const schedule of schedules) {
+    if (!schedule || !team.members.some(member => member.id === schedule.memberId)) {
+      errors.push('Det personliga schemats medarbetare saknas.'); continue;
+    }
+    try { civilDate(schedule.effectiveFrom); } catch { errors.push('Välj ett giltigt startdatum för det personliga schemat.'); }
+    const key = `${schedule.memberId}:${schedule.effectiveFrom}`;
+    if (keys.has(key)) errors.push('Endast ett personligt schema per medarbetare och startdatum tillåts.');
+    keys.add(key);
+    if (typeof schedule.employmentPercent !== 'number' || !Number.isFinite(schedule.employmentPercent)
+      || schedule.employmentPercent <= 0 || schedule.employmentPercent > 100) errors.push('Anställningsgraden måste vara större än 0 och högst 100 %.');
+    if (!Array.isArray(schedule.rotation) || schedule.rotation.length !== version.rotation.length) {
+      errors.push('Det personliga schemat måste följa gruppens antal rotationsveckor.'); continue;
+    }
+    for (const row of schedule.rotation) {
+      if (!Array.isArray(row) || row.length !== 7) { errors.push('Varje personlig schemavecka måste ha sju dagar.'); continue; }
+      for (const cell of row) {
+        if (cell === null) continue;
+        if (!cell || ![...PERSONAL_ABSENCE_TYPES, 'custom', 'shift'].includes(cell.type)
+          || (cell.type === 'shift' && !Object.hasOwn(version.shifts, cell.code))
+          || (cell.type === 'custom' && !duration(cell.start, cell.end))) errors.push('Välj en giltig passkod, frånvaro eller giltiga, olika start- och sluttider för personliga pass.');
+      }
+    }
+  }
+  return errors;
+}
+
 function baseShift(state, teamId, memberId, date) {
   const empty = { memberId, teamId, date, code: '', start: null, end: null, type: 'off', working: false, minutes: 0, rotationWeek: 0 };
   const team = state.teams?.find(item => item.id === teamId);
   const member = team?.members.find(item => item.id === memberId);
-  if (!isActive(member, date)) return empty;
+  if (!isActive(member, date) || !belongsToGroup(state, memberId, teamId, date)) return empty;
   const version = activeVersion(team, date);
   const rotationWeek = rotationPosition(version, memberId, date);
   if (!rotationWeek) return empty;
   const weekday = mod(civilDate(date).getUTCDay() - 1, 7);
   const code = version.rotation[rotationWeek - 1]?.[weekday] || '';
   const shift = version.shifts[code];
+  const personal = personalScheduleOn(version, memberId, date)?.rotation[rotationWeek - 1]?.[weekday];
+  if (personal) {
+    if (PERSONAL_ABSENCE_TYPES.includes(personal.type)) return { ...empty, code, type: personal.type, rotationWeek, personalSchedule: true };
+    const selected = personal.type === 'shift' ? version.shifts[personal.code] : personal;
+    if (!selected) return { ...empty, rotationWeek };
+    return { ...empty, code: personal.type === 'shift' ? personal.code : code, start: selected.start, end: selected.end, color: selected.color || shift?.color || 'mint',
+      type: 'shift', working: true, minutes: duration(selected.start, selected.end), rotationWeek, personalSchedule: true };
+  }
   if (!shift) return { ...empty, rotationWeek };
   return { ...empty, code, start: shift.start, end: shift.end, color: shift.color, type: 'shift', working: true, minutes: duration(shift.start, shift.end), rotationWeek };
 }
@@ -123,15 +196,22 @@ function currentExceptions(state, date) {
 
 function replacementAvailable(state, memberId, date) {
   if (!findMember(state, memberId, date)) return false;
-  return !currentExceptions(state, date).some(exception => exception.memberId === memberId
-    && (['vacation', 'sick', 'off'].includes(exception.type)
+  return !unavailableForCover(state, memberId, date);
+}
+
+function unavailableForCover(state, memberId, date) {
+  const exceptions = currentExceptions(state, date).filter(exception => exception.memberId === memberId);
+  if (exceptions.length) return exceptions.some(exception =>
+    (['vacation', 'sick', 'off', 'leave'].includes(exception.type)
       || (exception.type === 'pension' && !duration(exception.start, exception.end))));
+  const person = findMember(state, memberId, date);
+  return Boolean(person?.team && ['vacation', 'sick', 'leave', 'pension'].includes(baseShift(state, person.team.id, memberId, date).type));
 }
 
 function adjustedShift(state, teamId, memberId, date) {
   const base = baseShift(state, teamId, memberId, date);
   const member = state.teams?.find(team => team.id === teamId)?.members.find(item => item.id === memberId);
-  if (!isActive(member, date)) return base;
+  if (!isActive(member, date) || !belongsToGroup(state, memberId, teamId, date)) return base;
   const exception = currentExceptions(state, date).find(item => item.teamId === teamId && item.memberId === memberId);
   if (!exception) return base;
   const works = ['custom', 'pension'].includes(exception.type) && duration(exception.start, exception.end) > 0;
@@ -177,7 +257,7 @@ function coversOnDate(state, date) {
     if (!exception.replacementId || exception.replacementId === exception.memberId
       || !replacementAvailable(state, exception.replacementId, date)) continue;
     const base = baseShift(state, exception.teamId, exception.memberId, date);
-    if (!findMember(state, exception.memberId, date)) continue;
+    if (!findMember(state, exception.memberId, date) || !belongsToGroup(state, exception.memberId, exception.teamId, date)) continue;
     const start = exception.replacementStart || base.start;
     const end = exception.replacementEnd || base.end;
     if (!duration(start, end)) continue;
@@ -293,6 +373,9 @@ export function createVersion(team, effectiveFrom, length) {
       return [[member.id, mod(Math.max(1, position) - 1, count) + 1]];
     })),
     shifts: clone(base?.shifts || {}),
+    ...(base?.personalSchedules ? { personalSchedules: base.personalSchedules.map(schedule => ({
+      ...clone(schedule), rotation: Array.from({ length: count }, (_, index) => clone(schedule.rotation[index] || Array(7).fill(null))),
+    })) } : {}),
   };
 }
 
@@ -308,9 +391,10 @@ export function archiveMember(team, memberId, date) {
 export function deleteTeam(state, teamId) {
   const team = state.teams.find(item => item.id === teamId);
   if (!team) throw new Error('Teamet kunde inte hittas.');
-  const removedMembers = new Set(team.members.map(member => member.id));
+  const removedMembers = new Set(state.employees ? [] : team.members.map(member => member.id));
   const next = clone(state);
   next.teams = next.teams.filter(item => item.id !== teamId);
+  for (const employee of next.employees || []) for (const placement of employee.placements) if (placement.groupId === teamId) placement.groupId = null;
   next.exceptions = next.exceptions.filter(item => item.teamId !== teamId);
   for (const exception of next.exceptions) {
     if (removedMembers.has(exception.replacementId)) {
@@ -331,9 +415,42 @@ export function validateState(state) {
   if (!state || state.schemaVersion !== 1 || !Array.isArray(state.teams) || !Array.isArray(state.exceptions)) {
     return ['Schemafilens format stöds inte.'];
   }
+  if (state.departments) {
+    for (const key of ['departments', 'workTeams', 'employees']) {
+      if (!Array.isArray(state[key])) return ['Organisationens format stöds inte.'];
+      const ids = new Set();
+      for (const item of state[key]) {
+        if (!item?.id || ids.has(item.id) || typeof item.name !== 'string' || !item.name.trim()) return ['Organisationens poster behöver unika ID och namn.'];
+        ids.add(item.id);
+      }
+    }
+    for (const team of state.workTeams) if (!state.departments.some(d => d.id === team.departmentId)) errors.push('Teamets avdelning saknas.');
+    for (const group of state.teams) {
+      if (!group || !state.workTeams.some(t => t.id === group.workTeamId)) { errors.push('Gruppens team saknas.'); continue; }
+      const ids = new Set();
+      for (const member of group.members || []) {
+        if (!member || ids.has(member.id) || !state.employees.some(e => e.id === member.id)) errors.push('Gruppens medarbetare måste finnas i avdelningens personallista.');
+        ids.add(member?.id);
+      }
+    }
+    for (const e of state.employees) {
+      if (!state.departments.some(d => d.id === e.departmentId) || !Array.isArray(e.placements)) return ['Medarbetarens avdelning eller placering saknas.'];
+      if (!['member', 'part-time'].includes(e.role)) errors.push('Välj en giltig anställningstyp.');
+      if (e.activeFrom) checkDate(e.activeFrom, e.name);
+      const dates = new Set();
+      for (const p of e.placements) {
+        checkDate(p.from, e.name);
+        if (dates.has(p.from)) errors.push('Endast en placering per startdatum tillåts.');
+        dates.add(p.from);
+        const team = state.workTeams.find(t => t.id === p.teamId);
+        const group = state.teams.find(g => g.id === p.groupId);
+        if ((p.teamId && team?.departmentId !== e.departmentId) || (p.groupId && (!group || group.workTeamId !== p.teamId || !Array.isArray(group.members) || !group.members.some(m => m.id === e.id)))) errors.push('Medarbetarens placering är ogiltig.');
+      }
+    }
+  }
   const teamIds = new Set();
   const memberIds = new Set();
-  const allMembers = new Map();
+  const allMembers = new Map((state.employees||[]).map(e=>[e.id,e]));
   for (const team of state.teams) {
     if (!team || typeof team !== 'object' || Array.isArray(team)) {
       errors.push('Ett team har ett format som inte stöds.');
@@ -351,7 +468,7 @@ export function validateState(state) {
         errors.push(`${team.name || 'Team'}: en medarbetare har ett format som inte stöds.`);
         continue;
       }
-      if (!member.id || memberIds.has(member.id)) errors.push('Varje medarbetare behöver ett unikt ID.');
+      if (!member.id || (memberIds.has(member.id) && !state.employees?.some(e => e.id === member.id))) errors.push('Varje medarbetare behöver ett unikt ID.');
       memberIds.add(member.id);
       allMembers.set(member.id, member);
       if (typeof member.name !== 'string' || !member.name.trim()) errors.push(`${team.name}: en medarbetare behöver ett namn.`);
@@ -414,6 +531,7 @@ export function validateState(state) {
           errors.push(`${label}: välj en startvecka för ${member.name}.`);
         }
       }
+      errors.push(...validatePersonalSchedules(team, version));
     }
   }
   const exceptionIds = new Set();
@@ -428,7 +546,7 @@ export function validateState(state) {
     const team = state.teams.find(item => item?.id === exception.teamId);
     const member = Array.isArray(team?.members) ? team.members.find(item => item?.id === exception.memberId) : null;
     if (!member) errors.push('En schemaändring hänvisar till en medarbetare eller ett team som saknas.');
-    checkDate(exception.date, ['vacation', 'sick', 'pension', 'off'].includes(exception.type) ? 'Frånvarodatum' : 'Datum för schemaändring');
+    checkDate(exception.date, ['vacation', 'sick', 'pension', 'off', 'leave'].includes(exception.type) ? 'Frånvarodatum' : 'Datum för schemaändring');
     const key = `${exception.teamId}:${exception.memberId}:${exception.date}`;
     if (exceptionKeys.has(key)) errors.push('Ange endast en schemaändring per medarbetare och datum.');
     exceptionKeys.add(key);
@@ -442,9 +560,7 @@ export function validateState(state) {
       const replacement = allMembers.get(exception.replacementId);
       if (replacement && !isActive(replacement, exception.date)) {
         errors.push(`${replacement.name}: ersättningsdatumet ligger utanför medarbetarens aktiva period.`);
-      } else if (replacement && currentExceptions(state, exception.date).some(item => item.memberId === replacement.id
-        && (['vacation', 'sick', 'off'].includes(item.type)
-          || (item.type === 'pension' && !duration(item.start, item.end))))) {
+      } else if (replacement && !errors.length && unavailableForCover(state, replacement.id, exception.date)) {
         errors.push(`${replacement.name}: kan inte arbeta som ersättare den ${exception.date} på grund av frånvaro.`);
       }
       if ((exception.replacementStart || exception.replacementEnd) && !duration(exception.replacementStart, exception.replacementEnd)) {
@@ -514,4 +630,38 @@ export function seedState(referenceDate = '2026-10-12') {
     exceptions: [],
     publishedAt: null,
   };
+}
+// The legacy `teams` field stores schedule groups for backup compatibility.
+export function organizeState(state) {
+  if (state.departments) return state;
+  const departmentId = 'department-default';
+  state.departments = [{ id: departmentId, name: 'Min avdelning' }];
+  state.workTeams = state.teams.map(group => ({ id: `work-${group.id}`, departmentId, name: group.name }));
+  state.employees = state.teams.flatMap(group => group.members.map(member => ({ ...structuredClone(member), departmentId, placements: [{ from: member.activeFrom || '1900-01-01', teamId: `work-${group.id}`, groupId: group.id }] })));
+  for (const group of state.teams) { group.workTeamId = `work-${group.id}`; }
+  return state;
+}
+
+export function placementOn(employee, date) {
+  return [...(employee?.placements || [])].filter(p => p.from <= date).sort((a,b) => b.from.localeCompare(a.from))[0] || null;
+}
+
+export function belongsToGroup(state, memberId, groupId, date) {
+  if (!state.employees) return true;
+  return placementOn(state.employees.find(e => e.id === memberId), date)?.groupId === groupId;
+}
+
+export function placeEmployee(state, employeeId, teamId, groupId, date) {
+  civilDate(date);
+  const employee = state.employees.find(e => e.id === employeeId);
+  const team = state.workTeams.find(t => t.id === teamId);
+  const group = state.teams.find(g => g.id === groupId);
+  if (!employee || (teamId && team?.departmentId !== employee.departmentId) || (groupId && (!group || group.workTeamId !== teamId))) throw new Error('Välj ett team och en grupp inom avdelningen.');
+  if (employee.activeFrom && date < employee.activeFrom) throw new Error('Placeringen kan inte börja före anställningen.');
+  employee.placements = [...employee.placements.filter(p => p.from !== date), { from: date, teamId: teamId || null, groupId: groupId || null }].sort((a,b) => a.from.localeCompare(b.from));
+  if (group && !group.members.some(m => m.id === employee.id)) {
+    const { placements, departmentId, ...member } = employee;
+    group.members.push(structuredClone(member));
+    for (const v of group.versions) v.positions[member.id] = 1;
+  }
 }

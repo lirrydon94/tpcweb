@@ -154,3 +154,146 @@
   .page-footer{display:none}
 }
 .roster-table .roster-name{text-align:center;padding-left:8px;padding-right:8px}.roster-person-label{justify-content:center;text-align:center}
+.shift-color-picker{border:0;padding:0;margin:0 0 20px;min-width:0}
+.shift-color-picker legend{font-size:12px;margin-bottom:10px}
+.shift-color-options{display:flex;flex-wrap:wrap;gap:10px}
+.shift-color-option{position:relative;display:block;cursor:pointer}
+.shift-color-option input[type=radio]{position:absolute;opacity:0;width:1px;height:1px;min-height:0;padding:0;margin:0}
+.shift-color-swatch{display:flex;width:44px;height:44px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #0002;color:#26332c}
+.shift-color-swatch .icon{visibility:hidden;width:22px;height:22px}
+.shift-color-option input:checked+.shift-color-swatch{outline:2px solid #26332c;outline-offset:2px}
+.shift-color-option input:checked+.shift-color-swatch .icon{visibility:visible}
+.shift-color-option input:focus-visible+.shift-color-swatch{outline:3px solid #216bb5;outline-offset:3px}
+.shift-color-swatch.amber{background:var(--amber)}
+.shift-color-swatch.mint,.shift-color-swatch.teal{background:var(--mint)}
+.shift-color-swatch.blue{background:var(--blue)}
+.shift-color-swatch.lavender,.shift-color-swatch.purple{background:var(--lavender)}
+.shift-color-swatch.rose{background:var(--rose)}
+.shift-color-swatch.peach{background:var(--peach)}
+.shift-color-swatch.sage{background:var(--sage)}
+
+/* Uniform pastel lightness and chroma; distinct hues across all shift views. */
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).amber{background:oklch(91% 0.045 80);color:oklch(35% 0.045 80)}
+.shift-dot.amber{background:oklch(91% 0.045 80)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).yellow{background:oklch(91% 0.045 100);color:oklch(35% 0.045 100)}
+.shift-dot.yellow{background:oklch(91% 0.045 100)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).orange{background:oklch(91% 0.045 60);color:oklch(35% 0.045 60)}
+.shift-dot.orange{background:oklch(91% 0.045 60)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).peach{background:oklch(91% 0.045 40);color:oklch(35% 0.045 40)}
+.shift-dot.peach{background:oklch(91% 0.045 40)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).red{background:oklch(91% 0.045 20);color:oklch(35% 0.045 20)}
+.shift-dot.red{background:oklch(91% 0.045 20)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).rose{background:oklch(91% 0.045 0);color:oklch(35% 0.045 0)}
+.shift-dot.rose{background:oklch(91% 0.045 0)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).pink{background:oklch(91% 0.045 335);color:oklch(35% 0.045 335)}
+.shift-dot.pink{background:oklch(91% 0.045 335)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).lavender{background:oklch(91% 0.045 285);color:oklch(35% 0.045 285)}
+.shift-dot.lavender{background:oklch(91% 0.045 285)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).purple{background:oklch(91% 0.045 310);color:oklch(35% 0.045 310)}
+.shift-dot.purple{background:oklch(91% 0.045 310)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).indigo{background:oklch(91% 0.045 265);color:oklch(35% 0.045 265)}
+.shift-dot.indigo{background:oklch(91% 0.045 265)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).blue{background:oklch(91% 0.045 225);color:oklch(35% 0.045 225)}
+.shift-dot.blue{background:oklch(91% 0.045 225)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).cyan{background:oklch(91% 0.045 205);color:oklch(35% 0.045 205)}
+.shift-dot.cyan{background:oklch(91% 0.045 205)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).teal{background:oklch(91% 0.045 185);color:oklch(35% 0.045 185)}
+.shift-dot.teal{background:oklch(91% 0.045 185)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).mint{background:oklch(91% 0.045 155);color:oklch(35% 0.045 155)}
+.shift-dot.mint{background:oklch(91% 0.045 155)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).sage{background:oklch(91% 0.045 125);color:oklch(35% 0.045 125)}
+.shift-dot.sage{background:oklch(91% 0.045 125)}
+:is(.shift-color-swatch,.rotation-cell,.roster-shift,.code-badge,.calendar-shift).slate{background:oklch(91% 0.045 245);color:oklch(35% 0.045 245)}
+.shift-dot.slate{background:oklch(91% 0.045 245)}.organization-select { display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin:20px 0; }
+.organization-select label { display:grid; gap:7px; min-width:240px; font-weight:600; }
+.organization-select select { background:white; border:1px solid var(--border, #dce3df); border-radius:10px; padding:12px; min-height:46px; color:inherit; font:inherit; }
+.organization-select .text-button { min-height:44px; }
+.team-group-selectors { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 32px; margin:20px 0; align-items:start; }
+.team-group-selectors > .organization-select { margin:0; min-width:0; }
+@media(max-width:760px) { .team-group-selectors { grid-template-columns:minmax(0,1fr); } }
+.admin-panel .person-row { gap:14px; }
+@media(max-width:1000px) { .organization-select label { flex:1; } .admin-panel .person-row { flex-wrap:wrap; } }
+
+/* Department staff organized in team columns. */
+.staff-board { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; padding:0 24px 24px; align-items:start; }
+.staff-column { min-width:0; background:#f5f8f6; border:1px solid #e0e9e4; border-radius:12px; overflow:hidden; }
+.staff-column-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:17px 16px; border-bottom:1px solid #dfe9e3; }
+.staff-column-heading h3 { font-size:15px; font-weight:600; margin:0; overflow-wrap:anywhere; }
+.staff-column-heading>span { background:#e2eee7; color:#28604f; font-size:12px; border-radius:20px; padding:4px 9px; }
+.staff-column-people { display:grid; gap:8px; padding:12px; }
+.staff-person-card { display:flex; align-items:center; gap:11px; width:100%; padding:13px 12px; border:1px solid #e1e8e4; border-radius:9px; background:white; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.staff-person-card:hover { border-color:#8bb8a5; background:#fafffc; }
+.staff-person-card:focus-visible { outline:2px solid #176e5c; outline-offset:2px; }
+.staff-person-details { display:grid; gap:5px; flex:1; min-width:0; }
+.staff-person-details strong { font-size:13px; font-weight:500; overflow-wrap:anywhere; }
+.staff-person-details>span,.staff-person-details small { font-size:11px; color:#71857c; }
+.staff-person-card>.icon { width:15px; height:15px; flex-shrink:0; color:#7d9589; }
+.staff-column-empty { margin:10px 4px; font-size:12px; line-height:1.6; color:#71857c; }
+@media(max-width:800px) { .staff-board { grid-template-columns:1fr; padding:0 16px 16px; } }
+
+#team-select option { font-weight:400; }
+
+#team-select option.department-option { font-weight:700; }
+
+/* Align row labels with the centered employee name. */
+.roster-table .roster-meta>th:first-child{text-align:center;padding-left:8px;padding-right:8px}
+
+.schedule-label-settings{display:flex;flex-wrap:wrap;gap:18px;padding:0 24px 24px}.schedule-label-settings label{display:flex;align-items:center;gap:8px;cursor:pointer}.schedule-label-settings input{width:18px;height:18px;accent-color:var(--green)}
+
+.schedule-setting-state{font-size:11px;color:var(--muted);padding:3px 8px;border-radius:12px;background:#f2f5f1}.schedule-label-settings label:has(input:checked) .schedule-setting-state{color:var(--green);background:#e2eee4}
+
+.staff-add-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.staff-add-actions .primary-btn{white-space:nowrap}
+
+#cover-options[hidden],#cover-times[hidden]{display:none}
+.roster-day-off{align-items:center;justify-content:center;text-align:center}
+.roster-day-off>span{font-size:14px;font-weight:500}
+.roster-replacement{margin-top:6px;padding:4px 3px;text-align:center;font-size:11px;line-height:1.4;color:var(--green);overflow-wrap:anywhere}
+.roster-replacement>span{display:block;font-weight:500}
+.roster-replacement .roster-cover-time{font-size:10px;padding:2px 0 0}
+.roster-needs-cover{color:var(--muted)}
+.roster-shift-status{font-size:10px;font-weight:500}
+.roster-absence-card{height:55px;min-width:0;padding:4px 7px;display:flex;flex-direction:column;justify-content:center;gap:1px;text-align:center}
+.roster-absence-card .roster-off{min-height:0;padding:0;flex-direction:column;align-items:center;justify-content:center;gap:0;font-size:11px;line-height:18px;color:inherit}
+.roster-absence-card .roster-off>span{max-width:100%;font-size:10px;line-height:14px;padding:0 5px;border-radius:4px;background:#ffffff70;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roster-absence-card .roster-replacement{min-width:0;margin:0;padding:0;line-height:14px;overflow-wrap:normal;color:inherit}
+.roster-absence-card .roster-replacement>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roster-absence-card .roster-cover-time{padding:0;line-height:13px;color:inherit}
+.roster-absence-code{font-size:14px;font-weight:650;line-height:14px;color:var(--ink);flex-shrink:0}
+.roster-absence-card .roster-absence-code{font-size:16px;line-height:18px;color:inherit}
+.roster-editable:hover .roster-absence-card .roster-off{outline:none}
+/* Recurring adjustments for one employee, alongside the group's rotation. */
+.personal-schedule-link{padding:18px;border:1px solid var(--line);border-radius:12px;background:#f1f6f1;margin-bottom:24px}
+.personal-schedule-link>strong{font-size:15px}
+.personal-schedule-link p{font-size:13px;line-height:1.6;color:var(--muted);margin:8px 0 14px}
+dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
+.personal-settings{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:24px}
+.personal-settings>label,.personal-table-heading>label{display:flex;flex-direction:column;gap:8px;font-size:12px}
+.personal-table-heading{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.personal-table-heading h3{font-size:18px;margin:0 0 8px}
+.personal-table-heading p{font-size:12px;line-height:1.6;color:var(--muted);margin:0}
+.personal-table-heading>label{flex:0 0 185px}
+.personal-position{padding:10px 14px;background:#eaf4ed;border-left:3px solid #237454;border-radius:6px;font-size:13px;margin:14px 0}
+.personal-schedule-editor .field-note{line-height:1.7}
+.personal-hours{padding:14px 16px;background:#edf5ef;border-radius:10px;font-size:13px;line-height:1.7;margin:16px 0}
+.personal-rotation-scroll{max-height:48vh;border:1px solid var(--line);border-radius:10px;margin:12px 0}
+.personal-rotation-table{min-width:1050px;table-layout:fixed;width:100%}
+.personal-rotation-table thead th{position:sticky;top:0;z-index:2;background:#f3f6ef}
+.personal-rotation-table th:first-child{width:132px}
+.personal-rotation-table tbody th{text-align:left;padding:12px;font-size:13px;white-space:normal}
+.personal-rotation-table td{padding:8px 5px;vertical-align:top}
+.personal-rotation-table select.personal-rotation-cell{width:100%;padding:9px 5px;min-height:38px;font-size:12px;font-weight:600}
+.personal-cell-time,.personal-cell-base{display:block;font-size:11px;text-align:center;margin-top:6px;color:var(--muted)}
+.personal-week-count{display:block;color:var(--muted);font-size:10px;margin-top:6px}
+.personal-current-week>th,.personal-current-week>td{background:#eaf4ed;border-top:2px solid #438265;border-bottom:2px solid #438265}
+.personal-week-marker{display:block;font-size:10px;line-height:1.4;color:#176044;margin-top:6px;font-weight:600}
+.personal-changed-day .personal-rotation-cell{border-color:#bc8533;box-shadow:0 0 0 1px #bc853333}
+.personal-cell-base{color:#986119;font-size:10px}
+.personal-cell-date{display:block;font-size:10px;text-align:center;line-height:1.4;margin-top:5px;color:var(--muted)}
+.personal-before-start .personal-cell-date{color:#985e18;font-weight:600}
+.personal-cell-date[hidden],#personal-start-week[hidden]{display:none}
+.personal-times{display:grid;gap:6px;margin:8px 0 0}
+.personal-times label{display:flex;flex-direction:column;gap:4px;font-size:10px}
+.personal-times input[type=time]{min-width:0;width:100%;padding:5px;font-size:12px;min-height:32px}
+.personal-week-marker[hidden],.personal-cell-base[hidden],
+.personal-times[hidden]{display:none}
+@media(max-width:640px){.personal-settings{grid-template-columns:1fr}.personal-table-heading{display:block}.personal-table-heading>label{margin-top:12px}dialog:has(.personal-schedule-editor){max-width:calc(100vw - 24px)}}

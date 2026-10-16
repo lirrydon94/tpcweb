@@ -2,7 +2,38 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultWorkspace } from '../src/default-data.js';
 import { init, saveDraft, publish, importData } from '../src/store.js';
-import { getShift, deleteTeam, validateState } from '../src/model.js';
+import { getShift, deleteTeam, validateState, organizeState, seedState, savePersonalSchedule } from '../src/model.js';
+
+test('personal schedules publish, persist and reach another device on the hosted site',async t=>{
+  const memory=new Map();
+  const replaceGlobal=(key,value)=>{
+    const original=Object.getOwnPropertyDescriptor(globalThis,key);
+    Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
+    t.after(()=>{if(original)Object.defineProperty(globalThis,key,original);else delete globalThis[key];});
+  };
+  replaceGlobal('localStorage',{getItem:key=>memory.get(key)??null,setItem:(key,value)=>memory.set(key,value)});
+  replaceGlobal('location',{hostname:'schedule.example.test',protocol:'https:'});
+  const store=await import('../src/store.js?personal-publication');
+  await store.init();
+  const state=organizeState(seedState()),group=state.teams[0],version=group.versions[0];
+  const rotation=version.rotation.map(()=>Array(7).fill(null));
+  rotation[0][0]={type:'leave'};rotation[0][1]={type:'off'};rotation[0][2]={type:'custom',start:'08:00',end:'12:00'};
+  savePersonalSchedule(state,group.id,version.id,{memberId:'member-1',effectiveFrom:'2026-10-12',employmentPercent:80,rotation});
+  const saved=await store.publish(state);
+  assert.equal(getShift(saved.published,group.id,'member-1','2026-10-12').type,'leave');
+  assert.equal(getShift((await store.init()).published,group.id,'member-1','2026-10-13').working,false);
+  const fetchMock=t.mock.method(globalThis,'fetch',async()=>({ok:true,text:async()=>`export const defaultWorkspace = ${JSON.stringify(saved)};`}));
+  memory.clear(); // Another device still has the originally shipped defaults.
+  const reader=await import('../src/store.js?personal-hosted-reader');
+  await reader.init();
+  const refreshed=await reader.refresh();
+  assert.equal(getShift(refreshed.published,group.id,'member-1','2026-10-12').type,'leave');
+  assert.equal(getShift(refreshed.published,group.id,'member-1','2026-10-13').working,false);
+  assert.equal(getShift(refreshed.published,group.id,'member-1','2026-10-14').end,'12:00');
+  assert.equal(getShift(refreshed.published,group.id,'member-1','2026-12-28').type,'leave');
+  assert.equal((await reader.init()).revision,saved.revision);
+  assert.deepEqual(fetchMock.mock.calls[0].arguments[1],{cache:'no-store'});
+});
 
 test('existing browser schedules receive the start-date correction once without losing edits', async () => {
   const saved = structuredClone(defaultWorkspace);
@@ -19,6 +50,10 @@ test('existing browser schedules receive the start-date correction once without 
     for (const member of state.teams[0].members.slice(7)) {
       if (member.activeFrom === '2026-10-13') member.activeFrom = '2026-10-12';
     }
+  }
+  for (const entry of expected.published.exceptions) {
+    const original = expected.working.exceptions.find(item => item.id === entry.id);
+    if (entry.type === 'off' && original && ['vacation', 'sick', 'leave', 'pension'].includes(original.type) && !original.start && !original.end) entry.type = original.type;
   }
   const memory = new Map([['skift-workspace-v1', JSON.stringify(saved)]]);
   const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -66,7 +101,7 @@ test('publishing and importing update the visible schedule while hiding private 
   const result = await publish(state);
   assert.equal(result.published.teams[0].name, 'Direkt sparat');
   assert.equal(result.working.exceptions.at(-1).note, 'Privat anteckning');
-  assert.equal(result.published.exceptions.at(-1).type, 'off');
+  assert.equal(result.published.exceptions.at(-1).type, 'sick');
   assert.equal(result.published.exceptions.at(-1).note, undefined);
   state.teams[0].name = 'Direkt importerat';
   await importData(state);

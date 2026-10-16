@@ -28,6 +28,8 @@ Veckovyn öppnas som en samlad teamtabell med medarbetare på rader och måndag�
 
 Under **Schema** kan du välja datum och se kalenderveckor och rotationsveckor. En teamlänk öppnar rätt team direkt. QR-koder innehåller en länk och ger ingen behörighet att se privata uppgifter.
 
+Under **Hantera → Personal → välj en person → Redigera personligt schema** kan du anpassa en ordinarie medarbetares återkommande pass, till exempel vid 80 % anställning. Tabellen visar samma pass och veckor som **Det återkommande grundschemat** och markerar personens rotationsvecka för det valda visningsdatumet. Välj startdatum och anställningsgrad och byt en dags pass till exempelvis **Tjänstledig**, **Semester**, **Ledig**, en annan passkod eller **Egna tider**. Pass märkta **grupp** följer gruppschemat. Visningsdatumet flyttar bara markeringen; startdatumet styr när de återkommande ändringarna börjar gälla. Procenten är en uppgift om anställningen; välj själv vilka pass som ska ändras och jämför timmarna över hela rotationen. Personen behåller sin rotationsposition och övriga medarbetare påverkas inte. Anpassningarna hör till gruppens schemaversion; sparade startdatum kan öppnas igen i dialogen. Återställning till gruppschemat börjar på det valda startdatumet. Semester och annan datumstyrd frånvaro gäller ovanpå personens anpassade schema.
+
 ## Använd en gemensam, privat arbetsyta
 
 Molnläget använder Supabase-konton med e-post och lösenord samt en skyddad databas. GitHub lagrar webbplatsens publika programfiler. Supabase lagrar uppgifterna om medarbetarna. Läs Supabases dokumentation om [inloggning med lösenord](https://supabase.com/docs/guides/auth/passwords) och [databasens behörigheter](https://supabase.com/docs/guides/database/postgres/row-level-security).
@@ -86,3 +88,11 @@ Exporter med `schemaVersion: 1` innehåller schemats data direkt: `teams`, `exce
 För återkommande pensionsdagar väljer du ett datumintervall och de veckodagar där kortare arbetstid eller frånvaro ska gälla. Det skapar individuella datumändringar som kan redigeras senare. Aviseringar, löneberäkning, återkommande frånvaroregler utan slutdatum och koppling mellan inloggning och person ingår ännu inte.
 
 Grundschemat kan redigeras under **Hantera** och varje sparad ändring publiceras direkt. Välj **Ny rotation** för en ny startmåndag och rotationslängd. Den nya versionen publiceras när den skapas. Referensmåndagen och startpositionerna kan sedan ändras i grundschemat. Timanställda kan anges som **Endast ersättare** för att stå utanför den ordinarie rotationen.
+
+### Avdelningar, team och schemagrupper
+
+Hantera börjar med avdelningens gemensamma personallista. En medarbetare kan registreras utan team eller grupp. Team samlar arbetsuppgifter; varje grupp har egna schemaversioner, passtider och rotation. Placeringar har ett startdatum och behåller tidigare grupptillhörighet för historiska scheman.
+
+Äldre arbetsytor anpassas automatiskt i appen: befintliga scheman blir grupper under motsvarande team i ”Min avdelning”. Befintliga ID, arbetstider, startpositioner och individuella ändringar behålls. Anpassningen sparas med nästa ändring eller export. För kompatibilitet med befintliga säkerhetskopior och Supabase ligger schemagrupper fortfarande i JSON-fältet `teams`; organisationen lagras i `departments`, `workTeams` och `employees`. Medarbetarnas `placements` avgör vilken grupp som gäller ett visst datum. Gruppens medlemslista behåller historiska medlemmar.
+
+Administratörs- och läsbehörigheter fungerar som tidigare. Separata avdelningsbehörigheter för chefer och teamledare ingår inte i denna organisationsmodell.
