@@ -1,16 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultWorkspace } from '../src/default-data.js';
+import { defaultWorkspace as testWorkspace } from './fixtures/workspace.js';
 import { getShift, validateState } from '../src/model.js';
 
-test('defaultWorkspace contains valid team Löpare with all 11 coworkers', () => {
+test('published default workspace contains valid working and published schedules', () => {
   assert.equal(defaultWorkspace.schemaVersion, undefined);
   assert.equal(defaultWorkspace.working.schemaVersion, 1);
   assert.equal(defaultWorkspace.published.schemaVersion, 1);
   assert.deepEqual(validateState(defaultWorkspace.working), []);
   assert.deepEqual(validateState(defaultWorkspace.published), []);
+});
 
-  const team = defaultWorkspace.working.teams[0];
+test('baseline fixture contains valid team Löpare with all 11 coworkers', () => {
+  assert.deepEqual(validateState(testWorkspace.working), []);
+  assert.deepEqual(validateState(testWorkspace.published), []);
+  const team = testWorkspace.working.teams[0];
   assert.equal(team.name, 'Löpare');
   assert.equal(team.members.length, 11);
 
@@ -22,7 +27,7 @@ test('defaultWorkspace contains valid team Löpare with all 11 coworkers', () =>
 });
 
 test('all four added coworkers have their scheduled Monday shifts in both views', () => {
-  for (const state of [defaultWorkspace.working, defaultWorkspace.published]) {
+  for (const state of [testWorkspace.working, testWorkspace.published]) {
     const team = state.teams[0];
     for (const [name, code, start, end] of [
       ['Christer', 'B', '09:30', '18:30'],

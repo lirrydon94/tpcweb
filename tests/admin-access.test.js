@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import * as model from '../src/model.js';
-import { defaultWorkspace } from '../src/default-data.js';
+import { defaultWorkspace } from './fixtures/workspace.js';
 
 test('staff opens a recurring personal schedule, saves only that employee and reopens saved days', async()=>{
   const state=model.organizeState(model.seedState());

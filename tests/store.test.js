@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultWorkspace } from '../src/default-data.js';
+import { defaultWorkspace } from './fixtures/workspace.js';
+import { defaultWorkspace as hostedWorkspace } from '../src/default-data.js';
 import { init, saveDraft, publish, importData } from '../src/store.js';
 import { getShift, deleteTeam, validateState, organizeState, seedState, savePersonalSchedule } from '../src/model.js';
 
@@ -170,7 +171,7 @@ test('local refresh loads coworkers saved in another tab and newer preview files
     setItem: (key, value) => memory.set(key, value),
   });
   replaceGlobal('location', { hostname: '127.0.0.1', port: '5173' });
-  let remote = structuredClone(defaultWorkspace);
+  let remote = structuredClone(hostedWorkspace);
   const fileResponse = value => ({ ok: true, text: async () => `export const defaultWorkspace = ${JSON.stringify(value)};\n` });
   const fetchMock = t.mock.method(globalThis, 'fetch', async () => fileResponse(remote));
   const store = await import('../src/store.js?refresh-tests');
@@ -192,7 +193,7 @@ test('local refresh loads coworkers saved in another tab and newer preview files
   assert.deepEqual(fetchMock.mock.calls[0].arguments[1], { cache: 'no-store' });
 
   const current = await store.init();
-  remote = structuredClone(defaultWorkspace); // An older file must not remove coworkers.
+  remote = structuredClone(hostedWorkspace); // An older file must not remove coworkers.
   assert.deepEqual((await store.refresh()).published, current.published);
   fetchMock.mock.mockImplementation(async () => { throw new Error('Offline'); });
   assert.deepEqual((await store.refresh()).published, current.published);
