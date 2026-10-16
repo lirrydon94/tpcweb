@@ -181,18 +181,16 @@ function syncToFile(value) {
   if (typeof location === 'undefined') return;
   if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
   const payload = localPayload(value);
-  fetch('/api/save-workspace', {
+  const options = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: payload,
+  };
+  fetch('/api/save-workspace', options).then(response => {
+    if (response.ok || location.port === '5173') return;
+    return fetch('http://127.0.0.1:5173/api/save-workspace', options);
   }).catch(() => {
-    if (location.port !== '5173') {
-      fetch('http://127.0.0.1:5173/api/save-workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-      }).catch(() => {});
-    }
+    if (location.port !== '5173') fetch('http://127.0.0.1:5173/api/save-workspace', options).catch(() => {});
   });
 }
 
@@ -267,6 +265,7 @@ export async function init() {
     try { return saveLocal(snapshot); }
     catch (error) { snapshot.error = error.message; }
   }
+  syncToFile(snapshot);
   return clone(snapshot);
 }
 
