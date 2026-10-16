@@ -75,6 +75,8 @@ Databasen avvisar gamla versionsnummer om två administratörer redigerar samtid
 5. Öppna adressen som publiceringen visar. Den är vanligtvis `https://DITT-NAMN.github.io/DITT-ARKIV/`.
 6. Använd appens delningsverktyg för att skapa en QR-kod för teamet med den publicerade adressen. En QR-kod som pekar på `localhost` fungerar inte på kollegornas telefoner.
 
+När du använder den lokala sidan via `npm run dev` sparas publicerade schemaändringar automatiskt i `src/default-data.js`. Den lokala servern skapar en Git-commit och skickar den till `main`; GitHub Actions publicerar sedan den nya versionen. Din lokala arbetskopia måste vara på grenen `main` och GitHub-autentiseringen måste fungera. Endast det publicerade schemat skickas. Utkast, privata anteckningar och frånvaroorsaker stannar lokalt. Eftersom GitHub Pages och arkivet är publika kan alla som hittar adressen se det publicerade schemat.
+
 Arbetsflödet publicerar bara webbplatsens filer. SQL-schema, tester, README och säkerhetskopior publiceras inte. Relativa länkar fungerar även när webbplatsen ligger i en undermapp för GitHub-arkivet. GitHub Pages är [tillgängligt för publika arkiv med GitHub Free](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
 
 Supabase har en [gratisnivå med begränsningar](https://supabase.com/pricing). Gratisprojekt kan pausas efter inaktivitet. Det här är en möjlig start för ett litet team, inom tjänsternas aktuella gränser. Den lokala installationen skapar inga externa konton och publicerar ingen webbplats.

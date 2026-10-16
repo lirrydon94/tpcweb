@@ -1,8 +1,15 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 const root = path.resolve(import.meta.dirname, '..');
+let publishTimer;
+let publishing = false;
+let publishRequested = false;
 const types = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -12,8 +19,63 @@ const types = {
   '.json': 'application/json; charset=utf-8',
 };
 
+async function publishToGitHub() {
+  const { stdout: branch } = await execFileAsync('git', ['branch', '--show-current'], { cwd: root });
+  if (branch.trim() !== 'main') throw new Error(`Current branch is ${branch.trim() || '(detached)'}, expected main.`);
+
+  const { stdout: status } = await execFileAsync('git', ['status', '--porcelain', '--', 'src/default-data.js'], { cwd: root });
+  if (status.trim()) {
+    await execFileAsync('git', ['add', '--', 'src/default-data.js'], { cwd: root });
+    let staged;
+    try {
+      await execFileAsync('git', ['diff', '--cached', '--quiet', '--', 'src/default-data.js'], { cwd: root });
+      staged = false;
+    } catch (error) {
+      if (error.code !== 1) throw error;
+      staged = true;
+    }
+    if (staged) {
+      await execFileAsync('git', ['commit', '-m', 'Publish schedule update'], { cwd: root });
+      console.log('[GitHub Pages] Schedule update committed.');
+    }
+  }
+
+  await execFileAsync('git', ['push', 'origin', 'main'], { cwd: root });
+  console.log('[GitHub Pages] Schedule update pushed; Pages will deploy it automatically.');
+}
+
+function queueGitHubPublish() {
+  publishRequested = true;
+  clearTimeout(publishTimer);
+  publishTimer = setTimeout(async () => {
+    if (publishing) return;
+    publishing = true;
+    try {
+      while (publishRequested) {
+        publishRequested = false;
+        await publishToGitHub();
+      }
+    } catch (error) {
+      console.error(`[GitHub Pages] Could not publish schedule: ${error.stderr?.toString().trim() || error.message}`);
+    } finally {
+      publishing = false;
+      if (publishRequested) queueGitHubPublish();
+    }
+  }, 1000);
+}
+
 const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin) {
+    let localOrigin = false;
+    try {
+      const parsedOrigin = new URL(origin);
+      localOrigin = parsedOrigin.protocol === 'http:'
+        && ['localhost', '127.0.0.1'].includes(parsedOrigin.hostname);
+    } catch {}
+    if (!localOrigin) { res.writeHead(403).end('Local origin required'); return; }
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -29,14 +91,36 @@ const server = http.createServer(async (req, res) => {
     // Endpoint for automatic file synchronization
     if (req.method === 'POST' && url.pathname === '/api/save-workspace') {
       let body = '';
-      for await (const chunk of req) body += chunk;
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 5_000_000) { res.writeHead(413).end('Workspace too large'); return; }
+      }
       const data = JSON.parse(body);
       if (data && data.working && data.published) {
-        const fileContent = `export const defaultWorkspace = ${JSON.stringify(data, null, 2)};\n`;
-        await fs.writeFile(path.join(root, 'src', 'default-data.js'), fileContent, 'utf8');
-        console.log(`[Auto-Sync] Workspace saved to src/default-data.js (revision ${data.revision})`);
+        // GitHub Pages is public. Publish only the already-sanitized schedule,
+        // never the local admin draft or private notes.
+        const publicWorkspace = {
+          working: data.published,
+          published: data.published,
+          revision: Math.max(0, (Number.isSafeInteger(data.revision) ? data.revision : 0) - 1),
+          appliedFixes: data.appliedFixes || [],
+        };
+        const fileContent = `export const defaultWorkspace = ${JSON.stringify(publicWorkspace, null, 2)};\n`;
+        const target = path.join(root, 'src', 'default-data.js');
+        const previous = await fs.readFile(target, 'utf8').catch(() => '');
+        try {
+          const previousData = JSON.parse(previous.replace(/^\s*export const defaultWorkspace\s*=\s*/, '').replace(/;\s*$/, ''));
+          if (JSON.stringify(previousData.published) === JSON.stringify(publicWorkspace.published)) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, revision: data.revision, unchanged: true }));
+            return;
+          }
+        } catch {}
+        await fs.writeFile(target, fileContent, 'utf8');
+        console.log(`[Auto-Sync] Public schedule saved to src/default-data.js (revision ${data.revision})`);
+        queueGitHubPublish();
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, revision: data.revision }));
+        res.end(JSON.stringify({ ok: true, revision: data.revision, publishing: true }));
         return;
       }
     }
