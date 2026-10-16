@@ -27,6 +27,7 @@ const daysOffLabel = count => `${count} ${count===1?'ledig dag':'lediga dagar'}`
 const weeksLabel = count => `${count} ${count===1?'vecka':'veckor'}`;
 const colorLabel = color => ({amber:'Bärnsten',mint:'Mintgrön',blue:'Blå',lavender:'Lavendel',purple:'Lila',teal:'Turkos',rose:'Rosa',peach:'Persika',sage:'Salviagrön',red:'Röd',orange:'Orange',yellow:'Gul',cyan:'Cyan',indigo:'Indigo',pink:'Rosa',slate:'Gråblå'}[color] || color);
 const urlParams = new URLSearchParams(location.search);
+const deployedAssetVersion = new URL(import.meta.url).searchParams.get('v');
 const ui = {view:'schedule',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:localStorage.getItem('skift-team') || urlParams.get('team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',editingSchedule:false,busy:false};
 let workspace;
 const adminRememberKey = 'skift-admin-remembered';
@@ -636,6 +637,34 @@ document.addEventListener('change',async e=>{
 });
 $('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const rect=e.target.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)e.target.close();}});
 let refreshingSchedule = false;
+let checkingDeployment = false;
+async function reloadForNewDeployment() {
+  if (!deployedAssetVersion || checkingDeployment) return;
+  checkingDeployment = true;
+  try {
+    const url = new URL('../build-version.json', import.meta.url);
+    url.searchParams.set('check', Date.now());
+    const response = await fetch(url, {cache:'no-store'});
+    if (!response.ok) return;
+    const {version} = await response.json();
+    if (!version || version === deployedAssetVersion) {
+      sessionStorage.removeItem('skift-reload-version');
+      return;
+    }
+    let previousReload;
+    try { previousReload = JSON.parse(sessionStorage.getItem('skift-reload-version') || 'null'); } catch {}
+    if (previousReload?.version === version && Date.now() - previousReload.at < 5 * 60 * 1000) return;
+    sessionStorage.setItem('skift-reload-version', JSON.stringify({version, at:Date.now()}));
+    const page = new URL(location.href);
+    page.searchParams.set('_asset_version', version);
+    page.searchParams.set('_asset_retry', Date.now());
+    location.replace(page.href);
+  } catch {
+    // A temporary network error should not interrupt the current schedule.
+  } finally {
+    checkingDeployment = false;
+  }
+}
 async function refreshSharedSchedule() {
   const canApply=()=>Boolean(workspace)&&workspace.role!=='signed-out'&&!$('#modal').open&&!ui.busy;
   if(refreshingSchedule||!canApply())return;
@@ -645,9 +674,11 @@ async function refreshSharedSchedule() {
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshSharedSchedule();});
 window.addEventListener('focus',refreshSharedSchedule);
 window.addEventListener('pageshow',refreshSharedSchedule);
+window.addEventListener('focus',reloadForNewDeployment);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reloadForNewDeployment();});
 window.addEventListener('storage',event=>{if(event.key==='skift-workspace-v1'||event.key===null)refreshSharedSchedule();});
 $('#modal').addEventListener('close',refreshSharedSchedule);
-setInterval(()=>{if(document.visibilityState==='visible')refreshSharedSchedule();},60000);
+setInterval(()=>{if(document.visibilityState==='visible'){refreshSharedSchedule();reloadForNewDeployment();}},60000);
 try {workspace=await store.init();shell();if(workspace.error&&workspace.role!=='signed-out')toast(workspace.error,true);}catch(error){$('#app').innerHTML=`<main class="error-page">${icon('info')}<h1>Vi kunde inte öppna din arbetsyta.</h1><p>${esc(error.message)}</p><button class="primary-btn" onclick="location.reload()">Försök igen</button></main>`;}
 
 function setRotationMatchMonday(newMonday) {

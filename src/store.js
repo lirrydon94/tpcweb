@@ -207,6 +207,11 @@ function saveLocal(value) {
   return clone(snapshot);
 }
 
+function sameScheduleData(left, right) {
+  return JSON.stringify([left?.working, left?.published])
+    === JSON.stringify([right?.working, right?.published]);
+}
+
 export async function init() {
   if (cloud) {
     if (!config.supabaseUrl || !config.supabaseAnonKey) return signedOut('Fyll i både Supabase-adressen och den publika nyckeln i config.js.');
@@ -234,7 +239,9 @@ export async function init() {
     saved = null;
     warning = 'Det sparade demoschemat kunde inte läsas. Ett nytt exempel visas. Exportera en säkerhetskopia efter dina ändringar.';
   }
-  const useDefaults = !saved || (latestDefaults?.revision && (saved.revision || 0) < latestDefaults.revision);
+  const useDefaults = !saved || (latestDefaults
+    && (saved.revision || 0) <= latestDefaults.revision
+    && !sameScheduleData(saved, latestDefaults));
   if (useDefaults) {
     saved = clone(latestDefaults || { working: seedState(), published: publicState(seedState()), revision: 0 });
   }
@@ -285,7 +292,11 @@ export async function refresh({ canApply = () => true } = {}) {
   }
   // A save or a newly opened editor takes precedence over a background read.
   if (snapshot !== previous || !canApply()) return clone(snapshot);
-  if (defaults && defaults.revision > (latestDefaults?.revision || 0)) latestDefaults = defaults;
+  if (defaults && (!latestDefaults
+    || defaults.revision > latestDefaults.revision
+    || (defaults.revision === latestDefaults.revision && !sameScheduleData(defaults, latestDefaults)))) {
+    latestDefaults = defaults;
+  }
   return init();
 }
 

@@ -9,6 +9,7 @@ const files = ['styles.css', 'config.js', ...(await fs.readdir(path.join(root, '
 const hash = createHash('sha256');
 for (const file of files) hash.update(await fs.readFile(path.join(root, file)));
 const version = hash.digest('hex').slice(0, 16);
+await fs.writeFile(path.join(root, 'build-version.json'), JSON.stringify({ version }));
 const htmlPath = path.join(root, 'index.html');
 const html = await fs.readFile(htmlPath, 'utf8');
 await fs.writeFile(htmlPath, html
