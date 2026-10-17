@@ -296,4 +296,87 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
 .personal-times input[type=time]{min-width:0;width:100%;padding:5px;font-size:12px;min-height:32px}
 .personal-week-marker[hidden],.personal-cell-base[hidden],
 .personal-times[hidden]{display:none}
+/* Individual changes: people first, periods second, individual dates on demand. */
+.change-overview{overflow:hidden}
+.change-overview .panel-heading{padding-bottom:22px}
+.change-overview .panel-heading p{max-width:none;line-height:1.6}
+.change-filters{display:flex;align-items:end;gap:16px;padding:0 28px 24px;flex-wrap:wrap}
+.change-filters label{display:block;font-size:12px;font-weight:550;color:var(--ink);min-width:150px}
+.change-filters .change-search{flex:1;min-width:210px}
+.change-filters input,.change-filters select{display:block;width:100%;height:43px;margin-top:8px;padding:10px 12px;border:1px solid #dce5df;border-radius:8px;background:#fff;color:var(--ink);font-size:13px;font-weight:400}
+.change-filters input::placeholder{color:#8b9690}
+.change-filters .text-button{height:43px;white-space:nowrap}
+.change-totals{display:flex;gap:24px;flex-wrap:wrap;padding:15px 28px;background:#f4f8f5;border-block:1px solid var(--line);font-size:12px;color:var(--muted)}
+.change-totals strong{font-size:16px;font-weight:650;margin-right:4px;color:var(--ink);font-variant-numeric:tabular-nums}
+.change-column-head,.change-person>summary{display:grid;grid-template-columns:minmax(210px,1.4fr) minmax(130px,.7fr) minmax(190px,1fr) 20px;align-items:center;column-gap:20px}
+.change-column-head{padding:15px 28px 10px;font-size:10px;text-transform:uppercase;letter-spacing:1.1px;color:var(--muted);font-weight:600}
+.change-people{padding:0 28px}
+.change-person{border-top:1px solid var(--line)}
+.change-person:first-child{border-top:0}
+.change-person>summary{list-style:none;cursor:pointer;padding:18px 0;min-height:84px;border-radius:8px}
+.change-person>summary:hover{background:#f7faf7}
+.change-person>summary::-webkit-details-marker,.change-period>summary::-webkit-details-marker{display:none}
+.change-person-name{display:flex;align-items:center;gap:12px;min-width:0}
+.change-person-name>span:last-child{min-width:0}
+.change-person-name strong{font-size:14px;font-weight:600;display:block;overflow-wrap:anywhere}
+.change-person-name small,.change-person-count small{display:block;color:var(--muted);font-size:11px;margin-top:5px;line-height:1.5}
+.change-person-count strong{display:block;font-size:13px;font-weight:550}
+.change-person-coverage{font-size:11px;line-height:1.5}
+.change-coverage-badge{display:inline-block;padding:5px 9px;border-radius:6px;background:#fff4df;color:#8b5c17}
+.change-covered{color:var(--muted)}
+.change-person>summary>.icon{width:17px;color:#85988d;transition:transform .15s}
+.change-person[open]>summary>.icon{transform:rotate(180deg)}
+.change-periods{padding:4px 0 20px 51px;display:grid;gap:8px}
+.change-period{border:1px solid var(--line);border-radius:9px;background:#fafcf9;overflow:hidden}
+.change-period>summary{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;cursor:pointer;list-style:none}
+.change-type{font-size:10px;font-weight:600;border-radius:5px;padding:5px 8px;background:var(--blue);color:#4a6680;min-width:72px;text-align:center}
+.change-type-vacation{background:#ece7f4;color:#71568d}
+.change-type-sick{background:#f5e5e5;color:#925d5d}
+.change-type-leave{background:#e2efec;color:#386f63}
+.change-type-pension{background:#fbefd7;color:#8e702e}
+.change-type-off{background:#e9eeea;color:#69746c}
+.change-period-date{font-size:12px;font-weight:550}
+.change-period-count{font-size:11px;color:var(--muted)}
+.change-period-hint{margin-left:auto;font-size:10px;color:var(--green);white-space:nowrap}
+.change-period-hint .icon{width:14px;margin-left:5px}
+.change-period[open] .change-period-hint .icon{transform:rotate(180deg)}
+.change-day-list{padding:0 16px 12px;background:#fff;border-top:1px solid var(--line);max-height:360px;overflow:auto}
+.change-day-list>p{font-size:11px;color:var(--muted);padding:13px 0;line-height:1.6}
+.change-day{display:flex;align-items:center;gap:16px;text-align:left;width:100%;padding:12px 0;border-top:1px solid var(--line)}
+.change-day:hover{background:#f6f9f5}
+.change-day>span:first-child{flex:1}
+.change-day strong{display:block;font-size:12px;font-weight:550}
+.change-day small{display:block;font-size:10px;color:var(--muted);margin-top:4px}
+.change-day .coverage-warning{color:#98621d}
+.change-day-cover{font-size:11px;min-width:160px}
+.change-day>.icon{width:15px;color:#7d9587}
+.change-pagination{display:flex;justify-content:space-between;align-items:center;padding:14px 28px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);gap:12px}
+.change-pagination>div{display:flex;gap:12px;align-items:center}
+.change-pagination .icon-btn{min-width:32px;width:32px;min-height:32px;height:32px;border:1px solid var(--line);border-radius:7px}
+.change-pagination .icon{width:15px}
+.change-footnote{display:flex;align-items:center;gap:7px;padding:14px 28px;background:#fafcf9;border-top:1px solid var(--line);font-size:10px;color:var(--muted);line-height:1.6}
+.change-footnote .icon{width:14px;height:14px}
+@media(max-width:1100px){
+  .change-column-head,.change-person>summary{grid-template-columns:minmax(170px,1.2fr) 95px minmax(150px,1fr) 16px;column-gap:12px}
+  .change-filters{gap:12px}
+  .change-periods{padding-left:0}
+}
+@media(max-width:700px){
+  .change-filters,.change-people{padding-left:17px;padding-right:17px}
+  .change-filters label{flex:1;min-width:130px}
+  .change-filters .change-search{flex-basis:100%}
+  .change-filters input,.change-filters select{font-size:16px}
+  .change-totals{padding:13px 17px;gap:10px 18px;font-size:10px}
+  .change-totals strong{font-size:14px}
+  .change-column-head{display:none}
+  .change-person>summary{grid-template-columns:1fr 70px 16px;gap:10px;padding:16px 0}
+  .change-person-name strong{font-size:13px}
+  .change-person-coverage{grid-row:2;grid-column:1 / 3;padding-left:51px}
+  .change-person>summary>.icon{grid-row:1;grid-column:3}
+  .change-period>summary{gap:9px;padding:12px}
+  .change-period-date{flex:1;min-width:160px}
+  .change-day-list{padding:0 12px 10px}
+  .change-day-cover{min-width:0;max-width:145px}
+  .change-pagination,.change-footnote{padding:13px 17px}
+}
 @media(max-width:640px){.personal-settings{grid-template-columns:1fr}.personal-table-heading{display:block}.personal-table-heading>label{margin-top:12px}dialog:has(.personal-schedule-editor){max-width:calc(100vw - 24px)}}

@@ -1053,9 +1053,49 @@ export const defaultWorkspace = {
         "date": "2026-11-21",
         "type": "vacation",
         "note": "ville ha semester"
+      },
+      {
+        "id": "41a63db2-707c-4afe-8bc0-b586baaeb929",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-21",
+        "type": "vacation",
+        "note": ""
+      },
+      {
+        "id": "ec2b7655-f00f-4f17-be6a-6cc9e6144f5d",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-22",
+        "type": "vacation",
+        "note": ""
+      },
+      {
+        "id": "eb189283-e498-4813-b7dd-9d84e7f017b8",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-23",
+        "type": "vacation",
+        "note": ""
+      },
+      {
+        "id": "0b6ec526-97b4-4096-972b-5d7c9e522789",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-24",
+        "type": "vacation",
+        "note": ""
+      },
+      {
+        "id": "ac797215-7dc0-4ac6-9de7-bfc83ed2b880",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-25",
+        "type": "vacation",
+        "note": ""
       }
     ],
-    "publishedAt": "2026-10-17T20:13:14.976Z",
+    "publishedAt": "2026-10-17T21:50:51.103Z",
     "departments": [
       {
         "id": "department-default",
@@ -2566,9 +2606,44 @@ export const defaultWorkspace = {
         "memberId": "member-1",
         "date": "2026-11-21",
         "type": "vacation"
+      },
+      {
+        "id": "41a63db2-707c-4afe-8bc0-b586baaeb929",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-21",
+        "type": "vacation"
+      },
+      {
+        "id": "ec2b7655-f00f-4f17-be6a-6cc9e6144f5d",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-22",
+        "type": "vacation"
+      },
+      {
+        "id": "eb189283-e498-4813-b7dd-9d84e7f017b8",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-23",
+        "type": "vacation"
+      },
+      {
+        "id": "0b6ec526-97b4-4096-972b-5d7c9e522789",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-24",
+        "type": "vacation"
+      },
+      {
+        "id": "ac797215-7dc0-4ac6-9de7-bfc83ed2b880",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-25",
+        "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-17T20:13:14.976Z",
+    "publishedAt": "2026-10-17T21:50:51.103Z",
     "departments": [
       {
         "id": "department-default",
@@ -3028,7 +3103,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 258,
+  "revision": 265,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"

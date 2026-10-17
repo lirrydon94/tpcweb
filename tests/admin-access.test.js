@@ -114,7 +114,7 @@ test('personal grid displays group shifts, highlights the selected rotation week
   assert.match(row,/Tjänstledig/);assert.match(row,/07:00–16:00/);
 });
 
-async function openApp(role = 'admin', initial = defaultWorkspace, preferences = new Map(), search = '?date=2026-10-14') {
+async function openApp(role = 'admin', initial = defaultWorkspace, preferences = new Map(), search = '?date=2026-10-14', navigation = new Map()) {
   let saved = { ...structuredClone(initial), mode: 'demo', role };
   const listeners = {};
   let publishError = null;
@@ -126,7 +126,8 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     querySelector: selector => selector === '.form-error' ? error : null,
     addEventListener() {},
   };
-  const elements = { '#app': app, '#modal': dialog, '#modal-form': form, '#toast': {} };
+  const elements = { '#app': app, '#modal': dialog, '#modal-form': form, '#toast': {}, '#exception-type': { closest: () => ({ before() {} }) } };
+  elements['#change-results']={set innerHTML(value){app.innerHTML=app.innerHTML.replace(/(<div id="change-results">)[\s\S]*(<\/div><p class="change-footnote")/,(_match,start,end)=>start+value+end);}};
   const context = vm.createContext({
     model,
     store: {
@@ -138,6 +139,7 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
       },
     },
     document: {
+      createElement: () => ({}),
       querySelector: selector => elements[selector],
       querySelectorAll: () => [],
       addEventListener: (type, fn) => { listeners[type] = fn; },
@@ -145,8 +147,9 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     window: { addEventListener() {}, scrollTo() {} },
     location: { search },
     localStorage: { getItem: key => preferences.get(key) || null, setItem: (key, value) => preferences.set(key, value) },
+    sessionStorage: { getItem: key => navigation.get(key) || null, setItem: (key, value) => navigation.set(key, value) },
     URLSearchParams, Intl, Date, structuredClone,
-    FormData: class { constructor(target) { this.get = key => target[key]; this.has = key => Boolean(target[key]); } },
+    FormData: class { constructor(target) { this.get = key => target[key]; this.has = key => Boolean(target[key]); this.getAll = key => target[key] || []; } },
     setInterval() {}, setTimeout() {}, clearTimeout() {},
   });
   const source = (await readFile(new URL('../src/app.js', import.meta.url), 'utf8'))
@@ -157,10 +160,52 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     getWorkspace: () => structuredClone(saved),
     failPublish: message => { publishError = message; },
     change: target => listeners.change({ target }),
+    input: target => listeners.input({ target }),
+    toggle: target => listeners.toggle({ target }),
     click: (action, view, extra = {}) => listeners.click({ target: { closest: () => ({ dataset: { action, view, ...extra } }) } }),
     submit: (values = {}) => form.onsubmit({ preventDefault() {}, submitter: {}, target: typeof values === 'string' ? { password: values } : values }),
   };
 }
+
+test('deleting an individual change keeps Hantera and its tab after a file-triggered reload', async () => {
+  const state = model.organizeState(model.seedState());
+  state.exceptions = [{ id: 'remove-absence', teamId: 'team-1', memberId: 'member-1', date: '2026-10-14', type: 'vacation' }];
+  const initial = { working: state, published: model.publishState(state), revision: 1 };
+  const preferences = new Map([['skift-admin-remembered', 'true']]);
+  const navigation = new Map();
+  const search = '?date=2026-10-14';
+  const page = await openApp('admin', initial, preferences, search, navigation);
+  await page.click('admin');
+  await page.click('admin-tab', undefined, { tab: 'changes' });
+  await page.click('edit-exception', undefined, { id: 'remove-absence' });
+  assert.equal(page.dialog.open, true);
+  // This must already exist before saving: Live Server can reload before the
+  // save request returns and before the application gets to render again.
+  assert.equal(JSON.parse([...navigation.values()][0]).adminTab, 'changes');
+  await page.click('delete-exception', undefined, { id: 'remove-absence' });
+  assert.equal(page.dialog.open, false);
+  assert.equal(page.getWorkspace().working.exceptions.length, 0);
+  assert.equal(page.getWorkspace().published.exceptions.length, 0);
+  assert.match(page.app.innerHTML, /<h1>Hantera avdelningen<\/h1>/);
+  const reloaded = await openApp('admin', page.getWorkspace(), preferences, search, navigation);
+  assert.match(reloaded.app.innerHTML, /<h1>Hantera avdelningen<\/h1>/);
+  assert.match(reloaded.app.innerHTML, /aria-selected="true"[^>]*data-tab="changes"/);
+  assert.match(reloaded.app.innerHTML, /Inga individuella ändringar/);
+  assert.equal(JSON.parse([...navigation.values()][0]).teamId, 'team-1');
+  // Deliberately switching back to Schema must still survive the next reload.
+  await reloaded.click('view', 'schedule');
+  const schedule = await openApp('admin', page.getWorkspace(), preferences, search, navigation);
+  assert.doesNotMatch(schedule.app.innerHTML, /<h1>Hantera avdelningen<\/h1>/);
+});
+
+test('remembered navigation does not unlock Hantera or grant a viewer admin access', async () => {
+  for (const role of ['admin', 'viewer']) {
+    const navigation = new Map([['skift-navigation:/?date=2026-10-14', JSON.stringify({ view: 'admin', adminTab: 'changes' })]]);
+    const preferences = new Map(role === 'viewer' ? [['skift-admin-remembered', 'true']] : []);
+    const page = await openApp(role, defaultWorkspace, preferences, '?date=2026-10-14', navigation);
+    assert.doesNotMatch(page.app.innerHTML, /<h1>Hantera avdelningen<\/h1>/);
+  }
+});
 
 test('absence cells show their replacement inline without duplicate status rows and remain editable', async () => {
   const state=model.organizeState(model.seedState());
@@ -473,6 +518,136 @@ test('adding a rotation week appends a blank row directly without creating a ver
   page.failPublish('Kunde inte spara');
   await page.click('new-rotation');
   assert.deepEqual(page.getWorkspace().working.teams[0],expected);
+});
+
+test('individual changes filter by team across groups and keep edits in the correct group', async () => {
+  const state=model.organizeState(model.seedState());
+  const first=state.teams[0], workTeam=state.workTeams[0];
+  const night=structuredClone(first);night.id='night';night.name='Natt';night.members=[];night.versions.forEach(v=>v.positions={});state.teams.push(night);
+  const other=structuredClone(night);other.id='other-group';other.workTeamId='other-team';state.teams.push(other);
+  state.workTeams.push({id:'other-team',departmentId:state.departments[0].id,name:'Annat team'});
+  model.placeEmployee(state,'member-1',workTeam.id,night.id,'2026-10-12');
+  model.placeEmployee(state,'member-2','other-team',other.id,'2026-10-12');
+  state.exceptions=[
+    {id:'day-absence',teamId:first.id,memberId:'member-3',date:'2026-10-14',type:'vacation'},
+    {id:'night-absence',teamId:night.id,memberId:'member-1',date:'2026-10-15',type:'vacation'},
+    {id:'other-absence',teamId:other.id,memberId:'member-2',date:'2031-10-14',type:'vacation'},
+  ];
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');
+  await page.click('admin-tab',undefined,{tab:'changes'});
+  assert.match(page.app.innerHTML,/id="work-team-select"/);
+  assert.doesNotMatch(page.app.innerHTML,/id="admin-team-select"/);
+  assert.match(page.app.innerHTML,/data-id="day-absence"/);
+  assert.match(page.app.innerHTML,/data-id="night-absence"/);
+  assert.doesNotMatch(page.app.innerHTML,/data-id="other-absence"/);
+  assert.doesNotMatch(page.app.innerHTML.match(/id="changes-year">(.*?)<\/select>/s)[1],/2031/);
+  await page.change({id:'changes-year',value:'2026'});
+  await page.click('edit-exception',undefined,{id:'night-absence'});
+  await page.submit({member:'member-1',date:'2026-10-15',type:'leave',replacement:'',note:'Ändrad'});
+  assert.equal(page.error.textContent,'');
+  assert.equal(page.getWorkspace().working.exceptions.find(e=>e.id==='night-absence').teamId,night.id);
+  await page.click('exception');
+  assert.match(page.dialog.innerHTML,/value="member-1"/);
+  assert.match(page.dialog.innerHTML,/value="member-3"/);
+  await page.submit({member:'member-1',date:'2026-10-16',through:'2026-10-16',days:['4'],type:'vacation',replacement:'',note:''});
+  assert.equal(page.error.textContent,'');
+  assert.equal(page.getWorkspace().working.exceptions.find(e=>e.date==='2026-10-16').teamId,night.id);
+  await page.click('delete-exception',undefined,{id:'night-absence'});
+  assert.doesNotMatch(page.app.innerHTML,/data-id="night-absence"/);
+  assert.match(page.app.innerHTML,/data-id="day-absence"/);
+  await page.change({id:'work-team-select',value:'other-team'});
+  const yearOptions=page.app.innerHTML.match(/id="changes-year">(.*?)<\/select>/s)[1];
+  assert.match(yearOptions,/2031/);
+  assert.doesNotMatch(yearOptions,/2026/);
+  assert.match(page.app.innerHTML,/data-id="other-absence"/);
+  assert.doesNotMatch(page.app.innerHTML,/data-id="day-absence"/);
+});
+
+test('51 people with 20 vacation dates each render compactly and can be searched, paged and filtered', async () => {
+  const state=model.seedState(),group=state.teams[0],template=group.members[0];
+  group.members=Array.from({length:51},(_,i)=>({...template,id:'person-'+(i+1),name:'Person '+String(i+1).padStart(2,'0')}));
+  for(const version of group.versions)version.positions=Object.fromEntries(group.members.map(member=>[member.id,1]));
+  state.exceptions=group.members.flatMap(member=>Array.from({length:20},(_,i)=>({id:member.id+'-day-'+i,teamId:group.id,memberId:member.id,date:model.addDays('2027-07-01',i),type:'vacation'})));
+  model.organizeState(state);
+  const preferences=new Map([['skift-admin-remembered','true']]),navigation=new Map();
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1},preferences,'?date=2026-10-14',navigation);
+  await page.click('admin');await page.click('admin-tab',undefined,{tab:'changes'});
+  assert.equal((page.app.innerHTML.match(/class="change-person"/g)||[]).length,10);
+  assert.equal((page.app.innerHTML.match(/class="change-period"/g)||[]).length,10);
+  assert.equal((page.app.innerHTML.match(/class="change-day"/g)||[]).length,200);
+  assert.match(page.app.innerHTML,/<strong>1020<\/strong> registrerade dagar/);
+  assert.match(page.app.innerHTML,/Visar 1–10 av 51 medarbetare/);
+  assert.doesNotMatch(page.app.innerHTML,/data-change-person="[^"]+" open/);
+  await page.click('changes-page',undefined,{step:'1'});
+  assert.match(page.app.innerHTML,/Visar 11–20 av 51 medarbetare/);
+  await page.input({id:'changes-search',value:'person 51'});
+  assert.match(page.app.innerHTML,/Visar 1–1 av 1 medarbetare/);
+  assert.equal((page.app.innerHTML.match(/class="change-person"/g)||[]).length,1);
+  assert.match(page.app.innerHTML,/data-id="person-51-day-0"/);
+  await page.toggle({dataset:{changePerson:'person-51'},open:true});
+  await page.toggle({dataset:{changePeriod:'person-51-day-0'},open:true});
+  const reloaded=await openApp('admin',page.getWorkspace(),preferences,'?date=2026-10-14',navigation);
+  assert.match(reloaded.app.innerHTML,/data-change-person="person-51" open/);
+  assert.match(reloaded.app.innerHTML,/data-change-period="person-51-day-0" open/);
+  await page.change({id:'changes-year',value:'2027'});
+  await page.change({id:'changes-month',value:'08'});
+  assert.match(page.app.innerHTML,/Inga ändringar matchar dina filter/);
+  await page.change({id:'changes-month',value:'07'});
+  assert.match(page.app.innerHTML,/Visar 1–1 av 1 medarbetare/);
+  await page.change({id:'changes-type',value:'sick'});
+  assert.match(page.app.innerHTML,/Inga ändringar matchar dina filter/);
+  await page.click('changes-reset');
+  assert.match(page.app.innerHTML,/Visar 1–10 av 51 medarbetare/);
+});
+
+test('year filter shows every month in that year and can narrow to one month or reset', async () => {
+  const state=model.organizeState(model.seedState());
+  state.exceptions=['2026-01-15','2026-12-15','2027-01-15'].map((date,i)=>({id:'year-'+i,teamId:'team-1',memberId:'member-1',date,type:'vacation'}));
+  const preferences=new Map([['skift-admin-remembered','true']]),navigation=new Map();
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1},preferences,'',navigation);
+  await page.click('admin');await page.click('admin-tab',undefined,{tab:'changes'});
+  assert.deepEqual([...page.app.innerHTML.match(/id="changes-year">(.*?)<\/select>/s)[1].matchAll(/value="(\d{4})"/g)].map(match=>match[1]),['2026','2027']);
+  await page.change({id:'changes-year',value:'2026'});
+  assert.match(page.app.innerHTML,/>Hela året<\/option>/);
+  assert.match(page.app.innerHTML,/data-id="year-0"/);
+  assert.match(page.app.innerHTML,/data-id="year-1"/);
+  assert.doesNotMatch(page.app.innerHTML,/data-id="year-2"/);
+  await page.change({id:'changes-month',value:'12'});
+  assert.doesNotMatch(page.app.innerHTML,/data-id="year-0"/);
+  assert.match(page.app.innerHTML,/data-id="year-1"/);
+  await page.change({id:'changes-month',value:''});
+  const reloaded=await openApp('admin',page.getWorkspace(),preferences,'',navigation);
+  assert.match(reloaded.app.innerHTML,/value="2026" selected/);
+  assert.match(reloaded.app.innerHTML,/data-id="year-0"/);
+  assert.match(reloaded.app.innerHTML,/data-id="year-1"/);
+  assert.doesNotMatch(reloaded.app.innerHTML,/data-id="year-2"/);
+  await reloaded.click('changes-reset');
+  assert.match(reloaded.app.innerHTML,/data-id="year-2"/);
+  await reloaded.change({id:'changes-year',value:'2027'});
+  await reloaded.click('delete-exception',undefined,{id:'year-2'});
+  assert.doesNotMatch(reloaded.app.innerHTML.match(/id="changes-year">(.*?)<\/select>/s)[1],/2027/);
+  assert.match(reloaded.app.innerHTML,/data-id="year-0"/);
+});
+
+test('period grouping preserves date gaps, different absence types, groups and working hours', async () => {
+  const source=(await readFile(new URL('../src/app.js',import.meta.url),'utf8'));
+  const helper=source.slice(source.indexOf('function changePeriods('),source.indexOf('function changeRange('));
+  const entries=[
+    {id:'a',teamId:'day',date:'2026-12-31',type:'vacation'},
+    {id:'b',teamId:'day',date:'2027-01-01',type:'vacation',replacementId:'someone'},
+    {id:'gap',teamId:'day',date:'2027-01-03',type:'vacation'},
+    {id:'type',teamId:'day',date:'2027-01-04',type:'sick'},
+    {id:'group',teamId:'night',date:'2027-01-04',type:'vacation'},
+    {id:'hours1',teamId:'day',date:'2027-01-05',type:'pension',start:'08:00',end:'12:00'},
+    {id:'hours2',teamId:'day',date:'2027-01-06',type:'pension',start:'08:00',end:'14:00'},
+  ];
+  const before=JSON.stringify(entries);
+  const result=vm.runInNewContext(helper+'\nchangePeriods(entries)',{model,entries});
+  assert.equal(result.length,6);
+  assert.equal(result[0].entries.length,2);
+  assert.equal(result[0].end,'2027-01-01');
+  assert.equal(JSON.stringify(entries),before);
 });
 
 test('schedule shows all groups of the selected team in one table and edits the correct group', async () => {

@@ -29,6 +29,31 @@ const colorLabel = color => ({amber:'Bärnsten',mint:'Mintgrön',blue:'Blå',lav
 const urlParams = new URLSearchParams(location.search);
 const deployedAssetVersion = '__APP_BUILD_VERSION__';
 const ui = {view:'schedule',date:urlParams.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(urlParams.get('date')) && !isNaN(Date.parse(urlParams.get('date'))) ? urlParams.get('date') : today(), teamId:localStorage.getItem('skift-team') || urlParams.get('team'),memberId:localStorage.getItem('skift-person'),adminTab:'people',editingSchedule:false,busy:false};
+const navigationKey = `skift-navigation:${location.pathname || '/'}${location.search || ''}`;
+// File synchronization triggers Live Server reloads. Keep navigation in this
+// tab, independently of schedule data and without restoring admin permissions.
+try {
+  const saved = JSON.parse(sessionStorage.getItem(navigationKey) || 'null');
+  if (saved && ['schedule','admin'].includes(saved.view)) {
+    ui.view = saved.view;
+    if (['people','rotation','changes'].includes(saved.adminTab)) ui.adminTab = saved.adminTab;
+    for (const key of ['teamId','departmentId','workTeamId']) {
+      if (typeof saved[key] === 'string') ui[key] = saved[key];
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(saved.date) && !isNaN(Date.parse(saved.date))) ui.date = saved.date;
+    for(const key of ['changeQuery','changeYear','changeMonth','changeType'])if(typeof saved[key]==='string')ui[key]=saved[key];
+    if(Number.isSafeInteger(saved.changePage)&&saved.changePage>=0)ui.changePage=saved.changePage;
+    for(const key of ['changeOpenPeople','changeOpenPeriods'])if(Array.isArray(saved[key]))ui[key]=saved[key].filter(value=>typeof value==='string');
+  }
+} catch { /* Navigation still works if session storage is unavailable. */ }
+// Preserve filters saved by the previous combined year/month picker.
+if(/^\d{4}-\d{2}$/.test(ui.changeMonth||'')){
+  ui.changeYear=ui.changeMonth.slice(0,4);ui.changeMonth=ui.changeMonth.slice(5,7);
+}
+function rememberNavigation() {
+  const { view, adminTab, teamId, departmentId, workTeamId, date, changeQuery, changeYear, changeMonth, changeType, changePage, changeOpenPeople, changeOpenPeriods } = ui;
+  try { sessionStorage.setItem(navigationKey, JSON.stringify({ view, adminTab, teamId, departmentId, workTeamId, date, changeQuery, changeYear, changeMonth, changeType, changePage, changeOpenPeople, changeOpenPeriods })); } catch {}
+}
 let workspace;
 const adminRememberKey = 'skift-admin-remembered';
 const rememberedAdmin = () => { try { return localStorage.getItem(adminRememberKey) === 'true'; } catch { return false; } };
@@ -87,6 +112,7 @@ function shell() {
     </div><nav class="mobile-nav" aria-label="Mobilnavigation">${nav(true)}</nav>
   </div>`;
   if (ui.view === 'admin' && ui.adminTab === 'rotation' && ui.teamId) { setupRotationAdmin(); bindRotationDrag(); }
+  rememberNavigation();
 }
 
 function dateRange() {
@@ -216,12 +242,12 @@ function adminView() {
   return `<div class="page-heading admin-heading"><div><h1>Hantera avdelningen</h1><p>Samla personalen, placera i grupper och anpassa gruppernas scheman.</p></div></div>
   <div class="organization-select"><label>Avdelning<select id="department-select">${orgOptions(state.departments, department?.id)}</select></label>${ui.adminTab!=='changes'?'<button class="secondary-btn" data-action="add-department">Ny avdelning</button><button class="text-button" data-action="rename-department">Byt namn</button>':''}</div>
   <div class="admin-tabs" role="tablist">${[['people',`Personal (${employees.length})`],['rotation','Team och grupper'],['changes','Individuella ändringar']].map(([id,name])=>`<button role="tab" aria-selected="${ui.adminTab===id}" class="${ui.adminTab===id?'active':''}" data-action="admin-tab" data-tab="${id}">${name}</button>`).join('')}</div>
-  ${ui.adminTab==='people'?departmentPeople(employees,state):ui.adminTab==='changes'?individualChangesView(teams,team,groups,group):`<div class="team-group-selectors"><div class="organization-select"><label>Team<select id="work-team-select">${orgOptions(teams,team?.id)}</select></label><button class="secondary-btn" data-action="add-work-team">Nytt team</button>${team?'<button class="text-button" data-action="rename-work-team">Byt namn</button>':''}</div>${team?`<div class="organization-select"><label>Grupp · eget schema<select id="admin-team-select">${orgOptions(groups,group?.id)}</select></label><button class="secondary-btn" data-action="add-team">Ny grupp</button>${group?'<button class="text-button" data-action="settings">Byt namn på grupp</button>':''}</div>`:''}</div>${group?`${ui.adminTab==='changes'?changesAdmin(group):rotationAdmin(group)}`:empty(team?'Skapa teamets första grupp':'Skapa avdelningens första team',team?'Varje grupp har ett eget schema, till exempel dag, kväll eller natt.':'Ett team samlar personal som arbetar med samma sak.',team?'add-team':'add-work-team',team?'Skapa grupp':'Skapa team')}`}
+  ${ui.adminTab==='people'?departmentPeople(employees,state):ui.adminTab==='changes'?individualChangesView(teams,team,groups):`<div class="team-group-selectors"><div class="organization-select"><label>Team<select id="work-team-select">${orgOptions(teams,team?.id)}</select></label><button class="secondary-btn" data-action="add-work-team">Nytt team</button>${team?'<button class="text-button" data-action="rename-work-team">Byt namn</button>':''}</div>${team?`<div class="organization-select"><label>Grupp · eget schema<select id="admin-team-select">${orgOptions(groups,group?.id)}</select></label><button class="secondary-btn" data-action="add-team">Ny grupp</button>${group?'<button class="text-button" data-action="settings">Byt namn på grupp</button>':''}</div>`:''}</div>${group?rotationAdmin(group):empty(team?'Skapa teamets första grupp':'Skapa avdelningens första team',team?'Varje grupp har ett eget schema, till exempel dag, kväll eller natt.':'Ett team samlar personal som arbetar med samma sak.',team?'add-team':'add-work-team',team?'Skapa grupp':'Skapa team')}`}
   ${ui.adminTab==='rotation'?`<section class="admin-panel"><div class="panel-heading"><div><h2>Inställningar för schemat</h2><p>Inaktiverade team och grupper döljs i hela schemat.</p></div></div><div class="schedule-label-settings">${[['team','Visa teamet '+(team?.name||'')]].map(([key,label])=>`<label><input type="checkbox" data-team-active="${esc(team?.id||'')}" ${(team?.scheduleActive!==false)?'checked':''}> ${label}<span class="schedule-setting-state">${(team?.scheduleActive!==false)?'Aktiv':'Inaktiverad'}</span></label>`).join('')}</div><div class="schedule-label-settings">${groups.map(g=>`<label><input type="checkbox" data-group-label="${esc(g.id)}" ${g.showScheduleName!==false?'checked':''}> Visa gruppen ${esc(g.name)}<span class="schedule-setting-state">${g.showScheduleName!==false?'Aktiv':'Inaktiverad'}</span></label>`).join('')}</div></section>`:''}
   <div class="backup-bar"><span role="status">${esc(workspace.fileSync?.message || 'Sparade ändringar visas direkt.')}</span>${workspace.mode !== 'cloud' && ['localhost','127.0.0.1'].includes(location.hostname) ? '<button class="text-button" data-action="sync-project">Spara till projektet</button>' : ''}<button class="text-button" data-action="export">Exportera säkerhetskopia</button><label class="text-button import-label">Importera säkerhetskopia<input id="import-file" type="file" accept="application/json,.json"></label></div>`;
 }
-function individualChangesView(teams,team,groups,group) {
-  return `<div class="organization-select"><label>Team<select id="work-team-select">${orgOptions(teams,team?.id)}</select></label><label>Grupp<select id="admin-team-select">${orgOptions(groups,group?.id)}</select></label></div>${group?changesAdmin(group):empty('Ingen grupp att visa','Välj ett team med grupper. Team och grupper hanteras på fliken Team och grupper.')}`;
+function individualChangesView(teams,team,groups) {
+  return `<div class="organization-select"><label>Team<select id="work-team-select">${orgOptions(teams,team?.id)}</select></label></div>${groups.length?changesAdmin(groups):empty('Ingen grupp att visa','Välj ett team med grupper. Team och grupper hanteras på fliken Team och grupper.')}`;
 }
 function departmentPeople(employees,state) {
   const compare=(a,b)=>a.name.localeCompare(b.name,'sv',{sensitivity:'base',numeric:true});
@@ -385,11 +411,94 @@ function rotationAdmin(team) {
   const weeksPassed=Math.round((Date.parse(currentMon)-Date.parse(refMon))/604800000);
   return `<section class="admin-panel rotation-panel"><div class="panel-heading"><div><h2>Det återkommande grundschemat</h2><p>${version.rotation.length===1?'En vecka som upprepas varje vecka.':'Schemat upprepas efter '+version.rotation.length+' veckor.'} Välj ett pass i varje ruta. En tom ruta betyder ledig. Gäller från måndag ${fmt(version.effectiveFrom,{day:'numeric',month:'short',year:'numeric'})}.</p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="secondary-btn" data-action="version-dates">${icon('edit')} Ändra startdatum</button><button class="secondary-btn" data-action="new-rotation">${icon('plus')} Lägg till vecka</button></div></div><div class="rotation-scroll"><table class="rotation-table"><thead><tr><th>Vecka</th>${weekdayLabels.map(d=>`<th>${d}</th>`).join('')}<th></th></tr></thead><tbody>${version.rotation.map((row,i)=>`<tr draggable="true" data-row="${i}"><th><span class="drag-handle" title="Dra för att ändra ordning">⠿</span> ${i+1}</th>${row.map((code,j)=>`<td><select class="rotation-cell ${version.shifts[code]?.color || ''}" data-row="${i}" data-day="${j}" aria-label="Vecka ${i+1}, ${weekdayNames[j]}"><option value="">—</option>${Object.keys(version.shifts).map(c=>`<option value="${esc(c)}" ${c===code?'selected':''}>${esc(c)}</option>`).join('')}</select></td>`).join('')}<td><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="-1" aria-label="Flytta vecka ${i+1} uppåt" ${i===0?'disabled':''}>↑</button><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="1" aria-label="Flytta vecka ${i+1} nedåt" ${i===version.rotation.length-1?'disabled':''}>↓</button><button type="button" class="icon-btn danger-text" data-action="delete-row" data-row="${i}" aria-label="Ta bort vecka ${i+1}" title="${version.rotation.length===1?'Minst en vecka måste finnas kvar':'Ta bort veckan'}" ${version.rotation.length===1?'disabled':''}>${icon('close')}</button></td></tr>`).join('')}</tbody></table></div><div class="rotation-footnote">${icon('info')} På mobilen kan du svepa tabellen i sidled. Använd pilarna för att ändra veckornas ordning.</div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Stäm av mot jobbets schema</h2><p>Jämför schemaveckorna för gruppens medarbetare.</p></div><button class="primary-btn" data-action="match-rotation">Stäm av medarbetarnas veckor</button></div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Passtider</h2><p>Tiderna gäller för den här schemaversionen.</p></div><button class="secondary-btn" data-action="add-shift">${icon('plus')} Lägg till pass</button></div><div class="shift-definitions">${Object.entries(version.shifts).map(([code,s])=>`<button data-action="edit-shift" data-code="${esc(code)}"><span class="code-badge ${esc(s.color)}">${esc(code)}</span><strong>${s.start}–${s.end}</strong>${icon('edit')}</button>`).join('')}</div></section>`;
 }
-function changesAdmin(team) {
-  const changes=workspace.working.exceptions.filter(e=>e.teamId===team.id).sort((a,b)=>b.date.localeCompare(a.date));
-  return `<section class="admin-panel"><div class="panel-heading"><div><h2>Individuella ändringar</h2><p>Frånvaro, kortare arbetstid och ersättningspass.</p></div><button class="secondary-btn" data-action="exception">${icon('plus')} Lägg till ändring</button></div>${changes.length?`<div class="changes-list">${changes.map(e=>{const shift=model.getShift(workspace.working,team.id,e.memberId,e.date);return `<button class="change-row" data-action="edit-exception" data-id="${esc(e.id)}"><span class="change-date">${fmt(e.date,{day:'numeric',month:'short'})}<small>${e.date.slice(0,4)}</small></span><div><strong>${esc(findMember(e.memberId)?.name || 'Tidigare medarbetare')}</strong><span>${label(e.type)}${e.start&&e.end?' · '+e.start+'–'+e.end:''}${e.replacementId?' · Ersätts av '+esc(findMember(e.replacementId)?.name||'Medarbetare'):''}</span>${shift.needsCoverage?`<small class="coverage-warning">${hours(shift.uncoveredMinutes||0)} timmar behöver ersättare</small>`:''}</div>${icon('edit')}</button>`;}).join('')}</div>`:empty('Inga individuella ändringar','Lägg till en ändring när någon är frånvarande eller behöver andra arbetstider.')}</section><div class="info-card">${icon('info')}<p><strong>Frånvarostatus visas i schemat.</strong> Publicerade scheman visar arbetstider och frånvarostatus. Dina privata anteckningar visas bara i administrationsvyn.</p></div>`;
+function changePeriods(entries) {
+  const buckets = new Map();
+  for (const entry of entries) {
+    const key=JSON.stringify([entry.teamId,entry.type,entry.start||'',entry.end||'']);
+    if(!buckets.has(key))buckets.set(key,[]);
+    buckets.get(key).push(entry);
+  }
+  const periods=[];
+  for(const bucket of buckets.values()){
+    let period;
+    for(const entry of [...bucket].sort((a,b)=>a.date.localeCompare(b.date))){
+      if(!period||model.addDays(period.end,1)!==entry.date){
+        period={id:entry.id,start:entry.date,end:entry.date,type:entry.type,entries:[]};
+        periods.push(period);
+      }
+      period.end=entry.date;period.entries.push(entry);
+    }
+  }
+  return periods.sort((a,b)=>a.start.localeCompare(b.start)||a.id.localeCompare(b.id));
 }
-
+function changeRange(start,end){
+  const date=value=>fmt(value,{day:'numeric',month:'short',year:'numeric'});
+  return start===end?date(start):date(start)+' – '+date(end);
+}
+function changeOverview(groups){
+  const groupIds=new Set(groups.map(group=>group.id)),people=new Map();
+  const query=(ui.changeQuery||'').trim().toLocaleLowerCase('sv');
+  for(const entry of workspace.working.exceptions){
+    if(!groupIds.has(entry.teamId)||(ui.changeYear&&entry.date.slice(0,4)!==ui.changeYear)||(ui.changeMonth&&entry.date.slice(5,7)!==ui.changeMonth)||(ui.changeType&&entry.type!==ui.changeType))continue;
+    const name=findMember(entry.memberId)?.name||'Tidigare medarbetare';
+    if(query&&!name.toLocaleLowerCase('sv').includes(query))continue;
+    if(!people.has(entry.memberId))people.set(entry.memberId,{id:entry.memberId,name,entries:[]});
+    people.get(entry.memberId).entries.push(entry);
+  }
+  return [...people.values()].map(person=>({...person,periods:changePeriods(person.entries),days:new Set(person.entries.map(e=>e.date)).size}))
+    .sort((a,b)=>a.name.localeCompare(b.name,'sv'));
+}
+function changeResults(groups){
+  const people=changeOverview(groups),size=10,pages=Math.max(1,Math.ceil(people.length/size));
+  ui.changePage=Math.min(ui.changePage||0,pages-1);
+  const first=ui.changePage*size,visible=people.slice(first,first+size);
+  const days=people.reduce((sum,p)=>sum+p.days,0),periods=people.reduce((sum,p)=>sum+p.periods.length,0);
+  const count=(n,one,many)=>n+' '+(n===1?one:many);
+  return '<div class="change-totals" role="status"><span><strong>'+people.length+'</strong> medarbetare</span><span><strong>'+periods+'</strong> '+(periods===1?'period':'perioder')+'</span><span><strong>'+days+'</strong> '+(days===1?'registrerad dag':'registrerade dagar')+'</span></div>'
+    +(people.length?'<div class="change-column-head"><span>Medarbetare</span><span>Omfattning</span><span>Bemanning</span><span></span></div><div class="change-people">'+visible.map(person=>{
+      const shifts=new Map(person.entries.map(entry=>[entry.id,model.getShift(workspace.working,entry.teamId,entry.memberId,entry.date)]));
+      const uncovered=person.entries.filter(e=>shifts.get(e.id).needsCoverage).length;
+      const types=[...new Set(person.entries.map(e=>label(e.type)))].join(' · ');
+      const initials=person.name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('');
+      return '<details class="change-person" data-change-person="'+esc(person.id)+'" '+((ui.changeOpenPeople||[]).includes(person.id)?'open':'')+'><summary>'
+        +'<span class="change-person-name"><span class="avatar">'+esc(initials)+'</span><span><strong>'+esc(person.name)+'</strong><small>'+esc(types)+'</small></span></span>'
+        +'<span class="change-person-count"><strong>'+count(person.days,'dag','dagar')+'</strong><small>'+count(person.periods.length,'period','perioder')+'</small></span>'
+        +'<span class="change-person-coverage">'+(uncovered?'<span class="change-coverage-badge">'+count(uncovered,'dag','dagar')+' behöver ersättare</span>':'<span class="change-covered">Inget behov av ersättare</span>')+'</span>'+icon('down')+'</summary>'
+        +'<div class="change-periods">'+person.periods.map(period=>{
+          const needs=period.entries.filter(e=>shifts.get(e.id).needsCoverage).length;
+          return '<details class="change-period" data-change-period="'+esc(period.id)+'" '+((ui.changeOpenPeriods||[]).includes(period.id)?'open':'')+'><summary>'
+            +'<span class="change-type change-type-'+esc(period.type)+'">'+esc(label(period.type))+'</span>'
+            +'<span class="change-period-date">'+changeRange(period.start,period.end)+'</span>'
+            +'<span class="change-period-count">'+count(period.entries.length,'dag','dagar')+'</span>'
+            +'<span class="change-period-hint">Visa dagar '+icon('down')+'</span></summary>'
+            +'<div class="change-day-list"><p>'+ (needs?count(needs,'dag behöver','dagar behöver')+' ersättare. ':'')+'Välj en dag för att redigera eller ta bort ändringen.</p>'
+            +period.entries.map(entry=>{
+              const shift=shifts.get(entry.id);
+              const detail=entry.replacementId?'Ersättare: '+(findMember(entry.replacementId)?.name||'Medarbetare'):'Ingen ersättare';
+              return '<button class="change-day" data-action="edit-exception" data-id="'+esc(entry.id)+'" aria-label="'+esc('Redigera '+person.name+', '+changeRange(entry.date,entry.date))+'"><span><strong>'+fmt(entry.date,{weekday:'short',day:'numeric',month:'short'})+'</strong>'
+                +'<small>'+esc(entry.start&&entry.end?entry.start+'–'+entry.end:label(entry.type))+'</small></span><span class="change-day-cover">'+esc(detail)+(shift.needsCoverage?'<small class="coverage-warning">'+hours(shift.uncoveredMinutes||0)+' timmar behöver ersättare</small>':'')+'</span>'+icon('edit')+'</button>';
+            }).join('')+'</div></details>';
+        }).join('')+'</div></details>';
+    }).join('')+'</div><div class="change-pagination"><span>Visar '+(first+1)+'–'+Math.min(first+size,people.length)+' av '+people.length+' medarbetare</span><div><button class="icon-btn" data-action="changes-page" data-step="-1" aria-label="Föregående medarbetare" '+(ui.changePage===0?'disabled':'')+'>'+icon('left')+'</button><span>'+(ui.changePage+1)+' / '+pages+'</span><button class="icon-btn" data-action="changes-page" data-step="1" aria-label="Nästa medarbetare" '+(ui.changePage===pages-1?'disabled':'')+'>'+icon('right')+'</button></div></div>'
+    :empty('Inga individuella ändringar',ui.changeQuery||ui.changeYear||ui.changeMonth||ui.changeType?'Inga ändringar matchar dina filter. Prova en annan sökning eller visa alla datum.':'Lägg till en ändring när någon är frånvarande eller behöver andra arbetstider.'));
+}
+function refreshChangeResults(){
+  const target=$('#change-results');
+  if(target){target.innerHTML=changeResults(organizationSelection().groups);rememberNavigation();}
+}
+function changesAdmin(groups) {
+  const groupIds=new Set(groups.map(group=>group.id));
+  const years=[...new Set(workspace.working.exceptions.filter(entry=>groupIds.has(entry.teamId))
+    .map(entry=>entry.date.slice(0,4)))].sort();
+  if(ui.changeYear&&!years.includes(ui.changeYear)){ui.changeYear='';ui.changePage=0;}
+  return '<section class="admin-panel change-overview"><div class="panel-heading"><div><h2>Individuella ändringar</h2><p>En rad per person. Öppna en person för att se perioder och enskilda dagar.</p></div><button class="primary-btn" data-action="exception">'+icon('plus')+' Lägg till ändring</button></div>'
+    +'<div class="change-filters"><label class="change-search">Sök medarbetare<input id="changes-search" type="search" placeholder="Skriv ett namn…" value="'+esc(ui.changeQuery||'')+'"></label>'
+    +'<label>År<select id="changes-year"><option value="">Alla år</option>'+years.map(value=>'<option value="'+esc(value)+'" '+(ui.changeYear===value?'selected':'')+'>'+esc(value)+'</option>').join('')+'</select></label>'
+    +'<label>Månad<select id="changes-month"><option value="">'+(ui.changeYear?'Hela året':'Alla månader')+'</option>'+Array.from({length:12},(_,i)=>{const value=String(i+1).padStart(2,'0');return '<option value="'+value+'" '+(ui.changeMonth===value?'selected':'')+'>'+fmt('2026-'+value+'-01',{month:'long'})+'</option>';}).join('')+'</select></label>'
+    +'<label>Typ av ändring<select id="changes-type"><option value="">Alla typer</option>'+['vacation','sick','leave','pension','custom','off'].map(type=>'<option value="'+type+'" '+(ui.changeType===type?'selected':'')+'>'+label(type)+'</option>').join('')+'</select></label>'
+    +'<button class="text-button" data-action="changes-reset">Rensa filter</button></div><div id="change-results">'+changeResults(groups)+'</div>'
+    +'<p class="change-footnote">'+icon('info')+' Dagarna räknas som registrerade kalenderdagar, inte avdrag från semestersaldot.</p></section>';
+}
 function modal(title,description,body,onSubmit,options={}) {
   const dialog=$('#modal');
   dialog.innerHTML=`<div class="modal-header"><div><h2>${title}</h2></div><button class="icon-btn" data-action="close-modal" aria-label="Stäng dialogrutan">${icon('close')}</button></div>${description?`<p class="modal-description">${description}</p>`:''}<form id="modal-form">${body}<p class="form-error" role="alert"></p><div class="modal-actions">${options.extra||''}<button class="secondary-btn" type="button" data-action="close-modal">Avbryt</button><button class="primary-btn" type="submit">${options.submit || 'Spara'}</button></div></form>`;
@@ -448,7 +557,8 @@ function setupCoverFields(teamId){
     form.querySelector('#cover-times').hidden=!partial;
     for(const name of ['coverStart','coverEnd']){field(name).disabled=!replacement||!partial;field(name).required=Boolean(replacement&&partial);}
     const date=field('date').value,member=field('member').value;if(!date||!member)return;
-    const shift=model.getShift(workspace.working,teamId,member,date),from=shift.originalStart||shift.start,to=shift.originalEnd||shift.end;
+    const groupId=typeof teamId==='function'?teamId(member,date)?.id:teamId;
+    const shift=groupId?model.getShift(workspace.working,groupId,member,date):{},from=shift.originalStart||shift.start,to=shift.originalEnd||shift.end;
     const passKey=member+':'+date;
     if(previousPass!==passKey){
       const changedPass=previousPass!==null;
@@ -465,11 +575,18 @@ function setupCoverFields(teamId){
   form.addEventListener('input',update);form.addEventListener('change',update);update();
 }
 function exceptionModal(options={}) {
-  const team=(options.groupId?workspace.working.teams.find(t=>t.id===options.groupId):null)||workingTeam(), existing=workspace.working.exceptions.find(e=>e.id===options.id), memberId=existing?.memberId||options.memberId||currentMember(team)?.id;
-  if(!team.members.length){toast('Lägg till en medarbetare först.',true);return;}
+  const existing=workspace.working.exceptions.find(e=>e.id===options.id);
+  const groupId=existing?.teamId||options.groupId;
+  const team=(groupId?workspace.working.teams.find(t=>t.id===groupId):null)||workingTeam();
+  const teamWide=!existing&&!options.groupId&&ui.view==='admin'&&ui.adminTab==='changes';
+  const groups=teamWide?organizationSelection().groups:team?[team]:[];
+  const members=[...new Map(groups.flatMap(group=>group.members).map(member=>[member.id,member])).values()];
+  const memberId=existing?.memberId||options.memberId||members[0]?.id;
+  const groupFor=(id,date)=>teamWide?groups.find(group=>model.belongsToGroup(workspace.working,id,group.id,date)):team;
+  if(!members.length){toast('Lägg till en medarbetare först.',true);return;}
   const date=existing?.date||options.date||ui.date;
   const people=[...new Map([...workspace.working.teams.flatMap(t=>t.members.map(m=>({...m,teamName:t.name}))),...(workspace.working.employees||[]).filter(e=>e.role==='part-time').map(e=>({...e,teamName:'Timmis'}))].filter(m=>(!m.activeFrom||m.activeFrom<=date)&&(!m.activeUntil||m.activeUntil>date)).map(m=>[m.id,m])).values()];
-  modal(existing?'Redigera individuell ändring':'En ändring för en medarbetare.','Grundschemat fortsätter som vanligt. Ändringen gäller bara de valda datumen.',`<label>Medarbetare<select name="member">${team.members.map(m=>`<option value="${esc(m.id)}" ${m.id===memberId?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label><div class="form-grid"><label>${existing?'Datum':'Från datum'}<input name="date" type="date" value="${date}" required></label>${!existing?`<label>Till och med<input name="through" type="date" value="${date}" required></label>`:''}</div><label>Typ av ändring<select name="type" id="exception-type">${['vacation','sick','leave','pension',...(existing?.type==='custom'?['custom']:[]),'off'].map(t=>`<option value="${t}" ${existing?.type===t?'selected':''}>${label(t)}</option>`).join('')}</select></label><label>Ersättare<select name="replacement"><option value="">Ingen ersättare</option>${people.map(m=>`<option value="${esc(m.id)}" ${m.id===existing?.replacementId?'selected':''}>${esc(m.name)} · ${esc(m.teamName)}</option>`).join('')}</select></label><div id="cover-options"><label>Omfattning<select name="coverMode"><option value="full">Hela passet</option><option value="partial" ${existing?.replacementStart?'selected':''}>Del av passet</option></select></label><div class="form-grid" id="cover-times"><label>Ersätter från<input name="coverStart" type="time" value="${existing?.replacementStart||''}"></label><label>Ersätter till<input name="coverEnd" type="time" value="${existing?.replacementEnd||''}"></label></div><p class="field-note" id="cover-summary" aria-live="polite"></p><p class="field-note">Vid del av passet väljer du från- och tilltid. Vid flera datum gäller samma tider varje valt datum. Överlappande pass tillåts inte.</p></div><label>Privat administratörsanteckning<textarea name="note" rows="2" maxlength="500" placeholder="Valfritt">${esc(existing?.note||'')}</textarea></label>`,async f=>{
+  modal(existing?'Redigera individuell ändring':'En ändring för en medarbetare.','Grundschemat fortsätter som vanligt. Ändringen gäller bara de valda datumen.',`<label>Medarbetare<select name="member">${members.map(m=>`<option value="${esc(m.id)}" ${m.id===memberId?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label><div class="form-grid"><label>${existing?'Datum':'Från datum'}<input name="date" type="date" value="${date}" required></label>${!existing?`<label>Till och med<input name="through" type="date" value="${date}" required></label>`:''}</div><label>Typ av ändring<select name="type" id="exception-type">${['vacation','sick','leave','pension',...(existing?.type==='custom'?['custom']:[]),'off'].map(t=>`<option value="${t}" ${existing?.type===t?'selected':''}>${label(t)}</option>`).join('')}</select></label><label>Ersättare<select name="replacement"><option value="">Ingen ersättare</option>${people.map(m=>`<option value="${esc(m.id)}" ${m.id===existing?.replacementId?'selected':''}>${esc(m.name)} · ${esc(m.teamName)}</option>`).join('')}</select></label><div id="cover-options"><label>Omfattning<select name="coverMode"><option value="full">Hela passet</option><option value="partial" ${existing?.replacementStart?'selected':''}>Del av passet</option></select></label><div class="form-grid" id="cover-times"><label>Ersätter från<input name="coverStart" type="time" value="${existing?.replacementStart||''}"></label><label>Ersätter till<input name="coverEnd" type="time" value="${existing?.replacementEnd||''}"></label></div><p class="field-note" id="cover-summary" aria-live="polite"></p><p class="field-note">Vid del av passet väljer du från- och tilltid. Vid flera datum gäller samma tider varje valt datum. Överlappande pass tillåts inte.</p></div><label>Privat administratörsanteckning<textarea name="note" rows="2" maxlength="500" placeholder="Valfritt">${esc(existing?.note||'')}</textarea></label>`,async f=>{
     const next=copy(), from=f.get('date'), through=f.get('through')||from;
     if(through<from)throw new Error('Slutdatumet måste vara samma som eller efter startdatumet.');const span=Math.round((new Date(through)-new Date(from))/86400000);if(span>365)throw new Error('Välj ett datumintervall på högst ett år.');
     const type=f.get('type'), start=type===existing?.type?existing?.start||'':'', end=type===existing?.type?existing?.end||'':'', replacementId=f.get('replacement'), cs=replacementId&&f.get('coverMode')==='partial'?f.get('coverStart'):'', ce=replacementId&&f.get('coverMode')==='partial'?f.get('coverEnd'):'';
@@ -478,13 +595,13 @@ function exceptionModal(options={}) {
     if(replacementId===f.get('member'))throw new Error('Välj en annan person som ersättare.');if((cs&&!ce)||(!cs&&ce))throw new Error('Ange båda ersättningstiderna eller lämna båda tomma.');if(cs&&cs===ce)throw new Error('Ersättningspassets start- och sluttid måste vara olika.');
     const selectedDays=new Set(f.getAll('days').map(Number));if(!existing&&!selectedDays.size)throw new Error('Välj minst en veckodag för ändringen.');
     let count=0;
-    for(let i=0;i<=span;i++){const d=model.addDays(from,i);if(!existing&&!selectedDays.has((new Date(d+'T12:00:00Z').getUTCDay()+6)%7))continue;const entry={id:existing?.id||model.uid(),teamId:team.id,memberId:f.get('member'),date:d,type,...(start&&end?{start,end}:{}),...(replacementId?{replacementId,...(cs&&ce?{replacementStart:cs,replacementEnd:ce}:{})}:{}),note:f.get('note').trim()};next.exceptions=next.exceptions.filter(e=>e.id!==entry.id&&!(e.teamId===team.id&&e.memberId===entry.memberId&&e.date===d));next.exceptions.push(entry);count++;}
+    for(let i=0;i<=span;i++){const d=model.addDays(from,i);if(!existing&&!selectedDays.has((new Date(d+'T12:00:00Z').getUTCDay()+6)%7))continue;const targetGroup=groupFor(f.get('member'),d);if(!targetGroup)throw new Error(`Medarbetaren saknar grupp i det valda teamet den ${d}.`);const entry={id:existing?.id||model.uid(),teamId:targetGroup.id,memberId:f.get('member'),date:d,type,...(start&&end?{start,end}:{}),...(replacementId?{replacementId,...(cs&&ce?{replacementStart:cs,replacementEnd:ce}:{})}:{}),note:f.get('note').trim()};next.exceptions=next.exceptions.filter(e=>e.id!==entry.id&&!(e.teamId===entry.teamId&&e.memberId===entry.memberId&&e.date===d));next.exceptions.push(entry);count++;}
     if(!count)throw new Error('Det finns inga valda veckodagar i datumintervallet.');
     // Cover records carry conflicts detected by the scheduling engine.
     for(let i=0;i<=span;i++){const d=model.addDays(from,i);for(const t of next.teams){const conflicts=model.getDayAssignments(next,t.id,d).filter(s=>s.conflict);if(conflicts.length)throw new Error(`Ersättaren har överlappande pass den ${d}. Välj en annan person eller andra ersättningstider.`);}}
     await save(next,'Den individuella ändringen har sparats');
   },{extra:existing?`<button type="button" class="danger-text" data-action="delete-exception" data-id="${esc(existing.id)}">Ta bort ändring</button>`:'',submit:existing?'Spara ändring':'Lägg till ändring'});
-  setupCoverFields(team.id);
+  setupCoverFields(groupFor);
   if(!existing){const fieldset=document.createElement('fieldset');fieldset.className='repeat-days';fieldset.innerHTML=`<legend>Gäller dessa veckodagar i datumintervallet</legend><div>${weekdayLabels.map((day,i)=>`<label><input name="days" type="checkbox" value="${i}" checked><span>${day}</span></label>`).join('')}</div><small>För återkommande pensionsdagar väljer du ett längre datumintervall och de aktuella veckodagarna.</small>`;$('#exception-type').closest('label').before(fieldset);}
 }
 function teamSettings() {
@@ -555,6 +672,8 @@ async function handleAction(button) {
     case 'match-week-step':if(admin()&&rotationMatch){setRotationMatchMonday(model.addDays(rotationMatch.monday,Number(button.dataset.step)*7));}break;
     case 'match-week-today':if(admin()&&rotationMatch){setRotationMatchMonday(model.mondayOf(today()));}break;
     case 'admin-tab':if(admin()){ui.adminTab=button.dataset.tab;shell();}break;
+    case 'changes-page':if(admin()){ui.changePage=Math.max(0,(ui.changePage||0)+Number(button.dataset.step));shell();}break;
+    case 'changes-reset':if(admin()){ui.changeQuery='';ui.changeYear='';ui.changeMonth='';ui.changeType='';ui.changePage=0;shell();}break;
     case 'close-modal':$('#modal').close();break;
     case 'add-department':if(admin())organizationModal('department');break;
     case 'rename-department':if(admin())organizationModal('department',true);break;
@@ -607,10 +726,26 @@ async function handleAction(button) {
   }
 }
 document.addEventListener('click',async e=>{const button=e.target.closest('[data-action]');if(!button||button.disabled)return;try{await handleAction(button);}catch(error){toast(error.message,true);}});
+document.addEventListener('input',event=>{
+  if(event.target.id==='changes-search'&&admin()){
+    ui.changeQuery=event.target.value;ui.changePage=0;refreshChangeResults();
+  }
+});
+document.addEventListener('toggle',event=>{
+  for(const [attribute,key] of [['changePerson','changeOpenPeople'],['changePeriod','changeOpenPeriods']]){
+    const id=event.target.dataset?.[attribute];if(!id)continue;
+    ui[key]=(ui[key]||[]).filter(value=>value!==id);
+    if(event.target.open)ui[key].push(id);
+    rememberNavigation();
+  }
+},true);
 document.addEventListener('change',async e=>{
   const target=e.target;
   try {
-    if(target.dataset?.teamActive&&admin()){const next=copy(),team=next.workTeams.find(t=>t.id===target.dataset.teamActive);if(team){team.scheduleActive=target.checked;await save(next);}}
+    if(['changes-year','changes-month','changes-type','changes-search'].includes(target.id)&&admin()){
+      ui[{'changes-year':'changeYear','changes-month':'changeMonth','changes-type':'changeType','changes-search':'changeQuery'}[target.id]]=target.value;ui.changePage=0;if(target.id==='changes-year')shell();else refreshChangeResults();
+    }
+    else if(target.dataset?.teamActive&&admin()){const next=copy(),team=next.workTeams.find(t=>t.id===target.dataset.teamActive);if(team){team.scheduleActive=target.checked;await save(next);}}
     else if(target.dataset?.groupLabel&&admin()){
       const next=copy(),group=next.teams.find(g=>g.id===target.dataset.groupLabel);
       if(group){group.showScheduleName=target.checked;await save(next);}
