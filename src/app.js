@@ -218,7 +218,7 @@ function adminView() {
   <div class="admin-tabs" role="tablist">${[['people',`Personal (${employees.length})`],['rotation','Team och grupper'],['changes','Individuella ändringar']].map(([id,name])=>`<button role="tab" aria-selected="${ui.adminTab===id}" class="${ui.adminTab===id?'active':''}" data-action="admin-tab" data-tab="${id}">${name}</button>`).join('')}</div>
   ${ui.adminTab==='people'?departmentPeople(employees,state):ui.adminTab==='changes'?individualChangesView(teams,team,groups,group):`<div class="team-group-selectors"><div class="organization-select"><label>Team<select id="work-team-select">${orgOptions(teams,team?.id)}</select></label><button class="secondary-btn" data-action="add-work-team">Nytt team</button>${team?'<button class="text-button" data-action="rename-work-team">Byt namn</button>':''}</div>${team?`<div class="organization-select"><label>Grupp · eget schema<select id="admin-team-select">${orgOptions(groups,group?.id)}</select></label><button class="secondary-btn" data-action="add-team">Ny grupp</button>${group?'<button class="text-button" data-action="settings">Byt namn på grupp</button>':''}</div>`:''}</div>${group?`${ui.adminTab==='changes'?changesAdmin(group):rotationAdmin(group)}`:empty(team?'Skapa teamets första grupp':'Skapa avdelningens första team',team?'Varje grupp har ett eget schema, till exempel dag, kväll eller natt.':'Ett team samlar personal som arbetar med samma sak.',team?'add-team':'add-work-team',team?'Skapa grupp':'Skapa team')}`}
   ${ui.adminTab==='rotation'?`<section class="admin-panel"><div class="panel-heading"><div><h2>Inställningar för schemat</h2><p>Inaktiverade team och grupper döljs i hela schemat.</p></div></div><div class="schedule-label-settings">${[['team','Visa teamet '+(team?.name||'')]].map(([key,label])=>`<label><input type="checkbox" data-team-active="${esc(team?.id||'')}" ${(team?.scheduleActive!==false)?'checked':''}> ${label}<span class="schedule-setting-state">${(team?.scheduleActive!==false)?'Aktiv':'Inaktiverad'}</span></label>`).join('')}</div><div class="schedule-label-settings">${groups.map(g=>`<label><input type="checkbox" data-group-label="${esc(g.id)}" ${g.showScheduleName!==false?'checked':''}> Visa gruppen ${esc(g.name)}<span class="schedule-setting-state">${g.showScheduleName!==false?'Aktiv':'Inaktiverad'}</span></label>`).join('')}</div></section>`:''}
-  <div class="backup-bar"><span>Sparade ändringar visas direkt.</span><button class="text-button" data-action="export">Exportera säkerhetskopia</button><label class="text-button import-label">Importera säkerhetskopia<input id="import-file" type="file" accept="application/json,.json"></label></div>`;
+  <div class="backup-bar"><span role="status">${esc(workspace.fileSync?.message || 'Sparade ändringar visas direkt.')}</span>${workspace.mode !== 'cloud' && ['localhost','127.0.0.1'].includes(location.hostname) ? '<button class="text-button" data-action="sync-project">Spara till projektet</button>' : ''}<button class="text-button" data-action="export">Exportera säkerhetskopia</button><label class="text-button import-label">Importera säkerhetskopia<input id="import-file" type="file" accept="application/json,.json"></label></div>`;
 }
 function individualChangesView(teams,team,groups,group) {
   return `<div class="organization-select"><label>Team<select id="work-team-select">${orgOptions(teams,team?.id)}</select></label><label>Grupp<select id="admin-team-select">${orgOptions(groups,group?.id)}</select></label></div>${group?changesAdmin(group):empty('Ingen grupp att visa','Välj ett team med grupper. Team och grupper hanteras på fliken Team och grupper.')}`;
@@ -402,7 +402,7 @@ async function save(next, message='Ändringarna har sparats') {
   const errors=model.validateState(next); if(errors.length)throw new Error(errors[0]);
   if(ui.busy)throw new Error('En ändring sparas. Försök igen om en stund.');
   ui.busy=true;
-  try{const result=await store.publish(next);workspace={...workspace,...result};ui.busy=false;shell();toast(message);}finally{ui.busy=false;}
+  try{const result=await store.publish(next);workspace={...workspace,...result};ui.busy=false;shell();toast(result.fileSync?.message || message,result.fileSync?.state==='browser');}finally{ui.busy=false;}
 }
 const workingTeam = () => workspace.working.teams.find(t=>t.id===ui.teamId)||workspace.working.teams[0];
 const editingVersion = team => team.versions.find(v=>v.id===editingVersionId)||team.versions.at(-1);
@@ -597,6 +597,9 @@ async function handleAction(button) {
     case 'delete-team':if(admin())deleteTeamModal();break;
     case 'edit-schedule':if(admin()){ui.editingSchedule=true;ui.view='schedule';shell();}break;
     case 'export':if(admin())download(JSON.stringify(workspace.working,null,2),'application/json',`rssb-backup-${today()}.json`);break;
+    case 'sync-project':
+      if(admin()&&!ui.busy){ui.busy=true;try{workspace=await store.syncProject();shell();toast(workspace.fileSync.message,workspace.fileSync.state==='browser');}finally{ui.busy=false;}}
+      break;
     case 'delete-row':if(admin())deleteRotationRow(Number(button.dataset.row));break;
     case 'move-row':if(admin())await reorderRow(Number(button.dataset.row),Number(button.dataset.row)+Number(button.dataset.dir));break;
     case 'logout':localStorage.setItem(adminRememberKey,'false');adminUnlocked=false;ui.editingSchedule=false;ui.view='schedule';await store.logout();workspace=await store.init();shell();break;

@@ -458,15 +458,9 @@ export const defaultWorkspace = {
                     null
                   ],
                   [
-                    {
-                      "type": "leave"
-                    },
-                    {
-                      "type": "leave"
-                    },
-                    {
-                      "type": "leave"
-                    },
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -1037,15 +1031,6 @@ export const defaultWorkspace = {
     ],
     "exceptions": [
       {
-        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
-        "teamId": "team-1",
-        "memberId": "member-1",
-        "date": "2026-11-21",
-        "type": "vacation",
-        "note": "ville ha semester",
-        "replacementId": "52e6b2d0-f39d-4333-ae2c-3eae344bb72e"
-      },
-      {
         "id": "89cb2c3f-b28f-4520-b4ff-1339f066ba8c",
         "teamId": "team-1",
         "memberId": "member-1",
@@ -1060,9 +1045,17 @@ export const defaultWorkspace = {
         "date": "2026-11-23",
         "type": "vacation",
         "note": "ville ha semester"
+      },
+      {
+        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-21",
+        "type": "vacation",
+        "note": "ville ha semester"
       }
     ],
-    "publishedAt": "2026-10-17T19:45:37.159Z",
+    "publishedAt": "2026-10-17T20:13:14.976Z",
     "departments": [
       {
         "id": "department-default",
@@ -1077,7 +1070,7 @@ export const defaultWorkspace = {
       {
         "id": "work-team-1",
         "departmentId": "department-default",
-        "name": "Beställningsmottagning",
+        "name": "Beställning",
         "scheduleActive": true
       },
       {
@@ -1088,13 +1081,13 @@ export const defaultWorkspace = {
       },
       {
         "id": "ebd8d4d8-095a-4add-a187-cc69e15178a6",
-        "name": "Godsmottagning",
+        "name": "Gods",
         "departmentId": "department-default",
         "scheduleActive": false
       },
       {
         "id": "677895bd-4bb2-4643-ab13-9979e72f9dd5",
-        "name": "Postmottagning",
+        "name": "Post",
         "departmentId": "department-default",
         "scheduleActive": false
       }
@@ -1981,15 +1974,9 @@ export const defaultWorkspace = {
                     null
                   ],
                   [
-                    {
-                      "type": "leave"
-                    },
-                    {
-                      "type": "leave"
-                    },
-                    {
-                      "type": "leave"
-                    },
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -2560,14 +2547,6 @@ export const defaultWorkspace = {
     ],
     "exceptions": [
       {
-        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
-        "teamId": "team-1",
-        "memberId": "member-1",
-        "date": "2026-11-21",
-        "type": "vacation",
-        "replacementId": "52e6b2d0-f39d-4333-ae2c-3eae344bb72e"
-      },
-      {
         "id": "89cb2c3f-b28f-4520-b4ff-1339f066ba8c",
         "teamId": "team-1",
         "memberId": "member-1",
@@ -2580,9 +2559,16 @@ export const defaultWorkspace = {
         "memberId": "member-1",
         "date": "2026-11-23",
         "type": "vacation"
+      },
+      {
+        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-21",
+        "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-17T19:45:37.159Z",
+    "publishedAt": "2026-10-17T20:13:14.976Z",
     "departments": [
       {
         "id": "department-default",
@@ -2597,7 +2583,7 @@ export const defaultWorkspace = {
       {
         "id": "work-team-1",
         "departmentId": "department-default",
-        "name": "Beställningsmottagning",
+        "name": "Beställning",
         "scheduleActive": true
       },
       {
@@ -2608,13 +2594,13 @@ export const defaultWorkspace = {
       },
       {
         "id": "ebd8d4d8-095a-4add-a187-cc69e15178a6",
-        "name": "Godsmottagning",
+        "name": "Gods",
         "departmentId": "department-default",
         "scheduleActive": false
       },
       {
         "id": "677895bd-4bb2-4643-ab13-9979e72f9dd5",
-        "name": "Postmottagning",
+        "name": "Post",
         "departmentId": "department-default",
         "scheduleActive": false
       }
@@ -3042,8 +3028,9 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 245,
+  "revision": 258,
   "appliedFixes": [
-    "lopare-start-date-2026-10-12"
+    "lopare-start-date-2026-10-12",
+    "confirmed-cover-2026-11-21-niklas"
   ]
 };

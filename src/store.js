@@ -94,6 +94,7 @@ function syncRemovedTeams(saved) {
 const localPayload = value => JSON.stringify({
   working: value.working, published: value.published, revision: value.revision,
   appliedFixes: value.appliedFixes || [],
+  pendingFileSync: Boolean(value.pendingFileSync),
 });
 
 function checkState(state) {
@@ -206,34 +207,54 @@ async function readCloud() {
   return clone(snapshot);
 }
 
-function syncToFile(value) {
-  if (typeof location === 'undefined') return;
-  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+const isLocal = () => typeof location !== 'undefined'
+  && ['localhost', '127.0.0.1'].includes(location.hostname);
+const browserOnly = () => ({ state: 'browser', message: isLocal()
+  ? 'Sparat endast i webbläsaren. Starta npm run dev i projektet och välj Spara till projektet före din commit och push.'
+  : 'Sparat endast i den här webbläsaren. Ändringar här uppdaterar inte GitHub Pages. Gör ändringarna på din lokala dator och spara till projektet.' });
+
+async function syncToFile(value) {
+  if (!isLocal()) return browserOnly();
   const payload = localPayload(value);
-  const options = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: payload,
-  };
-  const save = async url => {
-    const response = await fetch(url, options);
-    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return false;
-    return (await response.json()).ok === true;
-  };
-  save('/api/save-workspace').then(saved => {
-    if (!saved && location.port !== '5173') return save('http://127.0.0.1:5173/api/save-workspace');
-  }).catch(() => {});
+  const urls = ['/api/save-workspace'];
+  if (location.port !== '5173') urls.push('http://127.0.0.1:5173/api/save-workspace');
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload,
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.status === 409) return { state: 'browser', message: 'Projektfilen har en annan version. Dina ändringar finns kvar i webbläsaren. Exportera en säkerhetskopia innan du jämför versionerna.' };
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) continue;
+      const result = await response.json();
+      if (result.ok === true && result.revision === value.revision) {
+        latestDefaults = clone(value);
+        return { state: 'file', message: 'Sparat i projektfilen. Ta med src/default-data.js i din commit och push för att uppdatera GitHub Pages.' };
+      }
+    } catch { /* Live Server may reject POST; still try the local sync server. */ }
+  }
+  return browserOnly();
 }
 
-function saveLocal(value) {
+async function saveLocal(value) {
+  value.pendingFileSync = true;
   try {
     localStorage.setItem(LOCAL_KEY, localPayload(value));
   } catch {
     throw new Error('Kunde inte spara på den här enheten. Kontrollera webbläsarens lagringsutrymme.');
   }
   snapshot = value;
-  syncToFile(value);
+  const fileSync = await syncToFile(value);
+  if (snapshot !== value) return clone(snapshot);
+  snapshot.fileSync = fileSync;
+  snapshot.pendingFileSync = fileSync.state !== 'file';
+  try { localStorage.setItem(LOCAL_KEY, localPayload(snapshot)); } catch { /* Original browser copy remains. */ }
   return clone(snapshot);
+}
+
+export async function syncProject() {
+  if (cloud || !snapshot || !isLocal()) throw new Error('Spara till projektet från sidan på din lokala dator.');
+  return saveLocal({ ...snapshot });
 }
 
 function sameScheduleData(left, right) {
@@ -268,17 +289,27 @@ export async function init() {
     saved = null;
     warning = 'Det sparade demoschemat kunde inte läsas. Ett nytt exempel visas. Exportera en säkerhetskopia efter dina ändringar.';
   }
-  const useDefaults = !saved || (latestDefaults
+  // Old Live Server copies have no sync marker. Preserve differing browser data
+  // until it can be exported or explicitly synchronized, even at equal revision.
+  if (saved && isLocal() && saved.pendingFileSync === undefined && !sameScheduleData(saved, latestDefaults)) {
+    saved.pendingFileSync = true;
+  }
+  const useDefaults = !saved || (!saved.pendingFileSync && latestDefaults
     && (saved.revision || 0) <= latestDefaults.revision
     && !sameScheduleData(saved, latestDefaults));
   if (useDefaults) {
     saved = clone(latestDefaults || { working: seedState(), published: publicState(seedState()), revision: 0 });
   }
+  // Live Server can reload as soon as the file changes, before POST resolves.
+  // An exact match in the newly loaded file confirms that pending write.
+  const confirmedFile = saved.pendingFileSync && saved.revision === latestDefaults?.revision
+    && sameScheduleData(saved, latestDefaults);
+  if (confirmedFile) saved.pendingFileSync = false;
   const fixedDates = fixLocalStartDates(saved);
   const restoredStatuses = restoreAbsenceStatuses(saved);
   const removedTeams = syncRemovedTeams(saved);
   const fixedCover = fixLocalNovemberCover(saved);
-  if (fixedDates || restoredStatuses || fixedCover || useDefaults) {
+  if (fixedDates || restoredStatuses || fixedCover || useDefaults || confirmedFile) {
     try {
       localStorage.setItem(LOCAL_KEY, localPayload(saved));
     } catch {
@@ -292,12 +323,16 @@ export async function init() {
       ? builtInTeam.members.find(member => member?.id === 'member-1') : null;
     if (builtInMember?.name === 'You') builtInMember.name = 'Du';
   }
-  snapshot = { mode: 'demo', role: 'admin', ...saved, ...(warning ? { error: warning } : {}) };
+  snapshot = { mode: 'demo', role: 'admin', ...saved, pendingFileSync: Boolean(saved.pendingFileSync), ...(warning ? { error: warning } : {}) };
+  snapshot.fileSync = saved.pendingFileSync || !sameScheduleData(saved, latestDefaults)
+    ? browserOnly()
+    : { state: 'file', message: isLocal()
+      ? 'Schemat finns i projektfilen. Ta med src/default-data.js i din commit och push.'
+      : 'Visar schemat från webbplatsens datafil.' };
   if (removedTeams) {
-    try { return saveLocal(snapshot); }
+    try { return await saveLocal(snapshot); }
     catch (error) { snapshot.error = error.message; }
   }
-  if (typeof location !== 'undefined' && location.port !== '5173') syncToFile(snapshot);
   return clone(snapshot);
 }
 

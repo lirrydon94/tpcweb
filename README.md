@@ -12,7 +12,16 @@ npm run dev
 
 Öppna adressen som servern visar. Du behöver inte installera några beroenden eller bygga projektet. Låt servern vara igång medan du använder förhandsvisningen. `npm test` kontrollerar schemaberäkningarna och `npm run check` kontrollerar JavaScript-syntaxen.
 
-När `config.js` är tom används det förkonfigurerade schemat i `src/default-data.js`. När du gör ändringar lokalt med `npm run dev` sparas de automatiskt till `src/default-data.js`. Om du redigerar i en separat webbläsare eller Live Server kan du köra `npm run sync` för att synka dina senaste ändringar direkt till projektfilen innan du pushar till Git. Alla medarbetare och inställningar följer då med till GitHub och GitHub Pages! Exportera även gärna en JSON-fil via **Säkerhetskopia** som extra backup.
+När `config.js` är tom används schemat i `src/default-data.js`. Ändringar sparas först i webbläsaren. Med `npm run dev` igång sparas de även automatiskt till projektfilen. Hantera visar om sparningen till filen lyckades. Git kan bara skicka filer; webbläsarens lagring följer inte med en push.
+
+### Om du använder Live Server på port 5500
+
+1. Starta `npm run dev` i projektmappen och låt den köra som synkserver på port 5173.
+2. Fortsätt i **samma webbläsare på samma adress**, exempelvis `http://127.0.0.1:5500/index.html`. Olika portar och `localhost`/`127.0.0.1` har separata webbläsarkopior.
+3. Ladda om sidan. Under **Hantera**, välj **Spara till projektet** för att föra över redan sparade ändringar. Nya ändringar synkas automatiskt medan servern körs.
+4. Kontrollera att statusen säger **Sparat i projektfilen**. Ta med `src/default-data.js` i din commit och push till `main`. Därefter publicerar GitHub Actions filen på GitHub Pages.
+
+Om statusen säger **Sparat endast i webbläsaren** följer ändringarna ännu inte med din push. Exportera en säkerhetskopia innan du rensar webbläsaren eller byter adress. Vid versionskonflikt behålls båda kopiorna: exportera webbläsarens schema och jämför med projektfilen. Om säkerhetskopian är den version du vill använda, kör `npm run sync -- "sökväg/till/säkerhetskopia.json"` för att ersätta projektets schema. Kommandot läser bara den valda filen och bevarar även tomma grupper.
 
 ## Så fungerar schemat
 
@@ -75,7 +84,7 @@ Databasen avvisar gamla versionsnummer om två administratörer redigerar samtid
 5. Öppna adressen som publiceringen visar. Den är vanligtvis `https://DITT-NAMN.github.io/DITT-ARKIV/`.
 6. Använd appens delningsverktyg för att skapa en QR-kod för teamet med den publicerade adressen. En QR-kod som pekar på `localhost` fungerar inte på kollegornas telefoner.
 
-När du använder den lokala sidan via `npm run dev` sparas hela arbetsytan automatiskt i `src/default-data.js`: utkast, publicerat schema, team, ledigheter och anteckningar. Den lokala servern skapar en Git-commit och skickar den till `main`; GitHub Actions publicerar sedan den nya versionen. Din lokala arbetskopia måste vara på grenen `main` och GitHub-autentiseringen måste fungera. GitHub Pages och arkivet är publika, så alla som hittar adressen kan se hela arbetsytan.
+När du använder den lokala sidan med `npm run dev` igång sparas hela arbetsytan i `src/default-data.js`: utkast, publicerat schema, personal, team, grupper, personliga scheman, ledigheter och anteckningar. Servern gör ingen automatisk commit eller push. Du tar själv med datafilen i din commit och push till `main`; GitHub Actions publicerar sedan den nya versionen. GitHub Pages och arkivet är publika, så alla som hittar adressen kan se hela arbetsytan. Ändringar direkt på GitHub Pages sparas endast i den aktuella webbläsaren och uppdaterar inte arkivet.
 
 Arbetsflödet publicerar bara webbplatsens filer. SQL-schema, tester, README och säkerhetskopior publiceras inte. Relativa länkar fungerar även när webbplatsen ligger i en undermapp för GitHub-arkivet. GitHub Pages är [tillgängligt för publika arkiv med GitHub Free](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
 
