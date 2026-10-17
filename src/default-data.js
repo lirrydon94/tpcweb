@@ -400,7 +400,7 @@ export const defaultWorkspace = {
             "personalSchedules": [
               {
                 "memberId": "ce36d572-b884-48a0-95f2-08eb437928ed",
-                "effectiveFrom": "2026-10-16",
+                "effectiveFrom": "2026-10-12",
                 "employmentPercent": 100,
                 "rotation": [
                   [
@@ -1042,7 +1042,8 @@ export const defaultWorkspace = {
         "memberId": "member-1",
         "date": "2026-11-21",
         "type": "vacation",
-        "note": "ville ha semester"
+        "note": "ville ha semester",
+        "replacementId": "52e6b2d0-f39d-4333-ae2c-3eae344bb72e"
       },
       {
         "id": "89cb2c3f-b28f-4520-b4ff-1339f066ba8c",
@@ -1061,7 +1062,7 @@ export const defaultWorkspace = {
         "note": "ville ha semester"
       }
     ],
-    "publishedAt": "2026-10-16T21:28:32.689Z",
+    "publishedAt": "2026-10-17T19:45:37.159Z",
     "departments": [
       {
         "id": "department-default",
@@ -1922,7 +1923,7 @@ export const defaultWorkspace = {
             "personalSchedules": [
               {
                 "memberId": "ce36d572-b884-48a0-95f2-08eb437928ed",
-                "effectiveFrom": "2026-10-16",
+                "effectiveFrom": "2026-10-12",
                 "employmentPercent": 100,
                 "rotation": [
                   [
@@ -2563,7 +2564,8 @@ export const defaultWorkspace = {
         "teamId": "team-1",
         "memberId": "member-1",
         "date": "2026-11-21",
-        "type": "vacation"
+        "type": "vacation",
+        "replacementId": "52e6b2d0-f39d-4333-ae2c-3eae344bb72e"
       },
       {
         "id": "89cb2c3f-b28f-4520-b4ff-1339f066ba8c",
@@ -2580,7 +2582,7 @@ export const defaultWorkspace = {
         "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-16T21:28:32.689Z",
+    "publishedAt": "2026-10-17T19:45:37.159Z",
     "departments": [
       {
         "id": "department-default",
@@ -3040,7 +3042,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 243,
+  "revision": 245,
   "appliedFixes": [
     "lopare-start-date-2026-10-12"
   ]

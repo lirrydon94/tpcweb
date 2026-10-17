@@ -178,14 +178,20 @@ test('absence cells show their replacement inline without duplicate status rows 
   assert.match(cells[0],/class="roster-shift roster-absence-card purple"/);
   assert.match(cells[1],/class="roster-shift roster-absence-card blue"/);
   assert.match(cells[2],/class="roster-shift roster-absence-card teal"/);
-  assert.match(cells[0],/Semester<\/span><\/div><div class="roster-replacement"><span title="Ersättare: Kim &amp; Co">Ersättare: Kim &amp; Co<\/span>/);
+  assert.match(cells[0],/Semester<\/span><\/div><div class="roster-replacement"><span>Ersättare: <strong>Kim &amp; Co<\/strong><\/span>/);
   assert.doesNotMatch(cells[0],/11:30–20:30/);
   assert.match(cells[1],/Sjuk<\/span><\/div><div class="roster-replacement">/);
-  assert.doesNotMatch(cells[1],/10:00–14:00/);
+  assert.match(cells[1],/<small class="roster-cover-time">10:00–14:00<\/small>/);
   assert.ok(!cells[2].includes('roster-replacement'));
   assert.ok(!page.app.innerHTML.includes('roster-meta'));
-  assert.match(page.app.innerHTML,/<small class="roster-shift-status">Ersättningspass<\/small>/);
+  assert.doesNotMatch(page.app.innerHTML,/<span>Kim &amp; Co(?:<small>|<\/span>)/);
+  assert.equal((page.app.innerHTML.match(/<tbody class="roster-person">/g)||[]).length,state.teams[0].members.length);
+  const viewer=await openApp('viewer',page.getWorkspace());
+  const viewerRow=viewer.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<small>'));
+  assert.equal(viewerRow,row);
+  assert.doesNotMatch(viewer.app.innerHTML,/<span>Kim &amp; Co(?:<small>|<\/span>)/);
   await page.click('admin');await page.submit('lirrydoz');await page.click('edit-schedule');
+  assert.doesNotMatch(page.app.innerHTML,/<span>Kim &amp; Co(?:<small>|<\/span>)/);
   assert.match(personRow(),/Ersättare behövs/);
   assert.match(personRow(),/data-action="roster-edit" data-group="team-1" data-member="member-1" data-date="2026-10-13"/);
   await page.click('roster-edit',undefined,{group:'team-1',member:'member-1',date:'2026-10-13'});
@@ -266,6 +272,45 @@ test('rotation matching previews without saving, rebases weeks and saves the who
   assert.equal(model.rotationPosition(saved,member.id,'2026-10-12'),3);
   assert.equal(model.rotationPosition(saved,member.id,'2026-10-19'),4);
   for(const other of team.members.slice(1))assert.equal(model.rotationPosition(saved,other.id,'2026-10-19'),model.rotationPosition(version,other.id,'2026-10-19'));
+});
+
+test('Liridon matching uses the calendar week version even when the editor selected an older schedule',async()=>{
+  const state=model.organizeState(structuredClone(defaultWorkspace.working));
+  const group=state.teams[0],member=group.members.find(m=>m.name==='Liridon');
+  const current=model.activeVersion(group,'2026-10-12'),old=group.versions.find(v=>v.id!==current.id);
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');
+  await page.click('admin-tab',undefined,{tab:'rotation'});
+  await page.change({id:'version-select',value:old.id,classList:{contains:()=>false}});
+  const before=page.getWorkspace();
+  await page.click('match-rotation');
+  const preview=()=>page.dialog.innerHTML.match(new RegExp(`data-member="${member.id}">([\\s\\S]*?)<\\/select><\\/label><p class="field-note">([\\s\\S]*?)<\\/p>`));
+  let row=preview();
+  assert.match(row[1],/value="2" selected/);
+  assert.match(row[2],/Mån: Ledig · Tis: C 11:30–20:30 · Ons: B 09:30–18:30 · Tor: A2 06:15–15:15 · Fre: Ledig · Lör: C 11:30–20:30 · Sön: C 11:30–20:30/);
+  assert.deepEqual(page.getWorkspace(),before);
+  await page.click('match-week-step',undefined,{step:'-1'});
+  row=preview();
+  assert.match(row[1],new RegExp(`value="${model.rotationPosition(old,member.id,'2026-10-05')}" selected`));
+  await page.click('match-week-step',undefined,{step:'1'});
+  assert.match(preview()[1],/value="2" selected/);
+  await page.submit();assert.equal(page.error.textContent,'');
+  const after=page.getWorkspace().published;
+  assert.deepEqual(after.teams[0].versions.find(v=>v.id===old.id),old);
+  for(const date of model.weekDates('2026-10-12'))assert.deepEqual(model.getShift(after,group.id,member.id,date),model.getShift(before.published,group.id,member.id,date));
+});
+
+test('matching previews personal leave and dated absence through the same rules as the roster',async()=>{
+  const state=model.organizeState(model.seedState()),group=state.teams[0],version=group.versions[0];
+  const rotation=version.rotation.map(()=>Array(7).fill(null));rotation[0][0]={type:'leave'};
+  model.savePersonalSchedule(state,group.id,version.id,{memberId:'member-1',effectiveFrom:'2026-10-12',employmentPercent:80,rotation});
+  state.exceptions.push({id:'dated',memberId:'member-1',teamId:group.id,date:'2026-10-13',type:'vacation'});
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('match-rotation');
+  assert.match(page.dialog.innerHTML,/Mån: Tjänstledig · Tis: Semester · Ons: F 08:00–17:00/);
+  await page.change({id:'',classList:{contains:name=>name==='match-position'},dataset:{member:'member-1'},value:'2'});
+  assert.match(page.dialog.innerHTML,/Mån: Ledig · Tis: Semester · Ons: B 09:30–18:30/);
+  assert.equal(page.getWorkspace().revision,1);
 });
 
 test('rotation weeks can be deleted with confirmation and positions remain valid', async () => {

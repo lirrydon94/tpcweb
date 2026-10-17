@@ -35,6 +35,35 @@ function fixLocalStartDates(saved) {
   return true;
 }
 
+function fixLocalNovemberCover(saved) {
+  const fix = 'confirmed-cover-2026-11-21-niklas';
+  if (saved.appliedFixes?.includes(fix)) return false;
+  // Apply the user's confirmed booking to existing browser copies too. Their
+  // revision may exceed the file's revision, so replacing the workspace loses edits.
+  const replacementId = '52e6b2d0-f39d-4333-ae2c-3eae344bb72e';
+  const matches = entry => entry.id === 'd0ee73f0-cf1e-40ad-ac51-e503b6d0026b'
+    && entry.teamId === 'team-1' && entry.memberId === 'member-1' && entry.date === '2026-11-21';
+  const entries = [saved.working, saved.published].map(state => state.exceptions.find(matches));
+  if (entries.some(entry => !entry)) return false;
+  // A changed booking takes precedence over this one-time correction.
+  if (entries.every(entry => entry.type === 'vacation' && !entry.start && !entry.end
+    && (!entry.replacementId || entry.replacementId === replacementId)
+    && !entry.replacementStart && !entry.replacementEnd)) {
+    const states = [saved.working, saved.published].map(state => {
+      const next = clone(state);
+      next.exceptions.find(matches).replacementId = replacementId;
+      return next;
+    });
+    if (states.some(state => validateState(state).length)) return false;
+    if (entries.some(entry => !entry.replacementId)) {
+      [saved.working, saved.published] = states;
+      saved.revision++;
+    }
+  }
+  saved.appliedFixes = [...(saved.appliedFixes || []), fix];
+  return true;
+}
+
 function restoreAbsenceStatuses(saved) {
   let changed = false;
   for (const entry of saved.published.exceptions) {
@@ -248,7 +277,8 @@ export async function init() {
   const fixedDates = fixLocalStartDates(saved);
   const restoredStatuses = restoreAbsenceStatuses(saved);
   const removedTeams = syncRemovedTeams(saved);
-  if (fixedDates || restoredStatuses || useDefaults) {
+  const fixedCover = fixLocalNovemberCover(saved);
+  if (fixedDates || restoredStatuses || fixedCover || useDefaults) {
     try {
       localStorage.setItem(LOCAL_KEY, localPayload(saved));
     } catch {

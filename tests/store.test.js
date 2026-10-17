@@ -209,3 +209,60 @@ test('local refresh loads coworkers saved in another tab and newer preview files
   resolveFetch(fileResponse({ ...remote, revision: current.revision + 10 }));
   assert.equal((await pending).working.teams[0].name, draft.teams[0].name);
 });
+
+
+test('confirmed November replacement reaches newer browser copies without replacing other edits', async t => {
+  const saved = structuredClone(hostedWorkspace);
+  saved.revision += 100;
+  const fix = 'confirmed-cover-2026-11-21-niklas';
+  saved.appliedFixes = saved.appliedFixes.filter(value => value !== fix);
+  const entry = state => state.exceptions.find(item => item.id === 'd0ee73f0-cf1e-40ad-ac51-e503b6d0026b');
+  for (const state of [saved.working, saved.published]) delete entry(state).replacementId;
+  saved.working.teams[0].name = 'Newer local team name';
+  saved.working.exceptions.push({id:'newer-local-edit',teamId:'team-1',memberId:'member-1',date:'2026-12-01',type:'vacation',note:'Keep this draft'});
+  const memory = new Map([['skift-workspace-v1', JSON.stringify(saved)]]);
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {configurable:true,value:{getItem:key=>memory.get(key)??null,setItem:(key,value)=>memory.set(key,value)}});
+  t.after(()=>{if(original)Object.defineProperty(globalThis,'localStorage',original);else delete globalThis.localStorage;});
+  const expected = structuredClone(saved);
+  for(const state of [expected.working,expected.published]) entry(state).replacementId='52e6b2d0-f39d-4333-ae2c-3eae344bb72e';
+  const result = await init();
+  assert.deepEqual(result.working,expected.working);
+  assert.deepEqual(result.published,expected.published);
+  assert.equal(result.revision,saved.revision+1);
+  assert.equal(getShift(result.published,'team-1','member-1','2026-11-21').uncoveredMinutes,0);
+  assert.ok(JSON.parse(memory.get('skift-workspace-v1')).appliedFixes.includes(fix));
+  // A subsequent deliberate removal must not be reapplied on reload.
+  const draft=structuredClone(result.working);
+  delete entry(draft).replacementId;
+  await publish(draft);
+  const reopened=await init();
+  assert.equal(entry(reopened.working).replacementId,undefined);
+  assert.equal(entry(reopened.published).replacementId,undefined);
+});
+
+test('November correction preserves changed bookings and rejects an unavailable replacement',async t=>{
+  for(const scenario of ['different replacement','partial cover','replacement absent','deleted exception']){
+    await t.test(scenario,async t=>{
+      const saved=structuredClone(hostedWorkspace);
+      saved.revision+=100;
+      saved.appliedFixes=saved.appliedFixes.filter(value=>value!=='confirmed-cover-2026-11-21-niklas');
+      for(const state of [saved.working,saved.published]){
+        const entry=state.exceptions.find(item=>item.id==='d0ee73f0-cf1e-40ad-ac51-e503b6d0026b');
+        delete entry.replacementId;
+        if(scenario==='different replacement')entry.replacementId='member-2';
+        if(scenario==='partial cover'){entry.replacementId='52e6b2d0-f39d-4333-ae2c-3eae344bb72e';entry.replacementStart='08:00';entry.replacementEnd='12:00';}
+        if(scenario==='replacement absent')state.employees.find(person=>person.id==='52e6b2d0-f39d-4333-ae2c-3eae344bb72e').activeUntil='2026-11-20';
+        if(scenario==='deleted exception')state.exceptions=state.exceptions.filter(item=>item!==entry);
+      }
+      const memory=new Map([['skift-workspace-v1',JSON.stringify(saved)]]);
+      const original=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
+      Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:key=>memory.get(key)??null,setItem:(key,value)=>memory.set(key,value)}});
+      t.after(()=>{if(original)Object.defineProperty(globalThis,'localStorage',original);else delete globalThis.localStorage;});
+      const result=await init();
+      assert.deepEqual(result.working,saved.working);
+      assert.deepEqual(result.published,saved.published);
+      assert.equal(result.revision,saved.revision);
+    });
+  }
+});
