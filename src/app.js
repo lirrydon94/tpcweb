@@ -179,6 +179,143 @@ document.addEventListener('keydown', event => {
   applyRosterFocus();
 });
 
+let rosterSwipe;
+let rosterWeekTransition = false;
+const landscapeRoster = () => rosterTouchViewport?.matches && window.matchMedia?.('(orientation: landscape)').matches && ui.view === 'schedule' && !ui.editingSchedule;
+function clearRosterPreview(swipe) {
+  swipe?.preview?.remove();
+  if (swipe) {
+    swipe.scroller.style.transform = '';
+    swipe.scroller.closest('.roster-panel')?.classList.remove('roster-week-dragging');
+    swipe.preview = undefined;
+  }
+}
+function prepareRosterPreview(swipe, direction) {
+  if (swipe.preview && swipe.direction === direction) return;
+  clearRosterPreview(swipe);
+  const date = ui.date, container = document.createElement('div');
+  try {
+    ui.date = model.addDays(date, direction * 7);
+    container.innerHTML = scheduleView();
+  } finally { ui.date = date; }
+  const preview = container.querySelector('.roster-scroll');
+  if (!preview) return;
+  const names = [...preview.querySelectorAll('[data-roster-member]')];
+  const selected = names.some(name => name.dataset.rosterMember === ui.rosterMemberId);
+  for (const name of names) name.closest('tbody').hidden = Boolean(selected && name.dataset.rosterMember !== ui.rosterMemberId);
+  preview.classList.add('roster-week-preview');
+  preview.setAttribute('aria-hidden', 'true');
+  preview.inert = true;
+  const panel = swipe.scroller.closest('.roster-panel');
+  panel.classList.add('roster-week-dragging');
+  panel.append(preview);
+  preview.scrollLeft = direction > 0 ? 0 : preview.scrollWidth - preview.clientWidth;
+  preview.scrollTop = swipe.scroller.scrollTop;
+  swipe.preview = preview;
+  swipe.direction = direction;
+}
+function moveRosterSwipe(swipe, dx) {
+  if (swipe.distance) {
+    const distance = swipe.distance + dx * swipe.direction;
+    if (distance >= 0) {
+      swipe.distance = Math.min(swipe.scroller.clientWidth, distance);
+      paintRosterSwipe(swipe);
+      return;
+    }
+    dx = distance * swipe.direction;
+    swipe.distance = 0;
+    clearRosterPreview(swipe);
+  }
+  const maxScroll = Math.max(0, swipe.scroller.scrollWidth - swipe.scroller.clientWidth);
+  const desired = swipe.scroller.scrollLeft + dx;
+  swipe.scroller.scrollLeft = Math.max(0, Math.min(maxScroll, desired));
+  const excess = desired < 0 ? desired : desired > maxScroll ? desired - maxScroll : 0;
+  if (excess) {
+    prepareRosterPreview(swipe, Math.sign(excess));
+    swipe.distance = Math.min(swipe.scroller.clientWidth, Math.abs(excess));
+    paintRosterSwipe(swipe);
+  }
+}
+function paintRosterSwipe(swipe) {
+  if (!swipe.preview) return;
+  const offset = -swipe.direction * swipe.distance;
+  swipe.scroller.style.transform = `translateX(${offset}px)`;
+  swipe.preview.style.transform = `translateX(${offset + swipe.direction * swipe.scroller.clientWidth}px)`;
+}
+document.addEventListener('touchstart', event => {
+  clearRosterPreview(rosterSwipe);
+  rosterSwipe = undefined;
+  const scroller = event.target.closest('.roster-scroll');
+  if (!landscapeRoster() || rosterWeekTransition || !scroller || event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  rosterSwipe = { scroller, id: touch.identifier, x: touch.clientX, y: touch.clientY, lastX: touch.clientX, distance: 0, direction: 0, date: ui.date, locked: false };
+}, { passive: true });
+document.addEventListener('touchmove', event => {
+  const swipe = rosterSwipe;
+  if (!swipe) return;
+  if (event.touches.length !== 1 || !swipe.scroller.isConnected || !landscapeRoster()) { clearRosterPreview(swipe); rosterSwipe = undefined; return; }
+  const touch = event.touches[0];
+  if (touch.identifier !== swipe.id) return;
+  const horizontal = Math.abs(swipe.x - touch.clientX), vertical = Math.abs(swipe.y - touch.clientY);
+  if (!swipe.locked) {
+    if (vertical > 10 && vertical > horizontal) { rosterSwipe = undefined; return; }
+    if (horizontal < 8 || horizontal < vertical * 1.5) return;
+    swipe.locked = true;
+  }
+  if (event.cancelable) event.preventDefault();
+  cancelRosterHold();
+  suppressRosterClick = true;
+  moveRosterSwipe(swipe, swipe.lastX - touch.clientX);
+  swipe.lastX = touch.clientX;
+}, { passive: false });
+document.addEventListener('touchcancel', async () => {
+  const swipe = rosterSwipe; rosterSwipe = undefined;
+  if (swipe) await settleRosterSwipe(swipe, false);
+});
+document.addEventListener('touchend', async event => {
+  const swipe = rosterSwipe;
+  rosterSwipe = undefined;
+  if (!swipe) return;
+  const commit = !event.touches.length && [...event.changedTouches].some(touch => touch.identifier === swipe.id)
+    && swipe.distance >= 64 && swipe.date === ui.date && swipe.scroller.isConnected && landscapeRoster();
+  await settleRosterSwipe(swipe, commit);
+});
+
+async function settleRosterSwipe(swipe, commit) {
+  if (!swipe.preview) return;
+  rosterWeekTransition = true;
+  const { scroller, preview, direction, date } = swipe;
+  const panel = scroller.closest('.roster-panel');
+  panel.classList.add('roster-week-transition');
+  const target = commit ? -direction * scroller.clientWidth : 0;
+  const previewTarget = target + direction * scroller.clientWidth;
+  try {
+    if (scroller.animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      const remaining = commit ? scroller.clientWidth - swipe.distance : swipe.distance;
+      const timing = { duration: Math.min(520, Math.max(180, remaining * .65)), easing: 'cubic-bezier(.2,.65,.3,1)', fill: 'forwards' };
+      const animations = [
+        scroller.animate([{ transform: scroller.style.transform }, { transform: `translateX(${target}px)` }], timing),
+        preview.animate([{ transform: preview.style.transform }, { transform: `translateX(${previewTarget}px)` }], timing),
+      ];
+      await Promise.allSettled(animations.map(animation => animation.finished));
+      scroller.style.transform = `translateX(${target}px)`;
+      preview.style.transform = `translateX(${previewTarget}px)`;
+      animations.forEach(animation => animation.cancel());
+    }
+    // Keep the live week in place throughout the gesture; commit only after settling.
+    if (commit && scroller.isConnected && ui.date === date && landscapeRoster()) {
+      const scrollTop = scroller.scrollTop, scrollLeft = preview.scrollLeft;
+      ui.date = model.addDays(date, direction * 7);
+      shell();
+      const incoming = $('.roster-scroll');
+      if (incoming) { incoming.scrollLeft = scrollLeft; incoming.scrollTop = scrollTop; }
+    }
+  } finally {
+    clearRosterPreview(swipe);
+    panel.classList.remove('roster-week-transition');
+    rosterWeekTransition = false;
+  }
+}
 function dateRange() {
   const days = model.weekDates(ui.date);
   return `${fmt(days[0],{day:'numeric',month:'short'})} – ${fmt(days[6],{day:'numeric',month:'short',year:'numeric'})}`;
