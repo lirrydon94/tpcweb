@@ -4,10 +4,17 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import * as model from '../src/model.js';
 
-async function openRoster(mobile = true) {
+async function openRoster(mobile = true, touch = false) {
   const listeners = {}, timers = new Map();
-  let names = [], html = '', timerId = 0, resize;
-  const viewport = { matches: mobile, addEventListener: (_, fn) => { resize = fn; } };
+  let names = [], html = '', timerId = 0;
+  const media = new Map();
+  const matchMedia = query => {
+    if (!media.has(query)) media.set(query, {
+      matches: mobile || (query.includes('pointer: coarse') && touch),
+      listeners: [], addEventListener(_, fn) { this.listeners.push(fn); },
+    });
+    return media.get(query);
+  };
   const app = {
     get innerHTML() { return html; },
     set innerHTML(value) {
@@ -32,7 +39,7 @@ async function openRoster(mobile = true) {
       querySelectorAll: () => names,
       addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
     },
-    window: { matchMedia: () => viewport, addEventListener() {}, scrollTo() {} },
+    window: { matchMedia, addEventListener() {}, scrollTo() {} },
     location: { search: '?date=2026-10-14' },
     localStorage: { getItem: () => null, setItem() {} },
     sessionStorage: { getItem: () => null, setItem() {} },
@@ -51,7 +58,15 @@ async function openRoster(mobile = true) {
       for (const listener of listeners[type] || []) await listener(event);
     },
     hold() { for (const [id, timer] of timers) if (timer.ms === 500) { timers.delete(id); timer.fn(); } },
-    resize(value) { viewport.matches = value; resize(); },
+    resize(value) {
+      mobile = value;
+      const changed = [];
+      for (const [query, entry] of media) {
+        const matches = mobile || (query.includes('pointer: coarse') && touch);
+        if (matches !== entry.matches) { entry.matches = matches; changed.push(entry); }
+      }
+      for (const entry of changed) entry.listeners.forEach(fn => fn());
+    },
   };
 }
 
@@ -105,4 +120,32 @@ test('desktop remains unchanged and mobile keyboard users can toggle focus', asy
   assert.equal(page.visible.length, 1);
   await page.send('keydown', page.names[1], { key: ' ' });
   assert.equal(page.visible.length, count);
+});
+
+test('wide touch screens support hold and tap, and rotation preserves the selected person', async () => {
+  const page = await openRoster(false, true), count = page.names.length;
+  const id = page.names[2].dataset.rosterMember;
+  await page.send('pointerdown', page.names[2]); page.hold();
+  await page.send('pointerup', page.names[2]); await page.send('click', page.names[2]);
+  assert.deepEqual(page.visible.map(name => name.dataset.rosterMember), [id]);
+  page.resize(true);
+  assert.deepEqual(page.visible.map(name => name.dataset.rosterMember), [id]);
+  page.resize(false);
+  assert.deepEqual(page.visible.map(name => name.dataset.rosterMember), [id]);
+  const selected = page.visible[0];
+  await page.send('pointerdown', selected); await page.send('pointerup', selected); await page.send('click', selected);
+  assert.equal(page.visible.length, count);
+});
+
+test('landscape touch blocks the copy menu only in the roster; desktop keeps it', async () => {
+  for (const touch of [true, false]) {
+    const page = await openRoster(false, touch);
+    let blocked = false;
+    const roster = { closest: selector => selector === '.roster-panel' ? roster : null };
+    await page.send('contextmenu', roster, { preventDefault() { blocked = true; } });
+    assert.equal(blocked, touch);
+    blocked = false;
+    await page.send('contextmenu', { closest: () => null }, { preventDefault() { blocked = true; } });
+    assert.equal(blocked, false);
+  }
 });

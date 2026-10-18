@@ -59,16 +59,23 @@ const adminRememberKey = 'skift-admin-remembered';
 const rememberedAdmin = () => { try { return localStorage.getItem(adminRememberKey) === 'true'; } catch { return false; } };
 let adminUnlocked = rememberedAdmin();
 const mobileViewport = window.matchMedia?.('(max-width: 800px)');
+// Touch phones can be wider than the mobile layout breakpoint in landscape.
+const rosterTouchViewport = window.matchMedia?.('(max-width: 800px), (pointer: coarse)');
 const hasAdminRole = () => workspace?.role === 'admin' && !mobileViewport?.matches;
 mobileViewport?.addEventListener('change', () => {
   cancelRosterHold();
-  ui.rosterMemberId = undefined;
+  if (!rosterTouchViewport?.matches) ui.rosterMemberId = undefined;
   if (mobileViewport.matches) {
     adminUnlocked = false;
     ui.editingSchedule = false;
     ui.view = 'schedule';
     $('#modal').close();
   }
+  if (workspace) shell();
+});
+rosterTouchViewport?.addEventListener('change', () => {
+  cancelRosterHold();
+  if (!rosterTouchViewport.matches) ui.rosterMemberId = undefined;
   if (workspace) shell();
 });
 const admin = () => hasAdminRole() && adminUnlocked;
@@ -120,7 +127,7 @@ function shell() {
 
 // Hide rows in place so a held name and the horizontal scroll position stay put.
 function applyRosterFocus() {
-  if (!mobileViewport?.matches) return;
+  if (!rosterTouchViewport?.matches) return;
   const names = [...document.querySelectorAll('[data-roster-member]')];
   if (!names.some(name => name.dataset.rosterMember === ui.rosterMemberId)) ui.rosterMemberId = undefined;
   for (const name of names) {
@@ -139,7 +146,7 @@ document.addEventListener('pointerdown', event => {
   cancelRosterHold();
   suppressRosterClick = false;
   const name = event.target.closest('[data-roster-member]');
-  if (!mobileViewport?.matches || !name || event.isPrimary === false || !['touch','pen'].includes(event.pointerType)) return;
+  if (!rosterTouchViewport?.matches || !name || event.isPrimary === false || !['touch','pen'].includes(event.pointerType)) return;
   const hold = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
   rosterHold = hold;
   hold.timer = setTimeout(() => {
@@ -162,11 +169,11 @@ document.addEventListener('pointercancel', cancelRosterHold);
 document.addEventListener('scroll', cancelRosterHold, true);
 window.addEventListener('blur', cancelRosterHold);
 document.addEventListener('contextmenu', event => {
-  if (mobileViewport?.matches && event.target.closest('.roster-panel')) event.preventDefault();
+  if (rosterTouchViewport?.matches && event.target.closest('.roster-panel')) event.preventDefault();
 });
 document.addEventListener('keydown', event => {
   const name = event.target.closest('[data-roster-member]');
-  if (!mobileViewport?.matches || !name || !['Enter',' '].includes(event.key) || event.repeat) return;
+  if (!rosterTouchViewport?.matches || !name || !['Enter',' '].includes(event.key) || event.repeat) return;
   event.preventDefault();
   ui.rosterMemberId = ui.rosterMemberId === name.dataset.rosterMember ? undefined : name.dataset.rosterMember;
   applyRosterFocus();
@@ -270,7 +277,7 @@ function rosterView(team, groups=[team], departmentScope=null) {
     const visibility=state.departments?.find(d=>d.id===workTeam?.departmentId)?.scheduleLabels;
     const visibleLabels=[departmentScope&&workTeam?.scheduleActive!==false?workTeam?.name:'',visibility?.group&&ownGroup?.showScheduleName!==false?ownGroup?.name:''].filter(Boolean).join(' · ');
     const subLabel=visibleLabels!==null?visibleLabels:departmentScope?(workTeam?.name||ownGroup?.name||(isHome?'':'Gästande')):(position?'':(isHome?'Timvikarie':'Gästande ersättare'));
-    const focusAttrs=mobileViewport?.matches?' data-roster-member="'+esc(m.id)+'" role="button" tabindex="0" aria-pressed="false"':'';
+    const focusAttrs=rosterTouchViewport?.matches?' data-roster-member="'+esc(m.id)+'" role="button" tabindex="0" aria-pressed="false"':'';
     return '<tbody class="roster-person"><tr class="roster-shifts roster-last"><th scope="row" class="roster-name"><div class="roster-person-label"'+focusAttrs+'><span>'+esc(m.name)+(subLabel?'<small>'+esc(subLabel)+'</small>':'')+'</span></div></th>'+shiftCells+'</tr></tbody>';
   }).join('');
   const body=rows;
@@ -788,7 +795,7 @@ async function handleAction(button) {
 }
 document.addEventListener('click',async e=>{
   const name=e.target.closest('[data-roster-member]');
-  if(mobileViewport?.matches&&name){
+  if(rosterTouchViewport?.matches&&name){
     if(suppressRosterClick){suppressRosterClick=false;e.preventDefault();return;}
     if(ui.rosterMemberId===name.dataset.rosterMember){ui.rosterMemberId=undefined;applyRosterFocus();}
     return;
