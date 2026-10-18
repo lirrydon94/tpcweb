@@ -33,7 +33,7 @@ Om statusen säger **Sparat endast i webbläsaren** följer ändringarna ännu i
 - En ersättare kan täcka hela eller delar av ett pass. Kontroller av täckning och överlappning använder de faktiska arbetstiderna. Ersättaren kan tillhöra ett annat team.
 - Varje giltig ändring publiceras automatiskt när den sparas. Administratörens privata anteckningar och frånvaroorsaker finns bara i administrationsvyn; kollegorna ser den rensade schemaversionen.
 
-Veckovyn öppnas som en samlad teamtabell med medarbetare på rader och måndag–söndag i kolumner. Passkod, arbetstid, status och ersättare visas tillsammans. På mobilen rullas tabellen i sidled med namnkolumnen låst. Schemat visar alltid hela teamet. **Redigera veckan** öppnar schemat för redigering. Sparade ändringar av status och ersättare publiceras direkt.
+Veckovyn öppnas som en samlad teamtabell med medarbetare på rader och måndag–söndag i kolumner. Passkod, arbetstid, status och ersättare visas tillsammans. På mobilen rullas tabellen i sidled med namnkolumnen låst. Håll inne ett namn för att visa bara den personen och tryck på samma namn igen för att visa alla. Filtret följer med vid veckobyte och återställs vid byte av team. **Redigera veckan** öppnar schemat för redigering. Sparade ändringar av status och ersättare publiceras direkt.
 
 Under **Schema** kan du välja datum och se kalenderveckor och rotationsveckor. En teamlänk öppnar rätt team direkt. QR-koder innehåller en länk och ger ingen behörighet att se privata uppgifter.
 

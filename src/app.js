@@ -61,6 +61,8 @@ let adminUnlocked = rememberedAdmin();
 const mobileViewport = window.matchMedia?.('(max-width: 800px)');
 const hasAdminRole = () => workspace?.role === 'admin' && !mobileViewport?.matches;
 mobileViewport?.addEventListener('change', () => {
+  cancelRosterHold();
+  ui.rosterMemberId = undefined;
   if (mobileViewport.matches) {
     adminUnlocked = false;
     ui.editingSchedule = false;
@@ -112,8 +114,63 @@ function shell() {
     </div><nav class="mobile-nav" aria-label="Mobilnavigation">${nav(true)}</nav>
   </div>`;
   if (ui.view === 'admin' && ui.adminTab === 'rotation' && ui.teamId) { setupRotationAdmin(); bindRotationDrag(); }
+  applyRosterFocus();
   rememberNavigation();
 }
+
+// Hide rows in place so a held name and the horizontal scroll position stay put.
+function applyRosterFocus() {
+  if (!mobileViewport?.matches) return;
+  const names = [...document.querySelectorAll('[data-roster-member]')];
+  if (!names.some(name => name.dataset.rosterMember === ui.rosterMemberId)) ui.rosterMemberId = undefined;
+  for (const name of names) {
+    name.closest('tbody').hidden = Boolean(ui.rosterMemberId && name.dataset.rosterMember !== ui.rosterMemberId);
+    name.setAttribute('aria-pressed', String(name.dataset.rosterMember === ui.rosterMemberId));
+  }
+}
+
+let rosterHold;
+let suppressRosterClick = false;
+function cancelRosterHold() {
+  if (rosterHold) clearTimeout(rosterHold.timer);
+  rosterHold = undefined;
+}
+document.addEventListener('pointerdown', event => {
+  cancelRosterHold();
+  suppressRosterClick = false;
+  const name = event.target.closest('[data-roster-member]');
+  if (!mobileViewport?.matches || !name || event.isPrimary === false || !['touch','pen'].includes(event.pointerType)) return;
+  const hold = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+  rosterHold = hold;
+  hold.timer = setTimeout(() => {
+    if (rosterHold !== hold || !name.isConnected) return;
+    suppressRosterClick = true;
+    ui.rosterMemberId = name.dataset.rosterMember;
+    applyRosterFocus();
+  }, 500);
+});
+document.addEventListener('pointermove', event => {
+  if (rosterHold?.pointerId === event.pointerId && Math.hypot(event.clientX - rosterHold.x, event.clientY - rosterHold.y) > 10) {
+    suppressRosterClick = true;
+    cancelRosterHold();
+  }
+});
+document.addEventListener('pointerup', event => {
+  if (rosterHold?.pointerId === event.pointerId) cancelRosterHold();
+});
+document.addEventListener('pointercancel', cancelRosterHold);
+document.addEventListener('scroll', cancelRosterHold, true);
+window.addEventListener('blur', cancelRosterHold);
+document.addEventListener('contextmenu', event => {
+  if (mobileViewport?.matches && event.target.closest('.roster-panel')) event.preventDefault();
+});
+document.addEventListener('keydown', event => {
+  const name = event.target.closest('[data-roster-member]');
+  if (!mobileViewport?.matches || !name || !['Enter',' '].includes(event.key) || event.repeat) return;
+  event.preventDefault();
+  ui.rosterMemberId = ui.rosterMemberId === name.dataset.rosterMember ? undefined : name.dataset.rosterMember;
+  applyRosterFocus();
+});
 
 function dateRange() {
   const days = model.weekDates(ui.date);
@@ -213,7 +270,8 @@ function rosterView(team, groups=[team], departmentScope=null) {
     const visibility=state.departments?.find(d=>d.id===workTeam?.departmentId)?.scheduleLabels;
     const visibleLabels=[workTeam?.scheduleActive!==false?workTeam?.name:'',visibility?.group&&ownGroup?.showScheduleName!==false?ownGroup?.name:''].filter(Boolean).join(' · ');
     const subLabel=visibleLabels!==null?visibleLabels:departmentScope?(workTeam?.name||ownGroup?.name||(isHome?'':'Gästande')):(position?'':(isHome?'Timvikarie':'Gästande ersättare'));
-    return '<tbody class="roster-person"><tr class="roster-shifts roster-last"><th scope="row" class="roster-name"><div class="roster-person-label"><span>'+esc(m.name)+(subLabel?'<small>'+esc(subLabel)+'</small>':'')+'</span></div></th>'+shiftCells+'</tr></tbody>';
+    const focusAttrs=mobileViewport?.matches?' data-roster-member="'+esc(m.id)+'" role="button" tabindex="0" aria-pressed="false"':'';
+    return '<tbody class="roster-person"><tr class="roster-shifts roster-last"><th scope="row" class="roster-name"><div class="roster-person-label"'+focusAttrs+'><span>'+esc(m.name)+(subLabel?'<small>'+esc(subLabel)+'</small>':'')+'</span></div></th>'+shiftCells+'</tr></tbody>';
   }).join('');
   const body=rows;
   const captionTitle=departmentScope?departmentScope.name:(team?.name||'');
@@ -725,7 +783,15 @@ async function handleAction(button) {
     case 'refresh':if(!ui.busy){workspace=await store.refresh();shell();if(workspace.error)toast(workspace.error,true);else toast('Schemat har uppdaterats');}break;
   }
 }
-document.addEventListener('click',async e=>{const button=e.target.closest('[data-action]');if(!button||button.disabled)return;try{await handleAction(button);}catch(error){toast(error.message,true);}});
+document.addEventListener('click',async e=>{
+  const name=e.target.closest('[data-roster-member]');
+  if(mobileViewport?.matches&&name){
+    if(suppressRosterClick){suppressRosterClick=false;e.preventDefault();return;}
+    if(ui.rosterMemberId===name.dataset.rosterMember){ui.rosterMemberId=undefined;applyRosterFocus();}
+    return;
+  }
+  const button=e.target.closest('[data-action]');if(!button||button.disabled)return;try{await handleAction(button);}catch(error){toast(error.message,true);}
+});
 document.addEventListener('input',event=>{
   if(event.target.id==='changes-search'&&admin()){
     ui.changeQuery=event.target.value;ui.changePage=0;refreshChangeResults();
@@ -756,7 +822,7 @@ document.addEventListener('change',async e=>{
     }
     else if(target.id==='department-select'&&admin()){ui.departmentId=target.value;ui.workTeamId=undefined;ui.teamId=undefined;editingVersionId=undefined;shell();}
     else if(target.id==='work-team-select'&&admin()){ui.workTeamId=target.value;ui.teamId=undefined;editingVersionId=undefined;shell();}
-    else if(['team-select','admin-team-select'].includes(target.id)){ui.teamId=target.value;editingVersionId=undefined;localStorage.setItem('skift-team',ui.teamId);shell();}
+    else if(['team-select','admin-team-select'].includes(target.id)){cancelRosterHold();ui.rosterMemberId=undefined;ui.teamId=target.value;editingVersionId=undefined;localStorage.setItem('skift-team',ui.teamId);shell();}
     else if(target.id==='personal-saved-date'&&admin()){personScheduleModal(target.dataset.member,target.value);}
     else if(target.id==='match-week-select'&&admin()&&rotationMatch){setRotationMatchMonday(target.value);}
     else if(target.id==='match-calendar-week'&&admin()&&rotationMatch){

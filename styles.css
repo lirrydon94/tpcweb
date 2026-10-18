@@ -393,3 +393,9 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
   .change-pagination,.change-footnote{padding:13px 17px}
 }
 @media(max-width:640px){.personal-settings{grid-template-columns:1fr}.personal-table-heading{display:block}.personal-table-heading>label{margin-top:12px}dialog:has(.personal-schedule-editor){max-width:calc(100vw - 24px)}}
+.roster-person[hidden]{display:none}
+@media(max-width:800px){
+  .roster-panel,.roster-panel *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .roster-person-label[data-roster-member]{touch-action:pan-x pan-y;cursor:pointer}
+  .roster-person-label[data-roster-member]:focus-visible{outline:3px solid #56a68d;outline-offset:3px;border-radius:4px}
+}
