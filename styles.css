@@ -394,13 +394,6 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
 }
 @media(max-width:640px){.personal-settings{grid-template-columns:1fr}.personal-table-heading{display:block}.personal-table-heading>label{margin-top:12px}dialog:has(.personal-schedule-editor){max-width:calc(100vw - 24px)}}
 .roster-person[hidden]{display:none}
-.roster-week-dragging{position:relative;overflow:hidden}
-.roster-week-transition{pointer-events:none}
-.roster-week-dragging>.roster-scroll{will-change:transform}
-.roster-week-dragging .roster-week-preview{position:absolute;inset:0;width:100%;height:100%;max-height:none;margin:0;z-index:5;pointer-events:none;background:#fff}
-@media (orientation:landscape) and (max-width:800px), (orientation:landscape) and (pointer:coarse){
-  .roster-scroll{touch-action:pan-y pinch-zoom}
-}
 .person-skills{min-width:0;margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:12px}
 .person-skills legend{padding:0 6px;font-size:13px;font-weight:600}
 .person-skill-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
