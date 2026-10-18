@@ -395,6 +395,11 @@ export const defaultWorkspace = {
                 "start": "06:15",
                 "end": "15:15",
                 "color": "sage"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
+                "color": "amber"
               }
             },
             "personalSchedules": [
@@ -406,9 +411,81 @@ export const defaultWorkspace = {
                   [
                     null,
                     null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null,
                     null,
+                    null
+                  ],
+                  [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    {
+                      "type": "leave"
+                    }
+                  ],
+                  [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                  ],
+                  [
+                    null,
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    null
+                  ],
+                  [
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                  ],
+                  [
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                  ],
+                  [
+                    null,
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null
                   ],
@@ -426,31 +503,18 @@ export const defaultWorkspace = {
                     null,
                     null,
                     null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null
                   ],
                   [
                     null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
+                    {
+                      "type": "shift",
+                      "code": "Z"
+                    },
                     null,
                     null,
                     null,
@@ -459,43 +523,9 @@ export const defaultWorkspace = {
                   ],
                   [
                     null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null,
                     null,
@@ -1095,7 +1125,7 @@ export const defaultWorkspace = {
         "note": ""
       }
     ],
-    "publishedAt": "2026-10-17T21:50:51.103Z",
+    "publishedAt": "2026-10-18T18:41:54.592Z",
     "departments": [
       {
         "id": "department-default",
@@ -1951,6 +1981,11 @@ export const defaultWorkspace = {
                 "start": "06:15",
                 "end": "15:15",
                 "color": "sage"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
+                "color": "amber"
               }
             },
             "personalSchedules": [
@@ -1962,9 +1997,81 @@ export const defaultWorkspace = {
                   [
                     null,
                     null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null,
                     null,
+                    null
+                  ],
+                  [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    {
+                      "type": "leave"
+                    }
+                  ],
+                  [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                  ],
+                  [
+                    null,
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    null
+                  ],
+                  [
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                  ],
+                  [
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                  ],
+                  [
+                    null,
+                    null,
+                    {
+                      "type": "leave"
+                    },
+                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null
                   ],
@@ -1982,31 +2089,18 @@ export const defaultWorkspace = {
                     null,
                     null,
                     null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null
                   ],
                   [
                     null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
+                    {
+                      "type": "shift",
+                      "code": "Z"
+                    },
                     null,
                     null,
                     null,
@@ -2015,43 +2109,9 @@ export const defaultWorkspace = {
                   ],
                   [
                     null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                  ],
-                  [
-                    null,
-                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null,
                     null,
@@ -2643,7 +2703,7 @@ export const defaultWorkspace = {
         "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-17T21:50:51.103Z",
+    "publishedAt": "2026-10-18T18:41:54.592Z",
     "departments": [
       {
         "id": "department-default",
@@ -3103,7 +3163,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 265,
+  "revision": 268,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"

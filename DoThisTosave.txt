@@ -1,0 +1,30 @@
+SÅ SPARAR DU SCHEMAT TILL GITHUB
+
+Efter varje omstart av datorn:
+1. Öppna projektmappen C:\Projects\Jobb Schema\tpcweb i VS Code.
+2. Öppna en terminal i projektmappen och kör:
+
+   npm run dev
+
+3. Låt terminalen och servern vara igång medan du ändrar schemat.
+
+När du vill spara och publicera:
+1. Använd samma webbläsare och samma adress som när du ändrade schemat.
+   Om du använder port 5500 kan du fortsätta där medan servern körs.
+   Byt inte mellan localhost och 127.0.0.1 eller mellan olika portar:
+   de har separata sparade webbläsarkopior.
+2. Spara ändringen i schemats dialog.
+3. Gå till Hantera och tryck på Spara till projektet.
+4. Kontrollera att det står: Sparat i projektfilen.
+5. Öppna GitHub Desktop. Schemaändringen ska synas i src/default-data.js.
+6. Skriv en sammanfattning, gör Commit och sedan Push origin.
+7. Vänta tills GitHub Actions har publicerat uppdateringen på GitHub Pages.
+
+Om det inte finns något att committa:
+- Kontrollera att npm run dev fortfarande körs.
+- Tryck på Spara till projektet igen och läs statusmeddelandet.
+- Sparat endast i webbläsaren betyder att ändringen inte följer med en push.
+- Om samma schema redan finns i projektfilen blir det ingen ny filändring.
+- Vid versionskonflikt: exportera en säkerhetskopia innan du går vidare.
+
+Servern startar INTE automatiskt efter omstart av datorn.
