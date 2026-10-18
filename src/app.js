@@ -320,7 +320,8 @@ function departmentPeople(employees,state) {
   if(unassigned.people.length)columns.push(unassigned);
   columns.push(hourly);
   return `<section class="admin-panel"><div class="panel-heading"><div><h2>Dina medarbetare</h2><p>Ett team per kolumn. Klicka på en person för att redigera personens schema eller byta grupp.</p></div><div class="staff-add-actions"><button class="primary-btn" data-action="add-person">${icon('plus')} Lägg till personal</button><button class="primary-btn" data-action="add-hourly">${icon('plus')} Lägg till timmis</button></div></div>${columns.length?`<div class="staff-board">${columns.map(column=>`<section class="staff-column" aria-label="${esc(column.name)}"><header class="staff-column-heading"><h3>${esc(column.name)}</h3><span aria-label="${column.people.length} medarbetare">${column.people.length}</span></header><div class="staff-column-people">${column.people.length?column.people.map(({employee:e})=>{
-    return `<button class="staff-person-card" data-action="edit-person" data-member="${esc(e.id)}" aria-label="Redigera person eller schema för ${esc(e.name)}"><span class="staff-person-details"><strong>${esc(e.name)}</strong></span>${icon('edit')}</button>`;
+    const skills=e.role==='part-time'?teams.filter(t=>e.skilledTeamIds?.includes(t.id)).map(t=>t.name).join(' · '):'';
+    return `<button class="staff-person-card" data-action="edit-person" data-member="${esc(e.id)}" aria-label="Redigera person eller schema för ${esc(e.name)}"><span class="staff-person-details"><strong>${esc(e.name)}</strong>${skills?`<small>${esc(skills)}</small>`:''}</span>${icon('edit')}</button>`;
   }).join(''):'<p class="staff-column-empty">Ingen personal placerad ännu.</p>'}</div></section>`).join('')}</div>`:empty('Ingen personal ännu','Lägg till avdelningens medarbetare. Du kan placera dem i grupper senare.')}</section>`;
 }
 
@@ -339,13 +340,15 @@ function personModal(memberId, hourly=false) {
   const {state,department}=organizationSelection(),employee=state.employees.find(e=>e.id===memberId),placement=model.placementOn(employee,today());
   const teams=state.workTeams.filter(t=>t.departmentId===department.id);
   const options=()=>`<option value="">Placera senare</option>${teams.filter(t=>state.teams.some(g=>g.workTeamId===t.id)).map(t=>`<optgroup label="${esc(t.name)}">${state.teams.filter(g=>g.workTeamId===t.id).map(g=>`<option value="group:${esc(g.id)}" ${placement?.groupId===g.id?'selected':''}>${esc(t.name)} / ${esc(g.name)}</option>`).join('')}</optgroup>`).join('')}`;
-  modal(employee?'Redigera medarbetare':hourly?'Lägg till timmis':'Lägg till personal',`Personalen tillhör ${esc(department.name)}. Timmisar behöver inget team eller någon grupp och kan väljas som ersättare.`, `${personalScheduleLink(employee,state)}<label>Namn<input name="name" required maxlength="60" value="${esc(employee?.name||'')}"></label><label>Anställningstyp<select name="role"><option value="member">Ordinarie</option><option value="part-time" ${(employee?.role==='part-time'||hourly)?'selected':''}>Timvikarie</option></select></label>${hourly||employee?.role==='part-time'?'<p class="field-note">Timmisen tillhör avdelningen och bokas som ersättare utan fast team eller grupp.</p>':`<label>Team och grupp<select name="placement">${options()}</select></label>`}<p class="field-note">Spara ändringar av namn och grupp innan du öppnar personens schema. Tidigare placeringar och scheman behålls.</p>`,async f=>{
+  const skills=`<fieldset id="person-skills" class="person-skills" ${hourly||employee?.role==='part-time'?'':'hidden'}><legend>Kunskaper</legend><p class="field-note">Markera de arbetsområden timmisen kan arbeta inom.</p><div class="person-skill-options">${teams.map(t=>`<label><input type="checkbox" name="skilledTeamIds" value="${esc(t.id)}" ${employee?.skilledTeamIds?.includes(t.id)?'checked':''}> <span>${esc(t.name)}</span></label>`).join('')||'<p class="field-note">Lägg till team under Team och grupper för att kunna välja kunskaper.</p>'}</div></fieldset>`;
+  modal(employee?'Redigera medarbetare':hourly?'Lägg till timmis':'Lägg till personal',`Personalen tillhör ${esc(department.name)}. Timmisar behöver inget team eller någon grupp och kan väljas som ersättare.`, `${personalScheduleLink(employee,state)}<label>Namn<input name="name" required maxlength="60" value="${esc(employee?.name||'')}"></label><label>Anställningstyp<select id="person-role" name="role"><option value="member">Ordinarie</option><option value="part-time" ${(employee?.role==='part-time'||hourly)?'selected':''}>Timvikarie</option></select></label>${hourly||employee?.role==='part-time'?'<p class="field-note">Timmisen tillhör avdelningen och bokas som ersättare utan fast team eller grupp.</p>':`<label>Team och grupp<select name="placement">${options()}</select></label>`}${skills}<p class="field-note">Spara ändringar av namn och grupp innan du öppnar personens schema. Tidigare placeringar och scheman behålls.</p>`,async f=>{
     const next=copy(),name=f.get('name').trim();if(!name)throw new Error('Ange ett namn.');
     const from=today();
     let target=next.employees.find(e=>e.id===memberId);
     if(!target){target={id:model.uid(),name,role:f.get('role'),activeFrom:from,activeUntil:null,departmentId:department.id,placements:[]};next.employees.push(target);}
     target.name=name;target.role=f.get('role');
-    for(const g of next.teams)for(const m of g.members)if(m.id===target.id){m.name=name;m.role=target.role;}
+    if(target.role==='part-time')target.skilledTeamIds=[...new Set(f.getAll('skilledTeamIds'))];
+    for(const g of next.teams)for(const m of g.members)if(m.id===target.id){m.name=name;m.role=target.role;if(target.skilledTeamIds)m.skilledTeamIds=[...target.skilledTeamIds];}
     const value=target.role==='part-time'?'':f.get('placement')||'',group=value.startsWith('group:')?next.teams.find(g=>g.id===value.slice(6)):null,teamId=group?.workTeamId||(value.startsWith('team:')?value.slice(5):null);
     const previous=model.placementOn(target,from);
     if(!employee||previous?.teamId!==teamId||previous?.groupId!==(group?.id||null))model.placeEmployee(next,target.id,teamId,group?.id||null,from);
@@ -808,7 +811,10 @@ document.addEventListener('toggle',event=>{
 document.addEventListener('change',async e=>{
   const target=e.target;
   try {
-    if(['changes-year','changes-month','changes-type','changes-search'].includes(target.id)&&admin()){
+    if(target.id==='person-role'&&admin()){
+      const skills=$('#person-skills');if(skills)skills.hidden=target.value!=='part-time';
+    }
+    else if(['changes-year','changes-month','changes-type','changes-search'].includes(target.id)&&admin()){
       ui[{'changes-year':'changeYear','changes-month':'changeMonth','changes-type':'changeType','changes-search':'changeQuery'}[target.id]]=target.value;ui.changePage=0;if(target.id==='changes-year')shell();else refreshChangeResults();
     }
     else if(target.dataset?.teamActive&&admin()){const next=copy(),team=next.workTeams.find(t=>t.id===target.dataset.teamActive);if(team){team.scheduleActive=target.checked;await save(next);}}

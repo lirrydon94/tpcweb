@@ -2,6 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as model from '../src/model.js';
 
+test('employee skills are optional, survive publication and must belong to the same department',()=>{
+  const state=model.organizeState(model.seedState()),employee=state.employees[0];
+  assert.deepEqual(model.validateState(state),[]);
+  employee.skilledTeamIds=[state.workTeams[0].id];
+  const published=model.publishState(state);
+  assert.deepEqual(published.employees[0].skilledTeamIds,employee.skilledTeamIds);
+  employee.skilledTeamIds=[];
+  assert.equal(published.employees[0].skilledTeamIds.length,1);
+  assert.deepEqual(model.validateState(state),[]);
+  state.departments.push({id:'other-department',name:'Annan avdelning'});
+  state.workTeams.push({id:'other-team',name:'Annat team',departmentId:'other-department'});
+  for(const skills of ['Beställning',null,[null],['missing'],['other-team'],[state.workTeams[0].id,state.workTeams[0].id]]){
+    employee.skilledTeamIds=skills;
+    assert.ok(model.validateState(state).some(error=>error.includes('kunskaper')));
+    assert.throws(()=>model.publishState(state),/kunskaper/);
+  }
+});
+
 test('organization migration preserves existing shifts and is idempotent',()=>{
   const state=model.seedState(),before=model.getShift(state,'team-1','member-1','2026-10-12');
   model.organizeState(state);

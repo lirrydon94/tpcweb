@@ -1125,7 +1125,7 @@ export const defaultWorkspace = {
         "note": ""
       }
     ],
-    "publishedAt": "2026-10-18T18:41:54.592Z",
+    "publishedAt": "2026-10-18T19:23:34.831Z",
     "departments": [
       {
         "id": "department-default",
@@ -1566,6 +1566,10 @@ export const defaultWorkspace = {
             "teamId": null,
             "groupId": null
           }
+        ],
+        "skilledTeamIds": [
+          "work-team-1",
+          "13a13c00-b6b0-4a22-84b4-a40ea20a32d7"
         ]
       },
       {
@@ -1581,6 +1585,10 @@ export const defaultWorkspace = {
             "teamId": null,
             "groupId": null
           }
+        ],
+        "skilledTeamIds": [
+          "work-team-1",
+          "13a13c00-b6b0-4a22-84b4-a40ea20a32d7"
         ]
       }
     ]
@@ -2703,7 +2711,7 @@ export const defaultWorkspace = {
         "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-18T18:41:54.592Z",
+    "publishedAt": "2026-10-18T19:23:34.831Z",
     "departments": [
       {
         "id": "department-default",
@@ -3144,6 +3152,10 @@ export const defaultWorkspace = {
             "teamId": null,
             "groupId": null
           }
+        ],
+        "skilledTeamIds": [
+          "work-team-1",
+          "13a13c00-b6b0-4a22-84b4-a40ea20a32d7"
         ]
       },
       {
@@ -3159,11 +3171,15 @@ export const defaultWorkspace = {
             "teamId": null,
             "groupId": null
           }
+        ],
+        "skilledTeamIds": [
+          "work-team-1",
+          "13a13c00-b6b0-4a22-84b4-a40ea20a32d7"
         ]
       }
     ]
   },
-  "revision": 268,
+  "revision": 270,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"

@@ -436,6 +436,11 @@ export function validateState(state) {
     for (const e of state.employees) {
       if (!state.departments.some(d => d.id === e.departmentId) || !Array.isArray(e.placements)) return ['Medarbetarens avdelning eller placering saknas.'];
       if (!['member', 'part-time'].includes(e.role)) errors.push('Välj en giltig anställningstyp.');
+      if (e.skilledTeamIds !== undefined && (!Array.isArray(e.skilledTeamIds)
+        || new Set(e.skilledTeamIds).size !== e.skilledTeamIds.length
+        || e.skilledTeamIds.some(id => typeof id !== 'string' || !state.workTeams.some(t => t.id === id && t.departmentId === e.departmentId)))) {
+        errors.push(`${e.name}: välj kunskaper bland avdelningens team.`);
+      }
       if (e.activeFrom) checkDate(e.activeFrom, e.name);
       const dates = new Set();
       for (const p of e.placements) {

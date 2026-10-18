@@ -39,6 +39,51 @@ test('personal schedule validation and failed publication keep the form open wit
   assert.equal(page.getWorkspace().revision,1);
 });
 
+test('hourly skills save on the person, reopen after reload and can be cleared', async()=>{
+  const state=model.organizeState(model.seedState());
+  const departmentId=state.departments[0].id;
+  state.workTeams[0].name='Beställning';
+  state.workTeams.push({id:'waste',name:'Avfall',departmentId,scheduleActive:false});
+  state.employees.push({id:'hourly',name:'Kim',role:'part-time',departmentId,activeFrom:'2026-01-01',placements:[]});
+  const initial={working:state,published:model.publishState(state),revision:1};
+  const page=await openApp('admin',initial);
+  await page.click('admin');await page.submit('lirrydoz');
+  await page.click('edit-person',undefined,{member:'hourly'});
+  assert.match(page.dialog.innerHTML, /<legend>Kunskaper<\/legend>/);
+  assert.match(page.dialog.innerHTML, /value="waste"/);
+  await page.submit({name:'Kim',role:'part-time',skilledTeamIds:[state.workTeams[0].id]});
+  assert.equal(page.error.textContent,'');
+  const saved=page.getWorkspace();
+  for(const version of [saved.working,saved.published]){
+    assert.deepEqual(version.employees.find(e=>e.id==='hourly').skilledTeamIds,[state.workTeams[0].id]);
+    assert.deepEqual(version.employees.find(e=>e.id==='member-1'),state.employees.find(e=>e.id==='member-1'));
+  }
+  assert.match(page.app.innerHTML, /<strong>Kim<\/strong><small>Beställning<\/small>/);
+  const reloaded=await openApp('admin',saved,new Map([['skift-admin-remembered','true']]));
+  await reloaded.click('admin');await reloaded.click('edit-person',undefined,{member:'hourly'});
+  assert.match(reloaded.dialog.innerHTML,new RegExp(`value="${state.workTeams[0].id}" checked`));
+  assert.doesNotMatch(reloaded.dialog.innerHTML,/value="waste" checked/);
+  await reloaded.submit({name:'Kim',role:'part-time',skilledTeamIds:[]});
+  assert.deepEqual(reloaded.getWorkspace().working.employees.find(e=>e.id==='hourly').skilledTeamIds,[]);
+  assert.doesNotMatch(reloaded.app.innerHTML, /<strong>Kim<\/strong><small>/);
+});
+
+test('a new hourly employee can have several skills and failed saving preserves existing skills', async()=>{
+  const state=model.organizeState(model.seedState()),departmentId=state.departments[0].id;
+  state.workTeams.push({id:'waste',name:'Avfall',departmentId});
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('add-hourly');
+  await page.submit({name:'Alex',role:'part-time',skilledTeamIds:[state.workTeams[0].id,'waste']});
+  assert.equal(page.error.textContent,'');
+  const hourly=page.getWorkspace().working.employees.find(e=>e.name==='Alex');
+  assert.deepEqual(hourly.skilledTeamIds,[state.workTeams[0].id,'waste']);
+  assert.equal(model.placementOn(hourly,hourly.activeFrom).teamId,null);
+  await page.click('edit-person',undefined,{member:hourly.id});page.failPublish('Kunde inte spara');
+  await page.submit({name:'Alex',role:'part-time',skilledTeamIds:[]});
+  assert.equal(page.dialog.open,true);assert.equal(page.error.textContent,'Kunde inte spara');
+  assert.deepEqual(page.getWorkspace().working.employees.find(e=>e.id===hourly.id).skilledTeamIds,hourly.skilledTeamIds);
+});
+
 test('viewers cannot open personal schedule editing', async()=>{
   const page=await openApp('viewer');
   await page.click('person-schedule',undefined,{member:'member-1'});

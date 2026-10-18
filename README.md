@@ -37,6 +37,8 @@ Veckovyn öppnas som en samlad teamtabell med medarbetare på rader och måndag�
 
 Under **Schema** kan du välja datum och se kalenderveckor och rotationsveckor. En teamlänk öppnar rätt team direkt. QR-koder innehåller en länk och ger ingen behörighet att se privata uppgifter.
 
+Under **Hantera → Personal → välj en timmis** kan du markera personens **Kunskaper**, till exempel Beställning och Avfall. Valen följer avdelningens team, även team som är dolda i schemat. Flera eller inga kunskaper kan väljas. De sparas med personen och visas på personkortet i kolumnen Timmisar. Kunskaperna är information för bemanningen och begränsar inte vilka ersättningspass som kan bokas.
+
 Under **Hantera → Personal → välj en person → Redigera personligt schema** kan du anpassa en ordinarie medarbetares återkommande pass, till exempel vid 80 % anställning. Tabellen visar samma pass och veckor som **Det återkommande grundschemat** och markerar personens rotationsvecka för det valda visningsdatumet. Välj startdatum och anställningsgrad och byt en dags pass till exempelvis **Tjänstledig**, **Semester**, **Ledig**, en annan passkod eller **Egna tider**. Pass märkta **grupp** följer gruppschemat. Visningsdatumet flyttar bara markeringen; startdatumet styr när de återkommande ändringarna börjar gälla. Procenten är en uppgift om anställningen; välj själv vilka pass som ska ändras och jämför timmarna över hela rotationen. Personen behåller sin rotationsposition och övriga medarbetare påverkas inte. Anpassningarna hör till gruppens schemaversion; sparade startdatum kan öppnas igen i dialogen. Återställning till gruppschemat börjar på det valda startdatumet. Semester och annan datumstyrd frånvaro gäller ovanpå personens anpassade schema.
 
 ## Använd en gemensam, privat arbetsyta
