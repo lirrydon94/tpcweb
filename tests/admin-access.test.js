@@ -63,7 +63,7 @@ test('Bosse week 7 defaults to Monday so A2, A, A become leave in the visible we
   await page.change({id:'personal-saved-date',dataset:{member:bosse.id},value:'2026-10-16'});
   assert.match(page.dialog.innerHTML,/name="effectiveFrom" required value="2026-10-12"/);
   const viewer=await openApp('viewer',page.getWorkspace());
-  const row=viewer.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Bosse<small>'));
+  const row=viewer.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Bosse<'));
   const cells=row.match(/<td\b[^>]*>.*?<\/td>/gs);
   for(const cell of cells.slice(0,3)){assert.match(cell,/Tjänstledig/);assert.doesNotMatch(cell,/06:15–15:15|07:00–16:00/);}
 });
@@ -87,7 +87,7 @@ test('viewers see published personal leave, days off and adjusted hours instead 
   rotation[0][2]={type:'custom',start:'08:00',end:'12:00'};
   model.savePersonalSchedule(published,group.id,version.id,{memberId:'member-1',effectiveFrom:'2026-10-12',employmentPercent:80,rotation});
   const page=await openApp('viewer',{working:state,published:model.publishState(published),revision:2});
-  const row=page.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<small>'));
+  const row=page.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<'));
   const cells=row.match(/<td\b[^>]*>.*?<\/td>/gs);
   assert.match(cells[0],/Tjänstledig/);assert.doesNotMatch(cells[0],/11:30–20:30/);
   assert.match(cells[1],/Ledig/);assert.doesNotMatch(cells[1],/09:30–18:30/);
@@ -110,7 +110,7 @@ test('personal grid displays group shifts, highlights the selected rotation week
   assert.equal(page.error.textContent,'');
   assert.equal(model.getShift(page.getWorkspace().published,'team-1','member-1','2026-10-12').type,'leave');
   await page.click('view','schedule');
-  const row=page.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<small>'));
+  const row=page.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<'));
   assert.match(row,/Tjänstledig/);assert.match(row,/07:00–16:00/);
 });
 
@@ -216,7 +216,7 @@ test('absence cells show their replacement inline without duplicate status rows 
     {id:'no-cover',teamId:'team-1',memberId:'member-1',date:'2026-10-14',type:'leave'},
   ];
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
-  const personRow=()=>page.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<small>'));
+  const personRow=()=>page.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<'));
   const row=personRow(),cells=row.match(/<td\b[^>]*>.*?<\/td>/gs);
   assert.equal((row.match(/<tr\b/g)||[]).length,1);
   assert.equal((cells[0].match(/Semester/g)||[]).length,1);
@@ -232,7 +232,7 @@ test('absence cells show their replacement inline without duplicate status rows 
   assert.doesNotMatch(page.app.innerHTML,/<span>Kim &amp; Co(?:<small>|<\/span>)/);
   assert.equal((page.app.innerHTML.match(/<tbody class="roster-person">/g)||[]).length,state.teams[0].members.length);
   const viewer=await openApp('viewer',page.getWorkspace());
-  const viewerRow=viewer.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<small>'));
+  const viewerRow=viewer.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Du<'));
   assert.equal(viewerRow,row);
   assert.doesNotMatch(viewer.app.innerHTML,/<span>Kim &amp; Co(?:<small>|<\/span>)/);
   await page.click('admin');await page.submit('lirrydoz');await page.click('edit-schedule');
@@ -661,6 +661,7 @@ test('schedule shows all groups of the selected team in one table and edits the 
   assert.equal((page.app.innerHTML.match(/<tbody class="roster-person">/g)||[]).length,7);
   assert.ok(page.app.innerHTML.includes('selected>\u2003Service</option>') || page.app.innerHTML.includes('selected>Service</option>'));
   assert.ok(!page.app.innerHTML.includes('value="night-group"'));
+  assert.doesNotMatch(page.app.innerHTML, /<small>Service(?:<| ·)/);
   await page.click('admin');await page.submit('lirrydoz');await page.click('edit-schedule');
   assert.ok(page.app.innerHTML.includes('data-group="night-group"'));
   await page.click('roster-edit',undefined,{group:night.id,member:'member-1',date:'2026-10-14'});

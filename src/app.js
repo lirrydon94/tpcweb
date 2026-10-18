@@ -107,7 +107,7 @@ function shell() {
   const team = currentTeam(), member = currentMember(team);
   const nav = (mobile = false) => [['schedule','calendar','Schema'],...(hasAdminRole() ? [['admin','settings','Hantera']] : [])].map(([view,ico,text]) => `<button class="nav-item ${ui.view === view ? 'active' : ''}" data-action="view" data-view="${view}">${icon(ico)}<span>${text}</span>${!mobile && ui.view === view ? '<span class="nav-dot"></span>' : ''}</button>`).join('');
   $('#app').innerHTML = `<div class="app-shell">
-    <aside class="sidebar"><a class="brand" href="./" aria-label="RSSB startsida"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav>${workspace.mode === 'cloud' ? `<div class="sidebar-bottom"><button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button></div>` : ''}</aside>
+    <aside class="sidebar"><a class="brand" href="./" aria-label="RSSB startsida"><span class="brand-mark">${icon('calendar')}</span>RSSB</a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav>${workspace.mode === 'cloud' ? `<div class="sidebar-bottom"><button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button></div>` : ''}</aside>
     <div class="main-shell">
     <main id="content" tabindex="-1">${ui.view==='admin' ? adminView() : team ? scheduleView() : emptyWorkspace()}</main>
     <footer class="page-footer"><span></span><span></span></footer>
@@ -268,7 +268,7 @@ function rosterView(team, groups=[team], departmentScope=null) {
 
     const workTeam=state.workTeams?.find(t=>t.id===ownGroup?.workTeamId);
     const visibility=state.departments?.find(d=>d.id===workTeam?.departmentId)?.scheduleLabels;
-    const visibleLabels=[workTeam?.scheduleActive!==false?workTeam?.name:'',visibility?.group&&ownGroup?.showScheduleName!==false?ownGroup?.name:''].filter(Boolean).join(' · ');
+    const visibleLabels=[departmentScope&&workTeam?.scheduleActive!==false?workTeam?.name:'',visibility?.group&&ownGroup?.showScheduleName!==false?ownGroup?.name:''].filter(Boolean).join(' · ');
     const subLabel=visibleLabels!==null?visibleLabels:departmentScope?(workTeam?.name||ownGroup?.name||(isHome?'':'Gästande')):(position?'':(isHome?'Timvikarie':'Gästande ersättare'));
     const focusAttrs=mobileViewport?.matches?' data-roster-member="'+esc(m.id)+'" role="button" tabindex="0" aria-pressed="false"':'';
     return '<tbody class="roster-person"><tr class="roster-shifts roster-last"><th scope="row" class="roster-name"><div class="roster-person-label"'+focusAttrs+'><span>'+esc(m.name)+(subLabel?'<small>'+esc(subLabel)+'</small>':'')+'</span></div></th>'+shiftCells+'</tr></tbody>';
@@ -679,7 +679,7 @@ function deleteTeamModal() {
 
 function download(content,type,name) {const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function renderLogin(error='') {
-  $('#app').innerHTML=`<main class="login-page"><a class="brand" href="./"><span class="brand-mark">${icon('calendar')}</span>RSSB<span class="brand-period">.</span></a><section class="login-card"><h1>Ditt nästa pass<br>börjar här.</h1><p>Logga in för att se ditt schema och vilka du ska arbeta med.</p><form id="login-form"><label>E-post<input name="email" type="email" autocomplete="username" required placeholder="du@exempel.se"></label><label>Lösenord<input name="password" type="password" autocomplete="current-password" required minlength="6"></label><p class="form-error" role="alert">${esc(error)}</p><button class="primary-btn" type="submit">Logga in ${icon('arrow')}</button></form><small>Din administratör skapar ditt konto. Kontakta administratören om du behöver åtkomst eller ett nytt lösenord.</small></section><p class="login-caption">Ett tydligt schema. En lugnare vecka.</p></main>`;
+  $('#app').innerHTML=`<main class="login-page"><a class="brand" href="./"><span class="brand-mark">${icon('calendar')}</span>RSSB</a><section class="login-card"><h1>Ditt nästa pass<br>börjar här.</h1><p>Logga in för att se ditt schema och vilka du ska arbeta med.</p><form id="login-form"><label>E-post<input name="email" type="email" autocomplete="username" required placeholder="du@exempel.se"></label><label>Lösenord<input name="password" type="password" autocomplete="current-password" required minlength="6"></label><p class="form-error" role="alert">${esc(error)}</p><button class="primary-btn" type="submit">Logga in ${icon('arrow')}</button></form><small>Din administratör skapar ditt konto. Kontakta administratören om du behöver åtkomst eller ett nytt lösenord.</small></section><p class="login-caption">Ett tydligt schema. En lugnare vecka.</p></main>`;
   $('#login-form').onsubmit=async e=>{e.preventDefault();e.submitter.disabled=true;const f=new FormData(e.target);try{workspace=await store.login(f.get('email'),f.get('password'));shell();}catch(err){renderLogin(err.message);}};
 }
 function bindRotationDrag() {
