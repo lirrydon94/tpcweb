@@ -28,7 +28,7 @@ Om statusen säger **Sparat endast i webbläsaren** följer ändringarna ännu i
 - Varje team har egna passkoder, arbetstider, medarbetare och rotationsversioner. Antalet medarbetare och rotationens längd kan ändras oberoende av varandra.
 - En rotationsversion har en startmåndag, en referensmåndag, en återkommande tabell med veckor och en startposition för varje medarbetare.
 - När rotationen ändras skapas en ny version från den valda måndagen. Tidigare datum använder fortfarande den äldre versionen. En medarbetare tas bort från ett valt slutdatum, så att tidigare arbetspass finns kvar.
-- Semester, sjukfrånvaro, pensionsdagar, ändrade arbetstider och ersättare registreras på bestämda datum. Rotationens veckor fortsätter att gå framåt under frånvaron.
+- Semester och sjukfrånvaro registreras bara på schemalagda arbetsdagar; lediga dagar hoppas över. Pensionsdagar, ändrade arbetstider och ersättare registreras på bestämda datum. Rotationens veckor fortsätter att gå framåt under frånvaron.
 - Tomma rutor i den ursprungliga tabellen betyder ledigt. Visade arbetstimmar är tiden mellan start och slut. Den här versionen räknar inte bort obetalda raster och beräknar inte lön.
 - En ersättare kan täcka hela eller delar av ett pass. Kontroller av täckning och överlappning använder de faktiska arbetstiderna. Ersättaren kan tillhöra ett annat team.
 - Varje giltig ändring publiceras automatiskt när den sparas. Administratörens privata anteckningar och frånvaroorsaker finns bara i administrationsvyn; kollegorna ser den rensade schemaversionen.

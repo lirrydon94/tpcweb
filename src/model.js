@@ -198,6 +198,10 @@ function baseShift(state, teamId, memberId, date) {
   return { ...empty, code, start: shift.start, end: shift.end, color: shift.color, type: 'shift', working: true, minutes: duration(shift.start, shift.end), rotationWeek };
 }
 
+export function isScheduledWorkday(state, teamId, memberId, date) {
+  return baseShift(state, teamId, memberId, dateString(civilDate(date))).working;
+}
+
 function currentExceptions(state, date) {
   // A later exception supersedes an earlier one for the same person/date.
   const map = new Map();

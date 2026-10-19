@@ -1125,7 +1125,7 @@ export const defaultWorkspace = {
         "note": ""
       }
     ],
-    "publishedAt": "2026-10-19T22:42:44.251Z",
+    "publishedAt": "2026-10-19T23:36:03.876Z",
     "departments": [
       {
         "id": "department-default",
@@ -2732,7 +2732,7 @@ export const defaultWorkspace = {
         "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-19T22:42:44.251Z",
+    "publishedAt": "2026-10-19T23:36:03.876Z",
     "departments": [
       {
         "id": "department-default",
@@ -3221,7 +3221,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 273,
+  "revision": 276,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"
