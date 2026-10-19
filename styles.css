@@ -229,6 +229,7 @@
 
 /* Department staff organized in team columns. */
 .staff-board { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; padding:0 24px 24px; align-items:start; }
+.staff-board-compact { grid-auto-rows:1px; grid-auto-flow:dense; row-gap:0; padding-bottom:6px; }
 .staff-column { min-width:0; background:#f5f8f6; border:1px solid #e0e9e4; border-radius:12px; overflow:hidden; }
 .staff-column-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:17px 16px; border-bottom:1px solid #dfe9e3; }
 .staff-column-heading h3 { font-size:15px; font-weight:600; margin:0; overflow-wrap:anywhere; }
@@ -242,7 +243,7 @@
 .staff-person-details>span,.staff-person-details small { font-size:11px; color:#71857c; }
 .staff-person-card>.icon { width:15px; height:15px; flex-shrink:0; color:#7d9589; }
 .staff-column-empty { margin:10px 4px; font-size:12px; line-height:1.6; color:#71857c; }
-@media(max-width:800px) { .staff-board { grid-template-columns:1fr; padding:0 16px 16px; } }
+@media(max-width:800px) { .staff-board { grid-template-columns:1fr; padding:0 16px 16px; } .staff-board-compact { padding-bottom:0; } }
 
 #team-select option { font-weight:400; }
 
@@ -275,26 +276,36 @@
 .roster-absence-card .roster-absence-code{font-size:16px;line-height:18px;color:inherit}
 .roster-editable:hover .roster-absence-card .roster-off{outline:none}
 /* Recurring adjustments for one employee, alongside the group's rotation. */
-.personal-schedule-link{padding:18px;border:1px solid var(--line);border-radius:12px;background:#f1f6f1;margin-bottom:24px}
-.personal-schedule-link>strong{font-size:15px}
-.personal-schedule-link p{font-size:13px;line-height:1.6;color:var(--muted);margin:8px 0 14px}
+.personal-schedule-link{display:flex;justify-content:flex-start;margin-top:20px}
 dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
-.personal-settings{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:24px}
-.personal-settings>label,.personal-table-heading>label{display:flex;flex-direction:column;gap:8px;font-size:12px}
-.personal-table-heading{display:flex;align-items:center;justify-content:space-between;gap:20px}
-.personal-table-heading h3{font-size:18px;margin:0 0 8px}
-.personal-table-heading p{font-size:12px;line-height:1.6;color:var(--muted);margin:0}
-.personal-table-heading>label{flex:0 0 185px}
-.personal-position{padding:10px 14px;background:#eaf4ed;border-left:3px solid #237454;border-radius:6px;font-size:13px;margin:14px 0}
+.personal-schedule-editor{margin-top:12px}
+.personal-date-label{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--muted)}
+.personal-date-label input{width:100%;min-height:42px}
+.personal-position{padding:10px 14px;background:#f5f8f4;border:1px solid var(--line);border-radius:8px;font-size:12px;margin:0 0 12px}
 .personal-schedule-editor .field-note{line-height:1.7}
-.personal-hours{padding:14px 16px;background:#edf5ef;border-radius:10px;font-size:13px;line-height:1.7;margin:16px 0}
+.personal-hours{display:grid;grid-template-columns:160px 1fr 1fr auto;align-items:center;gap:24px;padding:18px 22px;background:#edf5ef;border:1px solid #dfebe2;border-radius:12px}
+.personal-ratio{display:flex;flex-direction:column;gap:4px;padding-right:22px;border-right:1px solid #d6e5da}
+.personal-ratio strong{font-size:30px;font-weight:650;line-height:1.1;letter-spacing:-1px;color:var(--green);font-variant-numeric:tabular-nums}
+.personal-ratio span,.personal-hours-stat>span{font-size:11px;color:#61786b}
+.personal-hours-stat{display:flex;flex-direction:column;gap:5px}
+.personal-hours-stat strong{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.personal-hours-stat small{font-size:12px;font-weight:400;color:#61786b}
+.personal-hours-note span{display:block}
+.personal-hours-note{font-size:11px;line-height:1.7;color:#61786b;text-align:right}
+.modal-actions-top{display:grid;grid-template-columns:185px minmax(0,1fr) auto auto;align-items:end;gap:14px;margin-top:18px;padding-top:0;border-top:0}
+.modal-actions-top .personal-hours{grid-column:1/-1;margin:0 0 2px}
+.modal-actions-top #personal-reset{justify-self:start;align-self:end;min-height:42px;margin:0;padding:8px 12px;text-align:left;font-size:12px;border-radius:8px}
+.modal-actions-top #personal-reset:hover{background:#f0f5ef}
+.modal-actions-top>.primary-btn,.modal-actions-top>.secondary-btn{min-height:42px}
+@media(max-width:800px){.personal-hours{grid-template-columns:130px 1fr 1fr;gap:16px}.personal-hours-note{grid-column:1/-1;text-align:left;display:flex;flex-wrap:wrap;gap:4px 12px}.modal-actions-top{grid-template-columns:1fr 1fr}.modal-actions-top #personal-reset{justify-self:end}}
+@media(max-width:480px){.personal-hours{grid-template-columns:1fr 1fr;padding:16px;gap:14px}.personal-ratio{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:10px;border-right:0;border-bottom:1px solid #d6e5da;padding:0 0 12px}.personal-hours-stat strong{font-size:18px}.modal-actions-top{gap:12px}.modal-actions-top #personal-reset{padding:8px 0;font-size:11px}}
 .personal-rotation-scroll{max-height:48vh;border:1px solid var(--line);border-radius:10px;margin:12px 0}
 .personal-rotation-table{min-width:1050px;table-layout:fixed;width:100%}
 .personal-rotation-table thead th{position:sticky;top:0;z-index:2;background:#f3f6ef}
 .personal-rotation-table th:first-child{width:132px}
 .personal-rotation-table tbody th{text-align:left;padding:12px;font-size:13px;white-space:normal}
 .personal-rotation-table td{padding:8px 5px;vertical-align:top}
-.personal-rotation-table select.personal-rotation-cell{width:100%;padding:9px 5px;min-height:38px;font-size:12px;font-weight:600}
+.personal-rotation-table select.personal-rotation-cell{width:100%;padding:9px 5px;min-height:38px;font-size:12px;font-weight:600;text-align:center;text-align-last:center}
 .personal-cell-time,.personal-cell-base{display:block;font-size:11px;text-align:center;margin-top:6px;color:var(--muted)}
 .personal-week-count{display:block;color:var(--muted);font-size:10px;margin-top:6px}
 .personal-current-week>th,.personal-current-week>td{background:#eaf4ed;border-top:2px solid #438265;border-bottom:2px solid #438265}
@@ -392,7 +403,7 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
   .change-day-cover{min-width:0;max-width:145px}
   .change-pagination,.change-footnote{padding:13px 17px}
 }
-@media(max-width:640px){.personal-settings{grid-template-columns:1fr}.personal-table-heading{display:block}.personal-table-heading>label{margin-top:12px}dialog:has(.personal-schedule-editor){max-width:calc(100vw - 24px)}}
+@media(max-width:640px){dialog:has(.personal-schedule-editor){max-width:calc(100vw - 24px)}}
 .roster-person[hidden]{display:none}
 .person-skills{min-width:0;margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:12px}
 .person-skills legend{padding:0 6px;font-size:13px;font-weight:600}

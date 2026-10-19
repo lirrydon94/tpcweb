@@ -772,7 +772,7 @@ export const defaultWorkspace = {
       {
         "id": "30fc671a-7c7e-4e15-9508-feba80af43c6",
         "workTeamId": "13a13c00-b6b0-4a22-84b4-a40ea20a32d7",
-        "name": "Dag",
+        "name": "Kväll",
         "color": "mint",
         "members": [
           {
@@ -1125,7 +1125,7 @@ export const defaultWorkspace = {
         "note": ""
       }
     ],
-    "publishedAt": "2026-10-18T19:23:34.831Z",
+    "publishedAt": "2026-10-19T22:42:44.251Z",
     "departments": [
       {
         "id": "department-default",
@@ -1589,6 +1589,27 @@ export const defaultWorkspace = {
         "skilledTeamIds": [
           "work-team-1",
           "13a13c00-b6b0-4a22-84b4-a40ea20a32d7"
+        ]
+      },
+      {
+        "id": "d3376e05-a1d6-4375-b5bb-ccb1435120f0",
+        "name": "Pontus",
+        "role": "part-time",
+        "activeFrom": "2026-10-20",
+        "activeUntil": null,
+        "departmentId": "department-default",
+        "placements": [
+          {
+            "from": "2026-10-20",
+            "teamId": null,
+            "groupId": null
+          }
+        ],
+        "skilledTeamIds": [
+          "work-team-1",
+          "13a13c00-b6b0-4a22-84b4-a40ea20a32d7",
+          "ebd8d4d8-095a-4add-a187-cc69e15178a6",
+          "677895bd-4bb2-4643-ab13-9979e72f9dd5"
         ]
       }
     ]
@@ -2366,7 +2387,7 @@ export const defaultWorkspace = {
       {
         "id": "30fc671a-7c7e-4e15-9508-feba80af43c6",
         "workTeamId": "13a13c00-b6b0-4a22-84b4-a40ea20a32d7",
-        "name": "Dag",
+        "name": "Kväll",
         "color": "mint",
         "members": [
           {
@@ -2711,7 +2732,7 @@ export const defaultWorkspace = {
         "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-18T19:23:34.831Z",
+    "publishedAt": "2026-10-19T22:42:44.251Z",
     "departments": [
       {
         "id": "department-default",
@@ -3176,10 +3197,31 @@ export const defaultWorkspace = {
           "work-team-1",
           "13a13c00-b6b0-4a22-84b4-a40ea20a32d7"
         ]
+      },
+      {
+        "id": "d3376e05-a1d6-4375-b5bb-ccb1435120f0",
+        "name": "Pontus",
+        "role": "part-time",
+        "activeFrom": "2026-10-20",
+        "activeUntil": null,
+        "departmentId": "department-default",
+        "placements": [
+          {
+            "from": "2026-10-20",
+            "teamId": null,
+            "groupId": null
+          }
+        ],
+        "skilledTeamIds": [
+          "work-team-1",
+          "13a13c00-b6b0-4a22-84b4-a40ea20a32d7",
+          "ebd8d4d8-095a-4add-a187-cc69e15178a6",
+          "677895bd-4bb2-4643-ab13-9979e72f9dd5"
+        ]
       }
     ]
   },
-  "revision": 270,
+  "revision": 273,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"

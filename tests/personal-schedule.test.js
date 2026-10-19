@@ -13,6 +13,38 @@ function fixture() {
 const shift=(state,date,member='member-1')=>model.getShift(state,'team-1',member,date);
 const save=({state,group,version,plan})=>model.savePersonalSchedule(state,group.id,version.id,plan);
 
+test('employment percentage weights the whole rotation and counts changed and overnight shifts',()=>{
+  const version={shifts:{A:{start:'08:00',end:'16:00'},B:{start:'22:00',end:'06:00'},C:{start:'08:00',end:'12:00'}},rotation:[['A','A','B','','','',''],['A','','','','','','']]};
+  const rotation=[[null,{type:'leave'},{type:'shift',code:'C'},{type:'custom',start:'22:00',end:'02:00'},null,null,null],Array(7).fill(null)];
+  assert.deepEqual(model.personalScheduleStats(version,rotation),{groupMinutes:1920,personalMinutes:1440,employmentPercent:75});
+  assert.equal(model.personalScheduleStats(version).employmentPercent,100);
+  rotation[1][0]={type:'custom',start:'08:00',end:'15:59'};
+  assert.equal(model.personalScheduleStats(version,rotation).employmentPercent,74.9);
+  for(const type of model.PERSONAL_ABSENCE_TYPES){
+    assert.equal(model.personalScheduleStats(version,version.rotation.map(row=>row.map(()=>({type})))).employmentPercent,0);
+  }
+});
+
+test('saving derives percentage from hours, including zero, overtime and an empty baseline',()=>{
+  const f=fixture();save(f);
+  assert.equal(f.version.personalSchedules[0].employmentPercent,model.personalScheduleStats(f.version,f.plan.rotation).employmentPercent);
+  assert.notEqual(f.version.personalSchedules[0].employmentPercent,80);
+  f.plan.rotation=f.version.rotation.map(row=>row.map(()=>({type:'leave'})));save(f);
+  assert.equal(f.version.personalSchedules[0].employmentPercent,0);
+  assert.deepEqual(model.validateState(f.state),[]);
+  f.plan.rotation=f.version.rotation.map(row=>row.map(()=>({type:'custom',start:'00:00',end:'23:00'})));save(f);
+  assert.ok(f.version.personalSchedules[0].employmentPercent>100);
+  assert.deepEqual(model.validateState(f.state),[]);
+  f.plan.rotation=f.version.rotation.map(()=>Array(7).fill(null));save(f);
+  assert.equal(f.version.personalSchedules[0].employmentPercent,100);
+  f.version.rotation=f.version.rotation.map(()=>Array(7).fill(''));save(f);
+  assert.equal(f.version.personalSchedules[0].employmentPercent,null);
+  assert.deepEqual(model.validateState(f.state),[]);
+  f.plan.rotation[0][0]={type:'custom',start:'08:00',end:'12:00'};save(f);
+  assert.equal(f.version.personalSchedules[0].employmentPercent,null);
+  assert.deepEqual(model.validateState(f.state),[]);
+});
+
 test('moving an existing start date to Monday updates that plan without leaving a Friday override',()=>{
   const f=fixture();f.plan.effectiveFrom='2026-10-16';save(f);
   assert.equal(shift(f.state,'2026-10-12').end,'20:30');
@@ -140,7 +172,7 @@ test('reordering, appending and deleting group weeks remaps personal days',()=>{
 });
 
 test('invalid personal schedules are rejected on save and publication',()=>{
-  for(const change of [p=>p.employmentPercent=0,p=>p.employmentPercent=101,p=>p.effectiveFrom='2026-02-30',p=>p.memberId='missing',p=>p.rotation.pop(),p=>p.rotation[0][0]={type:'custom',start:'08:00',end:'08:00'},p=>p.rotation[0][0]={type:'custom',start:'25:00',end:'17:00'},p=>p.rotation[0][0]={type:'unknown'}]) {
+  for(const change of [p=>p.effectiveFrom='2026-02-30',p=>p.memberId='missing',p=>p.rotation.pop(),p=>p.rotation[0][0]={type:'custom',start:'08:00',end:'08:00'},p=>p.rotation[0][0]={type:'custom',start:'25:00',end:'17:00'},p=>p.rotation[0][0]={type:'unknown'}]) {
     const f=fixture();change(f.plan);assert.throws(()=>save(f));
     f.version.personalSchedules=[f.plan];assert.notDeepEqual(model.validateState(f.state),[]);
   }

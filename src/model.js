@@ -106,6 +106,18 @@ export function personalScheduleOn(version, memberId, date) {
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0] || null;
 }
 
+// Compare working time across the complete rotation, including overnight shifts.
+export function personalScheduleStats(version, rotation) {
+  let groupMinutes = 0, personalMinutes = 0;
+  version.rotation.forEach((row, week) => row.forEach((code, day) => {
+    const base = version.shifts[code], cell = rotation?.[week]?.[day];
+    const shift = !cell ? base : cell.type === 'shift' ? version.shifts[cell.code] : cell.type === 'custom' ? cell : null;
+    if (base) groupMinutes += duration(base.start, base.end);
+    if (shift) personalMinutes += duration(shift.start, shift.end);
+  }));
+  return { groupMinutes, personalMinutes, employmentPercent: groupMinutes ? Math.round(personalMinutes / groupMinutes * 1000) / 10 : null };
+}
+
 // Keep personal days attached to their group rotation week when rows move.
 export function remapPersonalSchedules(version, indices) {
   for (const schedule of version.personalSchedules || []) {
@@ -122,6 +134,7 @@ export function savePersonalSchedule(state, teamId, versionId, schedule, { previ
     || !belongsToGroup(state, schedule.memberId, teamId, date)) {
     throw new Error('Välj ett startdatum då personen tillhör den här gruppen och schemaversionen gäller.');
   }
+  schedule = { ...schedule, employmentPercent: personalScheduleStats(version, schedule.rotation).employmentPercent };
   const errors = validatePersonalSchedules(team, version, [schedule]);
   if (errors.length) throw new Error(errors[0]);
   if (previousEffectiveFrom && previousEffectiveFrom !== date && version.personalSchedules?.some(item =>
@@ -144,8 +157,8 @@ function validatePersonalSchedules(team, version, schedules = version.personalSc
     const key = `${schedule.memberId}:${schedule.effectiveFrom}`;
     if (keys.has(key)) errors.push('Endast ett personligt schema per medarbetare och startdatum tillåts.');
     keys.add(key);
-    if (typeof schedule.employmentPercent !== 'number' || !Number.isFinite(schedule.employmentPercent)
-      || schedule.employmentPercent <= 0 || schedule.employmentPercent > 100) errors.push('Anställningsgraden måste vara större än 0 och högst 100 %.');
+    if (schedule.employmentPercent !== null && (typeof schedule.employmentPercent !== 'number' || !Number.isFinite(schedule.employmentPercent)
+      || schedule.employmentPercent < 0)) errors.push('Anställningsgraden måste vara ett giltigt, icke-negativt procenttal.');
     if (!Array.isArray(schedule.rotation) || schedule.rotation.length !== version.rotation.length) {
       errors.push('Det personliga schemat måste följa gruppens antal rotationsveckor.'); continue;
     }

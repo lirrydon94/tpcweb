@@ -12,16 +12,20 @@ test('staff opens a recurring personal schedule, saves only that employee and re
   await page.click('edit-person',undefined,{member:'member-1'});
   assert.match(page.dialog.innerHTML,/Redigera personligt schema/);
   await page.click('person-schedule',undefined,{member:'member-1'});
-  assert.match(page.dialog.innerHTML,/Anställningsgrad/);
+  assert.doesNotMatch(page.dialog.innerHTML,/Anställningsgrad (%)|name="employmentPercent"/);
+  assert.doesNotMatch(page.dialog.innerHTML,/Gäller från|Visa sparat schema från|personal-saved-date/);
+  assert.match(page.dialog.innerHTML,/<input type="hidden" name="effectiveFrom" value="[0-9-]+">/);
   await page.submit({effectiveFrom:'2026-10-12',employmentPercent:'80','mode-0-0':'custom','start-0-0':'11:30','end-0-0':'18:30','mode-0-4':'off'});
   assert.equal(page.error.textContent,'');assert.equal(page.dialog.open,false);
   const saved=page.getWorkspace().published;
+  assert.equal(saved.teams[0].versions[0].personalSchedules[0].employmentPercent,model.personalScheduleStats(saved.teams[0].versions[0],saved.teams[0].versions[0].personalSchedules[0].rotation).employmentPercent);
+  assert.notEqual(saved.teams[0].versions[0].personalSchedules[0].employmentPercent,80);
   assert.equal(model.getShift(saved,'team-1','member-1','2026-10-12').end,'18:30');
   assert.equal(model.getShift(saved,'team-1','member-1','2026-12-28').end,'18:30');
   assert.deepEqual(model.getShift(saved,'team-1','member-2','2026-10-12'),model.getShift(state,'team-1','member-2','2026-10-12'));
   assert.deepEqual(saved.teams[0].versions[0].positions,state.teams[0].versions[0].positions);
-  await page.change({id:'personal-saved-date',dataset:{member:'member-1'},value:'2026-10-12'});
-  assert.match(page.dialog.innerHTML,/value="80"/);assert.match(page.dialog.innerHTML,/value="18:30"/);
+  page.setToday('2026-10-12');await page.click('person-schedule',undefined,{member:'member-1'});
+  assert.match(page.dialog.innerHTML,/id="personal-hours"/);assert.match(page.dialog.innerHTML,/value="18:30"/);
   assert.match(page.dialog.innerHTML,/value="off" selected/);
 });
 
@@ -96,17 +100,17 @@ test('Bosse week 7 defaults to Monday so A2, A, A become leave in the visible we
   const group=state.teams.find(g=>g.members.some(m=>m.id===bosse.id));
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
   await page.click('admin');await page.submit('lirrydoz');
-  await page.change({id:'personal-saved-date',dataset:{member:bosse.id},value:'2026-10-16'});
+  page.setToday('2026-10-16');await page.click('person-schedule',undefined,{member:bosse.id});
   assert.match(page.dialog.innerHTML,/data-personal-week="6" class="personal-current-week"/);
-  const start=page.dialog.innerHTML.match(/name="effectiveFrom" required value="([^"]+)"/)[1];
+  const start=page.dialog.innerHTML.match(/name="effectiveFrom" value="([^"]+)"/)[1];
   assert.equal(start,'2026-10-12');
   await page.submit({effectiveFrom:start,employmentPercent:'100','mode-6-0':'leave','mode-6-1':'leave','mode-6-2':'leave'});
   assert.equal(page.error.textContent,'');
   for(const date of ['2026-10-12','2026-10-13','2026-10-14']){
     assert.equal(model.getShift(page.getWorkspace().published,group.id,bosse.id,date).type,'leave');
   }
-  await page.change({id:'personal-saved-date',dataset:{member:bosse.id},value:'2026-10-16'});
-  assert.match(page.dialog.innerHTML,/name="effectiveFrom" required value="2026-10-12"/);
+  page.setToday('2026-10-16');await page.click('person-schedule',undefined,{member:bosse.id});
+  assert.match(page.dialog.innerHTML,/name="effectiveFrom" value="2026-10-12"/);
   const viewer=await openApp('viewer',page.getWorkspace());
   const row=viewer.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).find(row=>row.includes('<span>Bosse<'));
   const cells=row.match(/<td\b[^>]*>.*?<\/td>/gs);
@@ -119,8 +123,8 @@ test('new personal schedule start cannot precede the employee placement within t
   state.teams[0].members[0].activeFrom='2026-10-14';
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
   await page.click('admin');await page.submit('lirrydoz');
-  await page.change({id:'personal-saved-date',dataset:{member:employee.id},value:'2026-10-16'});
-  assert.match(page.dialog.innerHTML,/name="effectiveFrom" required value="2026-10-14"/);
+  page.setToday('2026-10-16');await page.click('person-schedule',undefined,{member:employee.id});
+  assert.match(page.dialog.innerHTML,/name="effectiveFrom" value="2026-10-14"/);
 });
 
 test('viewers see published personal leave, days off and adjusted hours instead of the group shifts',async()=>{
@@ -144,11 +148,11 @@ test('personal grid displays group shifts, highlights the selected rotation week
   const state=model.organizeState(model.seedState());
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
   await page.click('admin');await page.submit('lirrydoz');
-  await page.change({id:'personal-saved-date',dataset:{member:'member-1'},value:'2026-10-19'});
-  assert.match(page.dialog.innerHTML,/Det återkommande grundschemat/);
+  page.setToday('2026-10-19');await page.click('person-schedule',undefined,{member:'member-1'});
+  assert.doesNotMatch(page.dialog.innerHTML,/Det återkommande grundschemat|Personen fortsätter på sin plats|Gruppens vanliga pass är ifyllda|personal-effective-note/);
   assert.match(page.dialog.innerHTML,/class="rotation-table personal-rotation-table"/);
   assert.match(page.dialog.innerHTML,/data-personal-week="1" class="personal-current-week"/);
-  assert.match(page.dialog.innerHTML,/value="inherit" selected>C · grupp/);
+  assert.match(page.dialog.innerHTML,/value="inherit" selected>C</);
   assert.match(page.dialog.innerHTML,/value="leave" >Tjänstledig/);
   assert.doesNotMatch(page.dialog.innerHTML,/<details/);
   await page.submit({effectiveFrom:'2026-10-12',employmentPercent:'80','mode-0-0':'leave','mode-0-1':'shift:A'});
@@ -163,6 +167,7 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
   let saved = { ...structuredClone(initial), mode: 'demo', role };
   const listeners = {};
   let publishError = null;
+  let currentDate = null;
   const app = { innerHTML: '' }, form = {}, error = { textContent: '' };
   const dialog = {
     open: false, innerHTML: '',
@@ -172,7 +177,7 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     addEventListener() {},
   };
   const elements = { '#app': app, '#modal': dialog, '#modal-form': form, '#toast': {}, '#exception-type': { closest: () => ({ before() {} }) } };
-  elements['#change-results']={set innerHTML(value){app.innerHTML=app.innerHTML.replace(/(<div id="change-results">)[\s\S]*(<\/div><p class="change-footnote")/,(_match,start,end)=>start+value+end);}};
+  elements['#change-results']={set innerHTML(value){app.innerHTML=app.innerHTML.replace(/(<div id="change-results">)[\s\S]*(<\/div><\/section>)/,(_match,start,end)=>start+value+end);}};
   const context = vm.createContext({
     model,
     store: {
@@ -193,7 +198,8 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     location: { search },
     localStorage: { getItem: key => preferences.get(key) || null, setItem: (key, value) => preferences.set(key, value) },
     sessionStorage: { getItem: key => navigation.get(key) || null, setItem: (key, value) => navigation.set(key, value) },
-    URLSearchParams, Intl, Date, structuredClone,
+    URLSearchParams, Intl, structuredClone,
+    Date: class extends Date { constructor(...args) { super(...(args.length ? args : currentDate ? [currentDate+'T12:00:00Z'] : [])); } },
     FormData: class { constructor(target) { this.get = key => target[key]; this.has = key => Boolean(target[key]); this.getAll = key => target[key] || []; } },
     setInterval() {}, setTimeout() {}, clearTimeout() {},
   });
@@ -202,6 +208,7 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
   await vm.runInContext(`(async () => { ${source}\n })()`, context);
   return {
     app, dialog, error,
+    setToday: date => { currentDate = date; },
     getWorkspace: () => structuredClone(saved),
     failPublish: message => { publishError = message; },
     change: target => listeners.change({ target }),
