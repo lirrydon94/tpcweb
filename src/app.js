@@ -139,6 +139,7 @@ function shell() {
     </div><nav class="mobile-nav" aria-label="Mobilnavigation">${nav(true)}</nav>
   </div>`;
   if (ui.view === 'admin' && ui.adminTab === 'rotation' && ui.teamId) { setupRotationAdmin(); bindRotationDrag(); }
+  if (ui.view === 'admin' && ui.adminTab === 'people') bindStaffColumnDrag();
   layoutStaffBoard();
   applyRosterFocus();
   rememberNavigation();
@@ -358,6 +359,82 @@ function adminView() {
 function individualChangesView(teams,team,groups) {
   return `<div class="organization-select"><label>Team<select id="work-team-select">${orgOptions(teams,team?.id)}</select></label></div>${groups.length?changesAdmin(groups):empty('Ingen grupp att visa','Välj ett team med grupper. Team och grupper hanteras på fliken Team och scheman.')}`;
 }
+function staffColumnsOrderKey() {
+  return 'skift-staff-columns-' + (ui.departmentId || 'default');
+}
+function getStaffColumnsOrder() {
+  try {
+    const saved = localStorage.getItem(staffColumnsOrderKey());
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+function saveStaffColumnsOrder(order) {
+  try {
+    localStorage.setItem(staffColumnsOrderKey(), JSON.stringify(order));
+  } catch {}
+}
+function staffColumnsCollapsedKey() {
+  return 'skift-staff-collapsed-' + (ui.departmentId || 'default');
+}
+function getStaffColumnsCollapsed() {
+  try {
+    const saved = localStorage.getItem(staffColumnsCollapsedKey());
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+function saveStaffColumnsCollapsed(collapsedIds) {
+  try {
+    localStorage.setItem(staffColumnsCollapsedKey(), JSON.stringify(collapsedIds));
+  } catch {}
+}
+function toggleStaffColumnCollapse(column) {
+  const isCollapsed = column.classList.toggle('staff-column-collapsed');
+  const heading = column.querySelector('.staff-column-heading');
+  if (heading) heading.setAttribute('aria-expanded', String(!isCollapsed));
+  layoutStaffBoard();
+
+  const board = column.closest('.staff-board');
+  if (board) {
+    const collapsedIds = [...board.querySelectorAll('.staff-column.staff-column-collapsed')]
+      .map(col => col.dataset.columnId)
+      .filter(Boolean);
+    saveStaffColumnsCollapsed(collapsedIds);
+  }
+}
+function organizeColumnsIntoLanes(columns, savedOrder) {
+  const columnMap = new Map(columns.map(c => [c.id, c]));
+  const lanes = [];
+
+  if (Array.isArray(savedOrder) && savedOrder.length) {
+    for (const entry of savedOrder) {
+      if (Array.isArray(entry)) {
+        const laneCols = [];
+        for (const id of entry) {
+          if (columnMap.has(id)) {
+            laneCols.push(columnMap.get(id));
+            columnMap.delete(id);
+          }
+        }
+        if (laneCols.length) lanes.push(laneCols);
+      } else if (typeof entry === 'string') {
+        if (columnMap.has(entry)) {
+          lanes.push([columnMap.get(entry)]);
+          columnMap.delete(entry);
+        }
+      }
+    }
+  }
+
+  for (const remaining of columnMap.values()) {
+    lanes.push([remaining]);
+  }
+
+  return lanes;
+}
 function departmentPeople(employees,state) {
   const compare=(a,b)=>a.name.localeCompare(b.name,'sv',{sensitivity:'base',numeric:true});
   const teams=state.workTeams.filter(t=>t.departmentId===ui.departmentId).sort(compare);
@@ -370,10 +447,12 @@ function departmentPeople(employees,state) {
   }
   if(unassigned.people.length)columns.push(unassigned);
   columns.push(hourly);
-  return `<section class="admin-panel"><div class="panel-heading"><div><h2>Dina medarbetare</h2><p>Ett team per kolumn. Klicka på en person för att redigera personens schema eller byta grupp.</p></div><div class="staff-add-actions"><button class="primary-btn" data-action="add-person">${icon('plus')} Lägg till personal</button><button class="primary-btn" data-action="add-hourly">${icon('plus')} Lägg till timmis</button></div></div>${columns.length?`<div class="staff-board">${columns.map(column=>`<section class="staff-column" aria-label="${esc(column.name)}"><header class="staff-column-heading"><h3>${esc(column.name)}</h3><span aria-label="${column.people.length} medarbetare">${column.people.length}</span></header><div class="staff-column-people">${column.people.length?column.people.map(({employee:e})=>{
+  const lanes = organizeColumnsIntoLanes(columns, getStaffColumnsOrder());
+  const collapsedSet = new Set(getStaffColumnsCollapsed());
+  return `<section class="admin-panel"><div class="panel-heading"><div><h2>Dina medarbetare</h2></div><div class="staff-add-actions"><button class="primary-btn" data-action="add-person">${icon('plus')} Lägg till personal</button><button class="primary-btn" data-action="add-hourly">${icon('plus')} Lägg till timmis</button></div></div>${lanes.length?`<div class="staff-board">${lanes.map(lane=>`<div class="staff-lane">${lane.map(column=>`<section class="staff-column ${collapsedSet.has(column.id)?'staff-column-collapsed':''}" data-column-id="${esc(column.id)}" aria-label="${esc(column.name)}"><header class="staff-column-heading" draggable="true" tabindex="0" role="button" aria-expanded="${!collapsedSet.has(column.id)}" title="Klicka för att fälla ihop eller dra för att flytta"><h3><span class="staff-drag-handle" aria-hidden="true">⠿</span> ${esc(column.name)}</h3><div class="staff-heading-meta"><span aria-label="${column.people.length} medarbetare">${column.people.length}</span><span class="staff-collapse-icon" aria-hidden="true">${icon('down')}</span></div></header><div class="staff-column-people">${column.people.length?column.people.map(({employee:e})=>{
     const skills=e.role==='part-time'?teams.filter(t=>e.skilledTeamIds?.includes(t.id)).map(t=>t.name).join(' · '):'';
     return `<button class="staff-person-card" data-action="edit-person" data-member="${esc(e.id)}" aria-label="Redigera person eller schema för ${esc(e.name)}"><span class="staff-person-details"><strong>${esc(e.name)}</strong>${skills?`<small>${esc(skills)}</small>`:''}</span>${icon('edit')}</button>`;
-  }).join(''):'<p class="staff-column-empty">Ingen personal placerad ännu.</p>'}</div></section>`).join('')}</div>`:empty('Ingen personal ännu','Lägg till avdelningens medarbetare. Du kan placera dem i grupper senare.')}</section>`;
+  }).join(''):'<p class="staff-column-empty">Ingen personal placerad ännu.</p>'}</div></section>`).join('')}</div>`).join('')}</div>`:empty('Ingen personal ännu','Lägg till avdelningens medarbetare. Du kan placera dem i grupper senare.')}</section>`;
 }
 
 function organizationModal(kind, rename=false) {
@@ -743,6 +822,242 @@ function download(content,type,name) {const blob=new Blob([content],{type}),url=
 function renderLogin(error='') {
   $('#app').innerHTML=`<main class="login-page"><a class="brand" href="./"><span class="brand-mark">${icon('calendar')}</span>RSSB</a><section class="login-card"><h1>Ditt nästa pass<br>börjar här.</h1><p>Logga in för att se ditt schema och vilka du ska arbeta med.</p><form id="login-form"><label>E-post<input name="email" type="email" autocomplete="username" required placeholder="du@exempel.se"></label><label>Lösenord<input name="password" type="password" autocomplete="current-password" required minlength="6"></label><p class="form-error" role="alert">${esc(error)}</p><button class="primary-btn" type="submit">Logga in ${icon('arrow')}</button></form><small>Din administratör skapar ditt konto. Kontakta administratören om du behöver åtkomst eller ett nytt lösenord.</small></section><p class="login-caption">Ett tydligt schema. En lugnare vecka.</p></main>`;
   $('#login-form').onsubmit=async e=>{e.preventDefault();e.submitter.disabled=true;const f=new FormData(e.target);try{workspace=await store.login(f.get('email'),f.get('password'));shell();}catch(err){renderLogin(err.message);}};
+}
+
+let staffDragSource = null;
+let justDraggedStaff = false;
+function extractStaffBoardLayout() {
+  const board = document.querySelector?.('.staff-board');
+  if (!board?.querySelectorAll) return [];
+  const lanes = [...board.querySelectorAll('.staff-lane')];
+  return lanes.map(lane => {
+    return [...lane.querySelectorAll('.staff-column')]
+      .map(col => col.dataset.columnId)
+      .filter(Boolean);
+  }).filter(lane => lane.length > 0);
+}
+function pruneEmptyLanes(board) {
+  if (!board?.querySelectorAll) return;
+  board.querySelectorAll('.staff-lane').forEach(lane => {
+    if (!lane.querySelector('.staff-column')) {
+      lane.remove();
+    }
+  });
+}
+function finalizeStaffDrag() {
+  if (!staffDragSource) return;
+  const col = staffDragSource;
+  staffDragSource = null;
+  col.classList.remove('staff-column-dragging');
+  col.classList.add('staff-column-snapped');
+  setTimeout(() => col?.classList.remove('staff-column-snapped'), 350);
+  const board = document.querySelector?.('.staff-board');
+  if (board) {
+    pruneEmptyLanes(board);
+    saveStaffColumnsOrder(extractStaffBoardLayout());
+  }
+  layoutStaffBoard();
+}
+function handleStaffDragMove(clientX, clientY) {
+  if (!staffDragSource) return;
+  const board = document.querySelector?.('.staff-board');
+  if (!board) return;
+
+  const elementUnder = document.elementFromPoint?.(clientX, clientY);
+  const targetCol = elementUnder?.closest?.('.staff-column');
+  const targetLane = elementUnder?.closest?.('.staff-lane');
+
+  if (targetCol && targetCol !== staffDragSource && targetCol.closest('.staff-board') === board) {
+    const lane = targetCol.closest('.staff-lane');
+    const colRect = targetCol.getBoundingClientRect();
+    const laneRect = lane.getBoundingClientRect();
+
+    const edgeThreshold = Math.min(32, laneRect.width * 0.15);
+    if (clientX < laneRect.left + edgeThreshold) {
+      const newLane = document.createElement('div');
+      newLane.className = 'staff-lane';
+      newLane.appendChild(staffDragSource);
+      board.insertBefore(newLane, lane);
+      pruneEmptyLanes(board);
+      layoutStaffBoard();
+      return;
+    }
+    if (clientX > laneRect.right - edgeThreshold) {
+      const newLane = document.createElement('div');
+      newLane.className = 'staff-lane';
+      newLane.appendChild(staffDragSource);
+      board.insertBefore(newLane, lane.nextElementSibling);
+      pruneEmptyLanes(board);
+      layoutStaffBoard();
+      return;
+    }
+
+    const isUnder = clientY >= (colRect.top + colRect.height / 2);
+    if (isUnder) {
+      if (targetCol.nextElementSibling !== staffDragSource) {
+        targetCol.after(staffDragSource);
+        pruneEmptyLanes(board);
+        layoutStaffBoard();
+      }
+    } else {
+      if (targetCol.previousElementSibling !== staffDragSource) {
+        targetCol.before(staffDragSource);
+        pruneEmptyLanes(board);
+        layoutStaffBoard();
+      }
+    }
+    return;
+  }
+
+  if (targetLane && targetLane.closest('.staff-board') === board) {
+    const laneRect = targetLane.getBoundingClientRect();
+    const edgeThreshold = Math.min(32, laneRect.width * 0.15);
+
+    if (clientX < laneRect.left + edgeThreshold) {
+      const newLane = document.createElement('div');
+      newLane.className = 'staff-lane';
+      newLane.appendChild(staffDragSource);
+      board.insertBefore(newLane, targetLane);
+      pruneEmptyLanes(board);
+      layoutStaffBoard();
+      return;
+    }
+    if (clientX > laneRect.right - edgeThreshold) {
+      const newLane = document.createElement('div');
+      newLane.className = 'staff-lane';
+      newLane.appendChild(staffDragSource);
+      board.insertBefore(newLane, targetLane.nextElementSibling);
+      pruneEmptyLanes(board);
+      layoutStaffBoard();
+      return;
+    }
+
+    if (targetLane.lastElementChild !== staffDragSource) {
+      targetLane.appendChild(staffDragSource);
+      pruneEmptyLanes(board);
+      layoutStaffBoard();
+    }
+    return;
+  }
+
+  const lanes = [...board.querySelectorAll('.staff-lane')];
+  if (lanes.length) {
+    const lastLane = lanes[lanes.length - 1];
+    const lastRect = lastLane.getBoundingClientRect();
+    if (clientX > lastRect.right) {
+      const newLane = document.createElement('div');
+      newLane.className = 'staff-lane';
+      newLane.appendChild(staffDragSource);
+      board.appendChild(newLane);
+      pruneEmptyLanes(board);
+      layoutStaffBoard();
+      return;
+    }
+    const firstLane = lanes[0];
+    const firstRect = firstLane.getBoundingClientRect();
+    if (clientX < firstRect.left) {
+      const newLane = document.createElement('div');
+      newLane.className = 'staff-lane';
+      newLane.appendChild(staffDragSource);
+      board.insertBefore(newLane, firstLane);
+      pruneEmptyLanes(board);
+      layoutStaffBoard();
+      return;
+    }
+  }
+}
+function bindStaffColumnDrag() {
+  const board = document.querySelector?.('.staff-board');
+  if (!board?.querySelectorAll) return;
+
+  board.ondragover = e => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    if (!staffDragSource) return;
+    handleStaffDragMove(e.clientX, e.clientY);
+  };
+  board.ondrop = e => {
+    e.preventDefault();
+    finalizeStaffDrag();
+  };
+
+  const columns = board.querySelectorAll('.staff-column');
+  if (!columns?.forEach) return;
+
+  columns.forEach(column => {
+    const heading = column.querySelector?.('.staff-column-heading');
+    if (!heading) return;
+
+    heading.setAttribute?.('draggable', 'true');
+    heading.onclick = e => {
+      if (e.target?.closest?.('button, a, input, select')) return;
+      if (justDraggedStaff) return;
+      toggleStaffColumnCollapse(column);
+    };
+    heading.onkeydown = e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleStaffColumnCollapse(column);
+      }
+    };
+    heading.ondragstart = e => {
+      staffDragSource = column;
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', column.dataset.columnId || '');
+        if (e.dataTransfer.setDragImage) {
+          const rect = column.getBoundingClientRect();
+          e.dataTransfer.setDragImage(column, e.clientX - rect.left, e.clientY - rect.top);
+        }
+      }
+      requestAnimationFrame(() => column.classList.add('staff-column-dragging'));
+    };
+    heading.ondragend = () => {
+      finalizeStaffDrag();
+    };
+
+    column.ondragover = e => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (!staffDragSource) return;
+      handleStaffDragMove(e.clientX, e.clientY);
+    };
+    column.ondrop = e => {
+      e.preventDefault();
+      finalizeStaffDrag();
+    };
+
+    heading.onpointerdown = e => {
+      if (e.pointerType === 'mouse') return;
+      if (e.target?.closest?.('button, a, input, select')) return;
+      const startX = e.clientX, startY = e.clientY;
+      let isDragging = false;
+
+      const onTouchMove = moveEvent => {
+        if (!isDragging) {
+          if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 8) return;
+          isDragging = true;
+          staffDragSource = column;
+          column.classList.add('staff-column-dragging');
+        }
+        moveEvent.preventDefault();
+        column.style.pointerEvents = 'none';
+        handleStaffDragMove(moveEvent.clientX, moveEvent.clientY);
+        column.style.pointerEvents = '';
+      };
+
+      const onTouchEnd = () => {
+        window.removeEventListener('pointermove', onTouchMove);
+        window.removeEventListener('pointerup', onTouchEnd);
+        window.removeEventListener('pointercancel', onTouchEnd);
+        if (isDragging) finalizeStaffDrag();
+      };
+
+      window.addEventListener('pointermove', onTouchMove, { passive: false });
+      window.addEventListener('pointerup', onTouchEnd);
+      window.addEventListener('pointercancel', onTouchEnd);
+    };
+  });
 }
 function bindRotationDrag() {
   let source;

@@ -25,15 +25,15 @@
 @keyframes roster-th-highlight {
   0% {
     background-color: #c0ebd2;
-    box-shadow: inset 0 3px 0 #176c58, inset 0 6px 14px rgba(23, 108, 88, 0.28), inset 2px 0 6px rgba(23, 108, 88, 0.22), inset -2px 0 6px rgba(23, 108, 88, 0.22);
+    box-shadow: inset 0 3px 0 #176c58, inset 0 6px 14px rgba(23, 108, 88, 0.28), inset 2px 0 0 rgba(23, 108, 88, 0.75), inset -2px 0 0 rgba(23, 108, 88, 0.75), inset 5px 0 12px rgba(34, 148, 114, 0.22), inset -5px 0 12px rgba(34, 148, 114, 0.22);
   }
   30% {
     background-color: #d0f1de;
-    box-shadow: inset 0 3px 0 #176c58, inset 0 6px 14px rgba(23, 108, 88, 0.25), inset 2px 0 6px rgba(23, 108, 88, 0.2), inset -2px 0 6px rgba(23, 108, 88, 0.2);
+    box-shadow: inset 0 3px 0 #176c58, inset 0 6px 14px rgba(23, 108, 88, 0.25), inset 2px 0 0 rgba(23, 108, 88, 0.65), inset -2px 0 0 rgba(23, 108, 88, 0.65), inset 5px 0 10px rgba(34, 148, 114, 0.18), inset -5px 0 10px rgba(34, 148, 114, 0.18);
   }
   70% {
     background-color: #e6f6ee;
-    box-shadow: inset 0 2px 0 rgba(23, 108, 88, 0.5), inset 1px 0 4px rgba(23, 108, 88, 0.12), inset -1px 0 4px rgba(23, 108, 88, 0.12);
+    box-shadow: inset 0 2px 0 rgba(23, 108, 88, 0.5), inset 1px 0 0 rgba(23, 108, 88, 0.35), inset -1px 0 0 rgba(23, 108, 88, 0.35), inset 3px 0 6px rgba(34, 148, 114, 0.1), inset -3px 0 6px rgba(34, 148, 114, 0.1);
   }
   100% {
     box-shadow: none;
@@ -305,10 +305,24 @@
 /* Department staff organized in team columns. */
 .staff-board { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; padding:0 24px 24px; align-items:start; }
 .staff-board-compact { grid-auto-rows:1px; grid-auto-flow:dense; row-gap:0; padding-bottom:6px; }
-.staff-column { min-width:0; background:#f5f8f6; border:1px solid #e0e9e4; border-radius:12px; overflow:hidden; }
-.staff-column-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:17px 16px; border-bottom:1px solid #dfe9e3; }
+.staff-lane { display:flex; flex-direction:column; gap:18px; min-width:0; }
+.staff-column { min-width:0; background:#f5f8f6; border:1px solid #e0e9e4; border-radius:12px; overflow:hidden; transition:box-shadow 0.2s ease, outline 0.15s ease, transform 0.15s ease; }
+.staff-column-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:17px 16px; border-bottom:1px solid #dfe9e3; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; }
+.staff-column-heading:active { cursor:grabbing; }
+.staff-drag-handle { display:inline-flex; align-items:center; justify-content:center; color:#9ab3a7; margin-right:4px; font-size:13px; font-weight:400; cursor:grab; }
+.staff-column-heading:hover .staff-drag-handle { color:#28604f; }
+.staff-column.staff-column-dragging { opacity:0.45; box-shadow:0 12px 28px rgba(0,0,0,0.12); outline:2px dashed #28604f; outline-offset:-2px; }
+.staff-column.staff-column-snapping { transform:scale(0.99); }
+.staff-column.staff-column-snapped { animation:staffColumnSnap 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes staffColumnSnap { 0% { transform:scale(0.97); } 50% { transform:scale(1.02); } 100% { transform:scale(1); } }
 .staff-column-heading h3 { font-size:15px; font-weight:600; margin:0; overflow-wrap:anywhere; }
-.staff-column-heading>span { background:#e2eee7; color:#28604f; font-size:12px; border-radius:20px; padding:4px 9px; }
+.staff-heading-meta { display:flex; align-items:center; gap:8px; }
+.staff-heading-meta>span[aria-label], .staff-column-heading>span { background:#e2eee7; color:#28604f; font-size:12px; border-radius:20px; padding:4px 9px; }
+.staff-collapse-icon { display:inline-flex; align-items:center; justify-content:center; color:#7d9589; transition:transform 0.2s ease; width:18px; height:18px; }
+.staff-collapse-icon .icon { width:16px; height:16px; }
+.staff-column.staff-column-collapsed .staff-column-people { display:none; }
+.staff-column.staff-column-collapsed .staff-column-heading { border-bottom:none; }
+.staff-column.staff-column-collapsed .staff-collapse-icon { transform:rotate(-90deg); }
 .staff-column-people { display:grid; gap:8px; padding:12px; }
 .staff-person-card { display:flex; align-items:center; gap:11px; width:100%; padding:13px 12px; border:1px solid #e1e8e4; border-radius:9px; background:white; color:inherit; font:inherit; text-align:left; cursor:pointer; }
 .staff-person-card:hover { border-color:#8bb8a5; background:#fafffc; }
