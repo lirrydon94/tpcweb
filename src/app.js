@@ -2,6 +2,7 @@ import * as model from './model.js';
 import * as store from './store.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => [...(root.querySelectorAll(selector) || [])];
 const esc = (value = '') => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const icons = {
   calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18m-13 4h2m4 0h2"/>',
@@ -221,20 +222,45 @@ function heading(team, teams, departmentScope=null) {
   ${admin() && ui.editingSchedule ? `<div class="published-label"><span class="draft-dot"></span>Redigerar schema</div>` : ''}`;
 }
 
-function scrollToToday() {
+let highlightTimer;
+function highlightDate(targetDate) {
+  if (highlightTimer) clearTimeout(highlightTimer);
+  $$('.roster-highlight').forEach(el => el.classList?.remove?.('roster-highlight'));
+  const dates = model.weekDates(ui.date);
+  const dayIndex = dates.indexOf(targetDate);
+  if (dayIndex < 0) return;
+  const elements = $$(`.roster-table thead th:nth-child(${dayIndex + 2}), .roster-table tbody td:nth-child(${dayIndex + 2})`);
+  elements.forEach(el => el.classList?.add?.('roster-highlight'));
+  highlightTimer = setTimeout(() => {
+    elements.forEach(el => el.classList?.remove?.('roster-highlight'));
+    highlightTimer = null;
+  }, 1600);
+}
+
+function scrollToDate(targetDate = ui.date, highlight = false) {
   const scroller = $('.roster-scroll');
-  const column = $('.roster-table thead .roster-today');
   const corner = $('.roster-corner');
-  if (!scroller || !column || !corner) return;
-  const columnRect = column.getBoundingClientRect();
-  const nameWidth = corner.getBoundingClientRect().width;
-  const visibleCenter = nameWidth + (scroller.clientWidth - nameWidth) / 2;
-  const left = scroller.scrollLeft + columnRect.left + columnRect.width / 2
-    - scroller.getBoundingClientRect().left - scroller.clientLeft - visibleCenter;
-  scroller.scrollTo({
-    left: Math.max(0, Math.min(left, scroller.scrollWidth - scroller.clientWidth)),
-    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
-  });
+  const dates = model.weekDates(ui.date);
+  const dayIndex = dates.indexOf(targetDate);
+  const column = dayIndex >= 0
+    ? $$(`.roster-table thead th:nth-child(${dayIndex + 2})`)[0]
+    : ($(`.roster-table thead th[data-date="${targetDate}"]`) || $('.roster-table thead .roster-today'));
+  if (scroller && column?.getBoundingClientRect && corner?.getBoundingClientRect) {
+    const columnRect = column.getBoundingClientRect();
+    const nameWidth = corner.getBoundingClientRect().width;
+    const visibleCenter = nameWidth + (scroller.clientWidth - nameWidth) / 2;
+    const left = scroller.scrollLeft + columnRect.left + columnRect.width / 2
+      - scroller.getBoundingClientRect().left - scroller.clientLeft - visibleCenter;
+    scroller.scrollTo({
+      left: Math.max(0, Math.min(left, scroller.scrollWidth - scroller.clientWidth)),
+      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    });
+  }
+  if (highlight) highlightDate(targetDate);
+}
+
+function scrollToToday(highlight = false) {
+  scrollToDate(today(), highlight);
 }
 
 function scheduleView() {
@@ -300,7 +326,7 @@ function rosterView(team, groups=[team], departmentScope=null) {
   }).join('');
   const body=rows;
   const captionTitle=departmentScope?departmentScope.name:(team?.name||'');
-  return '<section class="roster-panel"><div class="roster-scroll" tabindex="0" role="region" aria-label="Teamets veckoschema, rulla i sidled för fler dagar"><table class="roster-table"><caption class="sr-only">'+esc(captionTitle)+', kalendervecka '+model.isoWeek(ui.date).week+'</caption><colgroup><col class="roster-name-col">'+dates.map(()=>'<col>').join('')+'</colgroup><thead><tr><th scope="col" class="roster-corner">V. '+model.isoWeek(ui.date).week+'</th>'+dates.map((d,i)=>'<th scope="col" class="'+(d===today()?'roster-today':'')+' '+(i>4?'roster-weekend':'')+'"><span>'+weekdayNames[i]+'</span><strong>'+fmt(d,{day:'numeric',month:'short'})+'</strong>'+(d===today()?'<small>Idag</small>':'')+'</th>').join('')+'</tr></thead>'+body+'</table></div></section>';
+  return '<section class="roster-panel"><div class="roster-scroll" tabindex="0" role="region" aria-label="Teamets veckoschema, rulla i sidled för fler dagar"><table class="roster-table"><caption class="sr-only">'+esc(captionTitle)+', kalendervecka '+model.isoWeek(ui.date).week+'</caption><colgroup><col class="roster-name-col">'+dates.map(()=>'<col>').join('')+'</colgroup><thead><tr><th scope="col" class="roster-corner">V. '+model.isoWeek(ui.date).week+'</th>'+dates.map((d,i)=>'<th scope="col" data-date="'+d+'" class="'+(d===today()?'roster-today':'')+' '+(i>4?'roster-weekend':'')+'"><span>'+weekdayNames[i]+'</span><strong>'+fmt(d,{day:'numeric',month:'short'})+'</strong>'+(d===today()?'<small>Idag</small>':'')+'</th>').join('')+'</tr></thead>'+body+'</table></div></section>';
 }
 const findMember = id => {const state=ui.view==='admin'?workspace.working:data();return state?.employees?.find(e=>e.id===id)||state?.teams.flatMap(t=>t.members).find(m=>m.id===id);};
 
@@ -761,7 +787,7 @@ async function handleAction(button) {
     case 'view': if(button.dataset.view==='admin'){openAdmin();break;}ui.view='schedule';ui.editingSchedule=false;adminUnlocked=false;shell();window.scrollTo({top:0,behavior:'smooth'});break;
     case 'admin':openAdmin();break;
     case 'navigate': ui.date=model.addDays(ui.date,Number(button.dataset.step)*7);shell();break;
-    case 'today':ui.date=today();shell();scrollToToday();break;
+    case 'today':ui.date=today();shell();scrollToToday(true);break;
     case 'match-rotation':if(admin())openRotationMatch();break;
     case 'match-week-step':if(admin()&&rotationMatch){setRotationMatchMonday(model.addDays(rotationMatch.monday,Number(button.dataset.step)*7));}break;
     case 'match-week-today':if(admin()&&rotationMatch){setRotationMatchMonday(model.mondayOf(today()));}break;
@@ -869,8 +895,8 @@ document.addEventListener('change',async e=>{
       const monday=model.addDays(model.mondayOf(match[1]+'-01-04'),(Number(match[2])-1)*7);
       setRotationMatchMonday(monday);
     }
-    else if(target.classList.contains('match-position')&&admin()&&rotationMatch){rotationMatch.positions[target.dataset.member]=Number(target.value);renderRotationMatch();}
-    else if(target.id==='jump-date'){if(target.value){ui.date=target.value;shell();}}
+    else if(target.classList?.contains?.('match-position')&&admin()&&rotationMatch){rotationMatch.positions[target.dataset.member]=Number(target.value);renderRotationMatch();}
+    else if(target.id==='jump-date'){if(target.value){ui.date=target.value;shell();scrollToDate(ui.date,true);}}
     else if(target.id==='version-select'){editingVersionId=target.value;shell();}
     else if(target.classList.contains('rotation-cell')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);editingVersion(team).rotation[Number(target.dataset.row)][Number(target.dataset.day)]=target.value;await save(next,'Passet har uppdaterats');}
     else if(target.classList.contains('position-select')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);if(Number(target.value))editingVersion(team).positions[target.dataset.member]=Number(target.value);else delete editingVersion(team).positions[target.dataset.member];await save(next,'Startpositionen har uppdaterats');}
