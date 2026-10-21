@@ -88,6 +88,38 @@ test('hosted edits never claim to update GitHub or contact a local server', asyn
   assert.equal(mock.mock.calls.length, 0);
 });
 
+test('hosted browser changes are reset to the pushed project schedule when a new version is published', async t => {
+  const memory = browser(t, null, 'example.github.io');
+  const store = await import('../src/store.js?sync-hosted-push-reset');
+  const initial = await store.init();
+  initial.working.teams[0].name = 'Lokal ändring på GitHub Pages';
+  await store.publish(initial.working);
+  assert.equal((await store.init()).working.teams[0].name, 'Lokal ändring på GitHub Pages');
+
+  // Admin commits and pushes a new schedule from the local computer:
+  const pushed = structuredClone(defaultWorkspace);
+  pushed.revision = defaultWorkspace.revision + 5;
+  pushed.working.teams[0].name = 'Pushat från administratören';
+  pushed.published.teams[0].name = 'Pushat från administratören';
+
+  // refresh() fetches the new default-data.js on GitHub Pages:
+  t.mock.method(globalThis, 'fetch', async () => ({
+    ok: true, text: async () => `export const defaultWorkspace = ${JSON.stringify(pushed)};`,
+  }));
+  const refreshed = await store.refresh();
+  assert.equal(refreshed.working.teams[0].name, 'Pushat från administratören');
+  assert.equal(refreshed.published.teams[0].name, 'Pushat från administratören');
+  assert.equal(JSON.parse(memory.get('skift-workspace-v1')).working.teams[0].name, 'Pushat från administratören');
+
+  // Also test when baseRevision was undefined (legacy browser copy on GitHub Pages):
+  const legacyHosted = structuredClone(initial);
+  delete legacyHosted.baseRevision;
+  legacyHosted.working.teams[0].name = 'Gammal sparad webbläsarkopia';
+  memory.set('skift-workspace-v1', JSON.stringify(legacyHosted));
+  const legacyReloaded = await store.init();
+  assert.equal(legacyReloaded.working.teams[0].name, 'Pushat från administratören');
+});
+
 test('reload after a file write confirms an exact pending copy without another POST', async t => {
   const memory = browser(t, { ...structuredClone(defaultWorkspace), pendingFileSync: true });
   const store = await import('../src/store.js?sync-reload');

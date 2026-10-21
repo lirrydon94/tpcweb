@@ -95,6 +95,7 @@ const localPayload = value => JSON.stringify({
   working: value.working, published: value.published, revision: value.revision,
   appliedFixes: value.appliedFixes || [],
   pendingFileSync: Boolean(value.pendingFileSync),
+  baseRevision: Number.isSafeInteger(value.baseRevision) ? value.baseRevision : undefined,
 });
 
 function checkState(state) {
@@ -209,6 +210,8 @@ async function readCloud() {
 
 const isLocal = () => typeof location !== 'undefined'
   && ['localhost', '127.0.0.1'].includes(location.hostname);
+const isHosted = () => typeof location !== 'undefined'
+  && !['localhost', '127.0.0.1'].includes(location.hostname);
 const browserOnly = () => ({ state: 'browser', message: isLocal()
   ? 'Sparat endast i webbläsaren. Starta npm run dev i projektet och välj Spara till projektet före din commit och push.'
   : 'Sparat endast i den här webbläsaren. Ändringar här uppdaterar inte GitHub Pages. Gör ändringarna på din lokala dator och spara till projektet.' });
@@ -237,7 +240,10 @@ async function syncToFile(value) {
 }
 
 async function saveLocal(value) {
-  value.pendingFileSync = true;
+  value.pendingFileSync = isLocal();
+  if (value.baseRevision === undefined && Number.isSafeInteger(latestDefaults?.revision)) {
+    value.baseRevision = latestDefaults.revision;
+  }
   try {
     localStorage.setItem(LOCAL_KEY, localPayload(value));
   } catch {
@@ -247,7 +253,10 @@ async function saveLocal(value) {
   const fileSync = await syncToFile(value);
   if (snapshot !== value) return clone(snapshot);
   snapshot.fileSync = fileSync;
-  snapshot.pendingFileSync = fileSync.state !== 'file';
+  snapshot.pendingFileSync = isLocal() && fileSync.state !== 'file';
+  if (fileSync.state === 'file') {
+    snapshot.baseRevision = value.revision;
+  }
   try { localStorage.setItem(LOCAL_KEY, localPayload(snapshot)); } catch { /* Original browser copy remains. */ }
   return clone(snapshot);
 }
@@ -294,15 +303,24 @@ export async function init() {
   if (saved && isLocal() && saved.pendingFileSync === undefined && !sameScheduleData(saved, latestDefaults)) {
     saved.pendingFileSync = true;
   }
-  const useDefaults = !saved || (!saved.pendingFileSync && latestDefaults
+  if (saved && isHosted()) {
+    // Hosted copies never have pending local file sync.
+    saved.pendingFileSync = false;
+  }
+  const isPushedUpdate = latestDefaults && !sameScheduleData(saved, latestDefaults) && (
+    (isHosted() && saved?.baseRevision !== undefined && latestDefaults.revision !== saved.baseRevision)
+    || (isHosted() && saved?.baseRevision === undefined)
+  );
+  const useDefaults = !saved || isPushedUpdate || (!saved.pendingFileSync && latestDefaults
     && (saved.revision || 0) <= latestDefaults.revision
     && !sameScheduleData(saved, latestDefaults));
   if (useDefaults) {
     saved = clone(latestDefaults || { working: seedState(), published: publicState(seedState()), revision: 0 });
+    saved.baseRevision = latestDefaults?.revision;
   }
   // Live Server can reload as soon as the file changes, before POST resolves.
   // An exact match in the newly loaded file confirms that pending write.
-  const confirmedFile = saved.pendingFileSync && saved.revision === latestDefaults?.revision
+  const confirmedFile = isLocal() && saved.pendingFileSync && saved.revision === latestDefaults?.revision
     && sameScheduleData(saved, latestDefaults);
   if (confirmedFile) saved.pendingFileSync = false;
   const fixedDates = fixLocalStartDates(saved);
