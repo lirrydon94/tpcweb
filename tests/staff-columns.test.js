@@ -33,7 +33,7 @@ async function openApp(preferences = new Map()) {
       getItem: key => preferences.get(key) || null,
       setItem: (key, value) => preferences.set(key, value),
     },
-    sessionStorage: { getItem: () => null, setItem() {} },
+    sessionStorage: { getItem: key => preferences.get(key) || null, setItem: (key, value) => preferences.set(key, value) },
     URLSearchParams, Intl, structuredClone,
     Date,
     FormData: class {},

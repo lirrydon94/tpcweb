@@ -57,7 +57,8 @@ function rememberNavigation() {
 }
 let workspace;
 const adminRememberKey = 'skift-admin-remembered';
-const rememberedAdmin = () => { try { return localStorage.getItem(adminRememberKey) === 'true'; } catch { return false; } };
+try { localStorage.removeItem?.(adminRememberKey); } catch {}
+const rememberedAdmin = () => { try { return sessionStorage.getItem(adminRememberKey) === 'true'; } catch { return false; } };
 let adminUnlocked = rememberedAdmin();
 const mobileViewport = window.matchMedia?.('(max-width: 800px)');
 // Touch phones can be wider than the mobile layout breakpoint in landscape.
@@ -1085,13 +1086,14 @@ function openAdmin() {
   const enter = () => { ui.view='admin'; shell(); window.scrollTo({top:0,behavior:'smooth'}); };
   if (adminUnlocked || rememberedAdmin()) { adminUnlocked = true; enter(); return; }
   // A local UI lock. Cloud authorization is still enforced by the server role.
-  modal('Öppna Hantera','Ange lösenordet för att hantera schemat. Den här webbläsaren kommer ihåg dig på den här datorn.',
+  modal('Öppna Hantera','Ange lösenordet för att hantera schemat.',
     '<label>Lösenord<input name="password" type="password" autocomplete="current-password" required autofocus></label>',
     async form => {
       if (form.get('password') !== 'lirrydoz') throw new Error('Fel lösenord. Försök igen.');
       if (!hasAdminRole()) throw new Error('Du saknar behörighet att hantera schemat.');
       adminUnlocked = true;
-      try { localStorage.setItem(adminRememberKey, 'true'); } catch { /* Continue even when browser storage is unavailable. */ }
+      try { sessionStorage.setItem(adminRememberKey, 'true'); } catch { /* Continue even when browser storage is unavailable. */ }
+      try { localStorage.removeItem?.(adminRememberKey); } catch {}
       enter();
     }, {submit:'Öppna Hantera'});
 }
@@ -1156,7 +1158,7 @@ async function handleAction(button) {
       break;
     case 'delete-row':if(admin())deleteRotationRow(Number(button.dataset.row));break;
     case 'move-row':if(admin())await reorderRow(Number(button.dataset.row),Number(button.dataset.row)+Number(button.dataset.dir));break;
-    case 'logout':localStorage.setItem(adminRememberKey,'false');adminUnlocked=false;ui.editingSchedule=false;ui.view='schedule';await store.logout();workspace=await store.init();shell();break;
+    case 'logout':try{sessionStorage.removeItem?.(adminRememberKey);}catch{}try{localStorage.removeItem?.(adminRememberKey);}catch{}adminUnlocked=false;ui.editingSchedule=false;ui.view='schedule';await store.logout();workspace=await store.init();shell();break;
     case 'refresh':if(!ui.busy){workspace=await store.refresh();shell();if(workspace.error)toast(workspace.error,true);else toast('Schemat har uppdaterats');}break;
   }
 }

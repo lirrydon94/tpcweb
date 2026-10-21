@@ -63,7 +63,7 @@ test('hourly skills save on the person, reopen after reload and can be cleared',
     assert.deepEqual(version.employees.find(e=>e.id==='member-1'),state.employees.find(e=>e.id==='member-1'));
   }
   assert.match(page.app.innerHTML, /<strong>Kim<\/strong><small>Beställning<\/small>/);
-  const reloaded=await openApp('admin',saved,new Map([['skift-admin-remembered','true']]));
+  const reloaded=await openApp('admin',saved,new Map(),'?date=2026-10-14',new Map([['skift-admin-remembered','true']]));
   await reloaded.click('admin');await reloaded.click('edit-person',undefined,{member:'hourly'});
   assert.match(reloaded.dialog.innerHTML,new RegExp(`value="${state.workTeams[0].id}" checked`));
   assert.doesNotMatch(reloaded.dialog.innerHTML,/value="waste" checked/);
@@ -196,8 +196,8 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     },
     window: { addEventListener() {}, scrollTo() {} },
     location: { search },
-    localStorage: { getItem: key => preferences.get(key) || null, setItem: (key, value) => preferences.set(key, value) },
-    sessionStorage: { getItem: key => navigation.get(key) || null, setItem: (key, value) => navigation.set(key, value) },
+    localStorage: { getItem: key => preferences.get(key) || null, setItem: (key, value) => preferences.set(key, value), removeItem: key => preferences.delete(key) },
+    sessionStorage: { getItem: key => navigation.get(key) || null, setItem: (key, value) => navigation.set(key, value), removeItem: key => navigation.delete(key) },
     URLSearchParams, Intl, structuredClone,
     Date: class extends Date { constructor(...args) { super(...(args.length ? args : currentDate ? [currentDate+'T12:00:00Z'] : [])); } },
     FormData: class { constructor(target) { this.get = key => target[key]; this.has = key => Boolean(target[key]); this.getAll = key => target[key] || []; } },
@@ -223,8 +223,8 @@ test('deleting an individual change keeps Hantera and its tab after a file-trigg
   const state = model.organizeState(model.seedState());
   state.exceptions = [{ id: 'remove-absence', teamId: 'team-1', memberId: 'member-1', date: '2026-10-14', type: 'vacation' }];
   const initial = { working: state, published: model.publishState(state), revision: 1 };
-  const preferences = new Map([['skift-admin-remembered', 'true']]);
-  const navigation = new Map();
+  const preferences = new Map();
+  const navigation = new Map([['skift-admin-remembered', 'true']]);
   const search = '?date=2026-10-14';
   const page = await openApp('admin', initial, preferences, search, navigation);
   await page.click('admin');
@@ -233,7 +233,8 @@ test('deleting an individual change keeps Hantera and its tab after a file-trigg
   assert.equal(page.dialog.open, true);
   // This must already exist before saving: Live Server can reload before the
   // save request returns and before the application gets to render again.
-  assert.equal(JSON.parse([...navigation.values()][0]).adminTab, 'changes');
+  const savedNav = () => JSON.parse([...navigation.entries()].find(([k]) => k.startsWith('skift-navigation'))[1]);
+  assert.equal(savedNav().adminTab, 'changes');
   await page.click('delete-exception', undefined, { id: 'remove-absence' });
   assert.equal(page.dialog.open, false);
   assert.equal(page.getWorkspace().working.exceptions.length, 0);
@@ -243,7 +244,7 @@ test('deleting an individual change keeps Hantera and its tab after a file-trigg
   assert.match(reloaded.app.innerHTML, /<h1>Hantera avdelningen<\/h1>/);
   assert.match(reloaded.app.innerHTML, /aria-selected="true"[^>]*data-tab="changes"/);
   assert.match(reloaded.app.innerHTML, /Inga individuella ändringar/);
-  assert.equal(JSON.parse([...navigation.values()][0]).teamId, 'team-1');
+  assert.equal(savedNav().teamId, 'team-1');
   // Deliberately switching back to Schema must still survive the next reload.
   await reloaded.click('view', 'schedule');
   const schedule = await openApp('admin', page.getWorkspace(), preferences, search, navigation);
@@ -252,8 +253,8 @@ test('deleting an individual change keeps Hantera and its tab after a file-trigg
 
 test('remembered navigation does not unlock Hantera or grant a viewer admin access', async () => {
   for (const role of ['admin', 'viewer']) {
-    const navigation = new Map([['skift-navigation:/?date=2026-10-14', JSON.stringify({ view: 'admin', adminTab: 'changes' })]]);
-    const preferences = new Map(role === 'viewer' ? [['skift-admin-remembered', 'true']] : []);
+    const navigation = new Map([['skift-navigation:/?date=2026-10-14', JSON.stringify({ view: 'admin', adminTab: 'changes' })], ...(role === 'viewer' ? [['skift-admin-remembered', 'true']] : [])]);
+    const preferences = new Map();
     const page = await openApp(role, defaultWorkspace, preferences, '?date=2026-10-14', navigation);
     assert.doesNotMatch(page.app.innerHTML, /<h1>Hantera avdelningen<\/h1>/);
   }
@@ -297,9 +298,10 @@ test('absence cells show their replacement inline without duplicate status rows 
   assert.match(page.dialog.innerHTML,/value="10:00"/);
 });
 
-test('Hantera remembers successful unlocks across navigation and reopening', async () => {
+test('Hantera remembers successful unlocks within session and requires password when reopened', async () => {
   const preferences = new Map();
-  const page = await openApp('admin', defaultWorkspace, preferences);
+  const navigation = new Map();
+  const page = await openApp('admin', defaultWorkspace, preferences, '?date=2026-10-14', navigation);
   assert.ok(page.app.innerHTML.includes('Hantera'));
   await page.click('edit-schedule');
   assert.ok(!page.app.innerHTML.includes('Redigerar schema'));
@@ -324,16 +326,17 @@ test('Hantera remembers successful unlocks across navigation and reopening', asy
   await page.click('admin');
   assert.equal(page.dialog.open, false);
   assert.ok(page.app.innerHTML.includes('Dina medarbetare'));
-  assert.equal(preferences.get('skift-admin-remembered'), 'true');
+  assert.equal(navigation.get('skift-admin-remembered'), 'true');
+  assert.equal(preferences.get('skift-admin-remembered'), undefined);
 
-  const reloaded = await openApp('admin', defaultWorkspace, preferences);
+  const reloaded = await openApp('admin', defaultWorkspace, preferences, '?date=2026-10-14', navigation);
   await reloaded.click('view', 'admin');
   assert.equal(reloaded.dialog.open, false);
   assert.ok(reloaded.app.innerHTML.includes('Dina medarbetare'));
-  const freshBrowser = await openApp();
-  await freshBrowser.click('admin');
-  assert.equal(freshBrowser.dialog.open, true);
-  const viewer = await openApp('viewer', defaultWorkspace, preferences);
+  const closedBrowser = await openApp('admin', defaultWorkspace, preferences);
+  await closedBrowser.click('admin');
+  assert.equal(closedBrowser.dialog.open, true);
+  const viewer = await openApp('viewer', defaultWorkspace, preferences, '?date=2026-10-14', navigation);
   await viewer.click('admin');
   assert.ok(!viewer.app.innerHTML.includes('Dina medarbetare'));
 });
@@ -622,7 +625,7 @@ test('51 people with 20 vacation dates each render compactly and can be searched
   for(const version of group.versions)version.positions=Object.fromEntries(group.members.map(member=>[member.id,1]));
   state.exceptions=group.members.flatMap(member=>Array.from({length:20},(_,i)=>({id:member.id+'-day-'+i,teamId:group.id,memberId:member.id,date:model.addDays('2027-07-01',i),type:'vacation'})));
   model.organizeState(state);
-  const preferences=new Map([['skift-admin-remembered','true']]),navigation=new Map();
+  const preferences=new Map(),navigation=new Map([['skift-admin-remembered','true']]);
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1},preferences,'?date=2026-10-14',navigation);
   await page.click('admin');await page.click('admin-tab',undefined,{tab:'changes'});
   assert.equal((page.app.innerHTML.match(/class="change-person"/g)||[]).length,10);
@@ -656,7 +659,7 @@ test('51 people with 20 vacation dates each render compactly and can be searched
 test('year filter shows every month in that year and can narrow to one month or reset', async () => {
   const state=model.organizeState(model.seedState());
   state.exceptions=['2026-01-15','2026-12-15','2027-01-15'].map((date,i)=>({id:'year-'+i,teamId:'team-1',memberId:'member-1',date,type:'vacation'}));
-  const preferences=new Map([['skift-admin-remembered','true']]),navigation=new Map();
+  const preferences=new Map(),navigation=new Map([['skift-admin-remembered','true']]);
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1},preferences,'',navigation);
   await page.click('admin');await page.click('admin-tab',undefined,{tab:'changes'});
   assert.deepEqual([...page.app.innerHTML.match(/id="changes-year">(.*?)<\/select>/s)[1].matchAll(/value="(\d{4})"/g)].map(match=>match[1]),['2026','2027']);
