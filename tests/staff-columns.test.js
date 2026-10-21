@@ -51,7 +51,7 @@ async function openApp(preferences = new Map()) {
   };
 }
 
-test('staff columns render with data-column-id, draggable headings, drag handles and collapse icon', async () => {
+test('staff columns render with data-column-id, pointer-driven headings, drag handles and collapse icon', async () => {
   const preferences = new Map([['skift-admin-remembered', 'true']]);
   const page = await openApp(preferences);
   await page.click('admin');
@@ -59,7 +59,7 @@ test('staff columns render with data-column-id, draggable headings, drag handles
   assert.match(page.app.innerHTML, /class="staff-column\s*"/);
   assert.match(page.app.innerHTML, /data-column-id="work-team-1"/);
   assert.match(page.app.innerHTML, /data-column-id="hourly"/);
-  assert.match(page.app.innerHTML, /class="staff-column-heading"[^>]*draggable="true"/);
+  assert.match(page.app.innerHTML, /class="staff-column-heading"[^>]*draggable="false"/);
   assert.match(page.app.innerHTML, /class="staff-drag-handle"[^>]*>⠿<\/span>/);
   assert.match(page.app.innerHTML, /class="staff-collapse-icon"/);
   assert.match(page.app.innerHTML, /aria-expanded="true"/);
@@ -112,4 +112,91 @@ test('staff columns restore collapsed state from localStorage memory', async () 
 
   assert.match(page.app.innerHTML, /class="staff-column staff-column-collapsed"[^>]*data-column-id="hourly"/);
   assert.match(page.app.innerHTML, /aria-expanded="false"/);
+});
+
+async function dragHarness() {
+  const source = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  const listeners = new Map(), frames = new Map();
+  let frameId = 0, saves = 0, collapses = 0;
+  const classes = () => ({ add() {}, remove() {} });
+  const rect = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height, width, height });
+  const heading = {
+    addEventListener() {}, removeEventListener() {}, setPointerCapture() {}, hasPointerCapture: () => false,
+  };
+  const column = {
+    isConnected: true, classList: classes(), nextElementSibling: null,
+    getBoundingClientRect: () => rect(0, 0, 280, 200),
+    querySelector: () => heading,
+    cloneNode: () => ({ classList: classes(), style: {}, setAttribute() {}, removeAttribute() {}, querySelectorAll: () => [], remove() {} }),
+  };
+  const other = { getBoundingClientRect: () => rect(300, 0, 280, 120) };
+  const firstLane = { children: [column], lastElementChild: column, getBoundingClientRect: () => rect(0, 0, 280, 200) };
+  const secondLane = { children: [other], lastElementChild: other, getBoundingClientRect: () => rect(300, 0, 280, 120), insertBefore(item, before) { this.children.splice(before ? this.children.indexOf(before) : this.children.length, 0, item); } };
+  column.parentElement = firstLane;
+  const board = {
+    getBoundingClientRect: () => rect(0, 0, 600, 300),
+    querySelectorAll: selector => selector === '.staff-lane' ? [firstLane, secondLane] : [column],
+  };
+  const context = vm.createContext({
+    document: { querySelector: () => board, createElement: () => ({ style: {}, remove() {} }), body: { classList: classes(), append() {} } },
+    window: { innerHeight: 800, scrollBy() {}, addEventListener: (type, fn) => listeners.set(type, fn), removeEventListener: type => listeners.delete(type) },
+    requestAnimationFrame: fn => { frames.set(++frameId, fn); return frameId; },
+    cancelAnimationFrame: id => frames.delete(id), setTimeout() {},
+    toggleStaffColumnCollapse: () => collapses++, saveStaffColumnsOrder: () => saves++,
+    extractStaffBoardLayout: () => [], pruneEmptyLanes() {}, layoutStaffBoard() {},
+  });
+  vm.runInContext('let staffDragSource = null, justDraggedStaff = false, cancelStaffDrag = null;\n' + source.slice(source.indexOf('function staffDropTarget('), source.indexOf('function bindRotationDrag(')) + '\nbindStaffColumnDrag();', context);
+  const pointer = (x, y, extra = {}) => ({ clientX: x, clientY: y, pointerId: 1, isPrimary: true, button: 0, target: {}, preventDefault() {}, ...extra });
+  return { column, other, board, heading, firstLane, secondLane, listeners, frames,
+    target: (x, y) => context.staffDropTarget(board, column, x, y),
+    down: () => heading.onpointerdown(pointer(100, 80)),
+    move: (x, y, extra) => listeners.get('pointermove')?.(pointer(x, y, extra)),
+    up: (x, y) => listeners.get('pointerup')?.(pointer(x, y)),
+    get saves() { return saves; }, get collapses() { return collapses; },
+  };
+}
+
+test('staff drop targets distinguish stacking, lane edges, no-op and outside drops', async () => {
+  const h = await dragHarness();
+  assert.equal(h.target(100, 80), null);
+  assert.equal(h.target(700, 80), null);
+  assert.equal(h.target(400, 20).before, h.other);
+  assert.equal(h.target(400, 100).before, null);
+  assert.equal(h.target(305, 80).edge, true);
+  assert.equal(h.target(575, 80).after, true);
+});
+
+test('staff drag keeps layout stable until release, ignores other pointers and saves once', async () => {
+  const h = await dragHarness();
+  h.down();
+  h.move(400, 100, { pointerId: 2 });
+  assert.equal(h.frames.size, 0);
+  h.move(400, 100);
+  assert.equal(h.frames.size, 1);
+  assert.equal(h.saves, 0);
+  assert.deepEqual(h.secondLane.children, [h.other]);
+  h.up(400, 100);
+  assert.deepEqual(h.secondLane.children, [h.other, h.column]);
+  assert.equal(h.saves, 1);
+  assert.equal(h.frames.size, 0);
+  assert.equal(h.listeners.size, 0);
+  h.heading.onclick({ target: {} });
+  assert.equal(h.collapses, 0, 'release click must not collapse the dragged column');
+});
+
+test('short clicks still collapse; Escape, cancellation and outside drops do not save', async () => {
+  const click = await dragHarness();
+  click.down(); click.move(103, 82); click.up(103, 82);
+  click.heading.onclick({ target: {} });
+  assert.equal(click.collapses, 1);
+  for (const reason of ['escape', 'pointercancel', 'blur', 'outside']) {
+    const h = await dragHarness();
+    h.down(); h.move(400, 100);
+    if (reason === 'escape') h.listeners.get('keydown')({ key: 'Escape', preventDefault() {} });
+    else if (reason === 'outside') h.up(700, 100);
+    else h.listeners.get(reason)();
+    assert.equal(h.saves, 0, reason);
+    assert.equal(h.frames.size, 0, reason);
+    assert.equal(h.listeners.size, 0, reason);
+  }
 });

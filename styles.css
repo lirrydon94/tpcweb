@@ -339,12 +339,13 @@
 .staff-column { min-width:0; background:#f5f8f6; border:1px solid #e0e9e4; border-radius:12px; overflow:hidden; transition:box-shadow 0.2s ease, outline 0.15s ease, transform 0.15s ease; }
 .staff-column-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:17px 16px; border-bottom:1px solid #dfe9e3; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; }
 .staff-column-heading:active { cursor:grabbing; }
-.staff-drag-handle { display:inline-flex; align-items:center; justify-content:center; color:#9ab3a7; margin-right:4px; font-size:13px; font-weight:400; cursor:grab; }
-.staff-column-heading:hover .staff-drag-handle { color:#28604f; }
-.staff-column.staff-column-dragging { opacity:0.45; box-shadow:0 12px 28px rgba(0,0,0,0.12); outline:2px dashed #28604f; outline-offset:-2px; }
-.staff-column.staff-column-snapping { transform:scale(0.99); }
-.staff-column.staff-column-snapped { animation:staffColumnSnap 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-@keyframes staffColumnSnap { 0% { transform:scale(0.97); } 50% { transform:scale(1.02); } 100% { transform:scale(1); } }
+.staff-drag-handle { display:inline-flex; align-items:center; justify-content:center; color:#9ab3a7; width:24px; height:28px; border-radius:6px; margin-right:4px; font-size:18px; font-weight:400; cursor:grab; transition:color 0.15s ease, background 0.15s ease; }
+.staff-column-heading:hover .staff-drag-handle { color:#28604f; background:#e2eee7; }
+.staff-column.staff-column-dragging { opacity:0.3; outline:2px dashed #7d9589; outline-offset:-2px; }
+.staff-column.staff-drag-preview { position:fixed; top:0; left:0; z-index:1000; margin:0; pointer-events:none; opacity:0.95; box-shadow:0 16px 40px rgba(22,55,41,0.2); transition:none; will-change:transform; }
+.staff-drop-marker { position:fixed; z-index:1001; pointer-events:none; border-radius:4px; background:#28604f; box-shadow:0 0 0 3px rgba(40,96,79,0.12); }
+body.staff-is-dragging, body.staff-is-dragging * { cursor:grabbing !important; user-select:none !important; -webkit-user-select:none !important; }
+@media(prefers-reduced-motion:reduce) { .staff-column, .staff-drag-handle, .staff-collapse-icon { transition:none; } }
 .staff-column-heading h3 { font-size:15px; font-weight:600; margin:0; overflow-wrap:anywhere; }
 .staff-heading-meta { display:flex; align-items:center; gap:8px; }
 .staff-heading-meta>span[aria-label], .staff-column-heading>span { background:#e2eee7; color:#28604f; font-size:12px; border-radius:20px; padding:4px 9px; }

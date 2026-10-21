@@ -124,6 +124,7 @@ function layoutStaffBoard() {
   }
 }
 function shell() {
+  cancelStaffDrag?.();
   staffBoardObserver?.disconnect();
   for (const state of [workspace.working,workspace.published]) if(state)model.organizeState(state);
   if (!hasAdminRole()) adminUnlocked = false;
@@ -450,7 +451,7 @@ function departmentPeople(employees,state) {
   columns.push(hourly);
   const lanes = organizeColumnsIntoLanes(columns, getStaffColumnsOrder());
   const collapsedSet = new Set(getStaffColumnsCollapsed());
-  return `<section class="admin-panel"><div class="panel-heading"><div><h2>Dina medarbetare</h2></div><div class="staff-add-actions"><button class="primary-btn" data-action="add-person">${icon('plus')} Lägg till personal</button><button class="primary-btn" data-action="add-hourly">${icon('plus')} Lägg till timmis</button></div></div>${lanes.length?`<div class="staff-board">${lanes.map(lane=>`<div class="staff-lane">${lane.map(column=>`<section class="staff-column ${collapsedSet.has(column.id)?'staff-column-collapsed':''}" data-column-id="${esc(column.id)}" aria-label="${esc(column.name)}"><header class="staff-column-heading" draggable="true" tabindex="0" role="button" aria-expanded="${!collapsedSet.has(column.id)}" title="Klicka för att fälla ihop eller dra för att flytta"><h3><span class="staff-drag-handle" aria-hidden="true">⠿</span> ${esc(column.name)}</h3><div class="staff-heading-meta"><span aria-label="${column.people.length} medarbetare">${column.people.length}</span><span class="staff-collapse-icon" aria-hidden="true">${icon('down')}</span></div></header><div class="staff-column-people">${column.people.length?column.people.map(({employee:e})=>{
+  return `<section class="admin-panel"><div class="panel-heading"><div><h2>Dina medarbetare</h2></div><div class="staff-add-actions"><button class="primary-btn" data-action="add-person">${icon('plus')} Lägg till personal</button><button class="primary-btn" data-action="add-hourly">${icon('plus')} Lägg till timmis</button></div></div>${lanes.length?`<div class="staff-board">${lanes.map(lane=>`<div class="staff-lane">${lane.map(column=>`<section class="staff-column ${collapsedSet.has(column.id)?'staff-column-collapsed':''}" data-column-id="${esc(column.id)}" aria-label="${esc(column.name)}"><header class="staff-column-heading" draggable="false" tabindex="0" role="button" aria-expanded="${!collapsedSet.has(column.id)}" title="Klicka för att fälla ihop eller dra för att flytta"><h3><span class="staff-drag-handle" aria-hidden="true">⠿</span> ${esc(column.name)}</h3><div class="staff-heading-meta"><span aria-label="${column.people.length} medarbetare">${column.people.length}</span><span class="staff-collapse-icon" aria-hidden="true">${icon('down')}</span></div></header><div class="staff-column-people">${column.people.length?column.people.map(({employee:e})=>{
     const skills=e.role==='part-time'?teams.filter(t=>e.skilledTeamIds?.includes(t.id)).map(t=>t.name).join(' · '):'';
     return `<button class="staff-person-card" data-action="edit-person" data-member="${esc(e.id)}" aria-label="Redigera person eller schema för ${esc(e.name)}"><span class="staff-person-details"><strong>${esc(e.name)}</strong>${skills?`<small>${esc(skills)}</small>`:''}</span>${icon('edit')}</button>`;
   }).join(''):'<p class="staff-column-empty">Ingen personal placerad ännu.</p>'}</div></section>`).join('')}</div>`).join('')}</div>`:empty('Ingen personal ännu','Lägg till avdelningens medarbetare. Du kan placera dem i grupper senare.')}</section>`;
@@ -827,6 +828,7 @@ function renderLogin(error='') {
 
 let staffDragSource = null;
 let justDraggedStaff = false;
+let cancelStaffDrag = null;
 function extractStaffBoardLayout() {
   const board = document.querySelector?.('.staff-board');
   if (!board?.querySelectorAll) return [];
@@ -845,218 +847,140 @@ function pruneEmptyLanes(board) {
     }
   });
 }
-function finalizeStaffDrag() {
-  if (!staffDragSource) return;
-  const col = staffDragSource;
-  staffDragSource = null;
-  col.classList.remove('staff-column-dragging');
-  col.classList.add('staff-column-snapped');
-  setTimeout(() => col?.classList.remove('staff-column-snapped'), 350);
-  const board = document.querySelector?.('.staff-board');
-  if (board) {
-    pruneEmptyLanes(board);
-    saveStaffColumnsOrder(extractStaffBoardLayout());
-  }
-  layoutStaffBoard();
-}
-function handleStaffDragMove(clientX, clientY) {
-  if (!staffDragSource) return;
-  const board = document.querySelector?.('.staff-board');
-  if (!board) return;
-
-  const elementUnder = document.elementFromPoint?.(clientX, clientY);
-  const targetCol = elementUnder?.closest?.('.staff-column');
-  const targetLane = elementUnder?.closest?.('.staff-lane');
-
-  if (targetCol && targetCol !== staffDragSource && targetCol.closest('.staff-board') === board) {
-    const lane = targetCol.closest('.staff-lane');
-    const colRect = targetCol.getBoundingClientRect();
-    const laneRect = lane.getBoundingClientRect();
-
-    const edgeThreshold = Math.min(32, laneRect.width * 0.15);
-    if (clientX < laneRect.left + edgeThreshold) {
-      const newLane = document.createElement('div');
-      newLane.className = 'staff-lane';
-      newLane.appendChild(staffDragSource);
-      board.insertBefore(newLane, lane);
-      pruneEmptyLanes(board);
-      layoutStaffBoard();
-      return;
-    }
-    if (clientX > laneRect.right - edgeThreshold) {
-      const newLane = document.createElement('div');
-      newLane.className = 'staff-lane';
-      newLane.appendChild(staffDragSource);
-      board.insertBefore(newLane, lane.nextElementSibling);
-      pruneEmptyLanes(board);
-      layoutStaffBoard();
-      return;
-    }
-
-    const isUnder = clientY >= (colRect.top + colRect.height / 2);
-    if (isUnder) {
-      if (targetCol.nextElementSibling !== staffDragSource) {
-        targetCol.after(staffDragSource);
-        pruneEmptyLanes(board);
-        layoutStaffBoard();
-      }
-    } else {
-      if (targetCol.previousElementSibling !== staffDragSource) {
-        targetCol.before(staffDragSource);
-        pruneEmptyLanes(board);
-        layoutStaffBoard();
-      }
-    }
-    return;
-  }
-
-  if (targetLane && targetLane.closest('.staff-board') === board) {
-    const laneRect = targetLane.getBoundingClientRect();
-    const edgeThreshold = Math.min(32, laneRect.width * 0.15);
-
-    if (clientX < laneRect.left + edgeThreshold) {
-      const newLane = document.createElement('div');
-      newLane.className = 'staff-lane';
-      newLane.appendChild(staffDragSource);
-      board.insertBefore(newLane, targetLane);
-      pruneEmptyLanes(board);
-      layoutStaffBoard();
-      return;
-    }
-    if (clientX > laneRect.right - edgeThreshold) {
-      const newLane = document.createElement('div');
-      newLane.className = 'staff-lane';
-      newLane.appendChild(staffDragSource);
-      board.insertBefore(newLane, targetLane.nextElementSibling);
-      pruneEmptyLanes(board);
-      layoutStaffBoard();
-      return;
-    }
-
-    if (targetLane.lastElementChild !== staffDragSource) {
-      targetLane.appendChild(staffDragSource);
-      pruneEmptyLanes(board);
-      layoutStaffBoard();
-    }
-    return;
-  }
-
+// Keep the board still while dragging; commit only the highlighted destination on release.
+function staffDropTarget(board, source, x, y) {
+  const bounds = board.getBoundingClientRect();
+  if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return null;
   const lanes = [...board.querySelectorAll('.staff-lane')];
-  if (lanes.length) {
-    const lastLane = lanes[lanes.length - 1];
-    const lastRect = lastLane.getBoundingClientRect();
-    if (clientX > lastRect.right) {
-      const newLane = document.createElement('div');
-      newLane.className = 'staff-lane';
-      newLane.appendChild(staffDragSource);
-      board.appendChild(newLane);
-      pruneEmptyLanes(board);
-      layoutStaffBoard();
-      return;
-    }
-    const firstLane = lanes[0];
-    const firstRect = firstLane.getBoundingClientRect();
-    if (clientX < firstRect.left) {
-      const newLane = document.createElement('div');
-      newLane.className = 'staff-lane';
-      newLane.appendChild(staffDragSource);
-      board.insertBefore(newLane, firstLane);
-      pruneEmptyLanes(board);
-      layoutStaffBoard();
-      return;
-    }
+  const lane = lanes.find(item => {
+    const r = item.getBoundingClientRect();
+    return x >= r.left - 9 && x <= r.right + 9 && y >= r.top - 9 && y <= r.bottom + 36;
+  });
+  if (!lane) return null;
+  const rect = lane.getBoundingClientRect();
+  const edge = Math.min(28, rect.width * 0.12);
+  if (x < rect.left + edge || x > rect.right - edge) {
+    const after = x > rect.right - edge;
+    if (lane === source.parentElement && lane.children.length === 1) return null;
+    return { lane, edge: true, after, left: (after ? rect.right : rect.left) - 2, top: rect.top, width: 4, height: rect.height };
   }
+  const columns = [...lane.children].filter(column => column !== source);
+  const before = columns.find(column => {
+    const r = column.getBoundingClientRect();
+    return y < r.top + r.height / 2;
+  }) || null;
+  if (lane === source.parentElement && (before === source.nextElementSibling || (!before && source === lane.lastElementChild))) return null;
+  const top = before ? before.getBoundingClientRect().top - 9 : (columns.at(-1)?.getBoundingClientRect().bottom ?? rect.top) + 9;
+  return { lane, before, left: rect.left, top: top - 2, width: rect.width, height: 4 };
 }
 function bindStaffColumnDrag() {
   const board = document.querySelector?.('.staff-board');
   if (!board?.querySelectorAll) return;
-
-  board.ondragover = e => {
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    if (!staffDragSource) return;
-    handleStaffDragMove(e.clientX, e.clientY);
-  };
-  board.ondrop = e => {
-    e.preventDefault();
-    finalizeStaffDrag();
-  };
-
-  const columns = board.querySelectorAll('.staff-column');
-  if (!columns?.forEach) return;
-
-  columns.forEach(column => {
-    const heading = column.querySelector?.('.staff-column-heading');
+  board.querySelectorAll('.staff-column').forEach(column => {
+    const heading = column.querySelector('.staff-column-heading');
     if (!heading) return;
-
-    heading.setAttribute?.('draggable', 'true');
+    heading.ondragstart = e => e.preventDefault();
     heading.onclick = e => {
-      if (e.target?.closest?.('button, a, input, select')) return;
-      if (justDraggedStaff) return;
+      if (e.target?.closest?.('button, a, input, select') || justDraggedStaff) return;
       toggleStaffColumnCollapse(column);
     };
     heading.onkeydown = e => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        toggleStaffColumnCollapse(column);
+        if (!staffDragSource) toggleStaffColumnCollapse(column);
       }
     };
-    heading.ondragstart = e => {
-      staffDragSource = column;
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', column.dataset.columnId || '');
-        if (e.dataTransfer.setDragImage) {
-          const rect = column.getBoundingClientRect();
-          e.dataTransfer.setDragImage(column, e.clientX - rect.left, e.clientY - rect.top);
-        }
-      }
-      requestAnimationFrame(() => column.classList.add('staff-column-dragging'));
-    };
-    heading.ondragend = () => {
-      finalizeStaffDrag();
-    };
-
-    column.ondragover = e => {
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-      if (!staffDragSource) return;
-      handleStaffDragMove(e.clientX, e.clientY);
-    };
-    column.ondrop = e => {
-      e.preventDefault();
-      finalizeStaffDrag();
-    };
-
     heading.onpointerdown = e => {
-      if (e.pointerType === 'mouse') return;
-      if (e.target?.closest?.('button, a, input, select')) return;
+      if (!e.isPrimary || e.button !== 0 || e.target?.closest?.('button, a, input, select')) return;
+      cancelStaffDrag?.();
+      justDraggedStaff = false;
       const startX = e.clientX, startY = e.clientY;
-      let isDragging = false;
-
-      const onTouchMove = moveEvent => {
-        if (!isDragging) {
-          if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 8) return;
-          isDragging = true;
+      let x = startX, y = startY, ghost, marker, frame, target;
+      let offsetX = 0, offsetY = 0, lastTime;
+      const paint = time => {
+        if (!column.isConnected) { finish(false); return; }
+        // Time-based edge scrolling works the same on high-refresh displays.
+        const elapsed = Math.min(time - (lastTime ?? time), 32);
+        lastTime = time;
+        const edge = 64;
+        const speed = y < edge ? -Math.min(1, (edge - y) / edge) : y > window.innerHeight - edge ? Math.min(1, (y - window.innerHeight + edge) / edge) : 0;
+        if (speed) window.scrollBy(0, speed * elapsed * 0.65);
+        ghost.style.transform = 'translate3d(' + (x - offsetX) + 'px,' + (y - offsetY) + 'px,0)';
+        target = staffDropTarget(board, column, x, y);
+        marker.hidden = !target;
+        if (target) Object.assign(marker.style, { left: target.left + 'px', top: target.top + 'px', width: target.width + 'px', height: target.height + 'px' });
+        frame = requestAnimationFrame(paint);
+      };
+      const move = event => {
+        if (event.pointerId !== e.pointerId) return;
+        x = event.clientX; y = event.clientY;
+        if (!ghost) {
+          if (Math.hypot(x - startX, y - startY) < 8) return;
+          const rect = column.getBoundingClientRect();
+          offsetX = startX - rect.left; offsetY = startY - rect.top;
+          ghost = column.cloneNode(true);
+          ghost.classList.add('staff-drag-preview');
+          ghost.setAttribute('aria-hidden', 'true');
+          ghost.inert = true;
+          ghost.removeAttribute('id');
+          ghost.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+          Object.assign(ghost.style, { width: rect.width + 'px', height: rect.height + 'px' });
+          marker = document.createElement('div');
+          marker.className = 'staff-drop-marker';
+          marker.hidden = true;
+          document.body.append(ghost, marker);
           staffDragSource = column;
           column.classList.add('staff-column-dragging');
+          document.body.classList.add('staff-is-dragging');
+          frame = requestAnimationFrame(paint);
         }
-        moveEvent.preventDefault();
-        column.style.pointerEvents = 'none';
-        handleStaffDragMove(moveEvent.clientX, moveEvent.clientY);
-        column.style.pointerEvents = '';
+        event.preventDefault();
       };
-
-      const onTouchEnd = () => {
-        window.removeEventListener('pointermove', onTouchMove);
-        window.removeEventListener('pointerup', onTouchEnd);
-        window.removeEventListener('pointercancel', onTouchEnd);
-        if (isDragging) finalizeStaffDrag();
+      const finish = commit => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', cancel);
+        window.removeEventListener('blur', cancel);
+        window.removeEventListener('keydown', key);
+        heading.removeEventListener('lostpointercapture', cancel);
+        if (heading.hasPointerCapture?.(e.pointerId)) heading.releasePointerCapture(e.pointerId);
+        cancelStaffDrag = null;
+        if (!ghost) return;
+        cancelAnimationFrame(frame);
+        target = commit ? staffDropTarget(board, column, x, y) : null;
+        ghost.remove(); marker.remove();
+        column.classList.remove('staff-column-dragging');
+        document.body.classList.remove('staff-is-dragging');
+        staffDragSource = null;
+        justDraggedStaff = true;
+        setTimeout(() => { justDraggedStaff = false; }, 0);
+        if (target) {
+          if (target.edge) {
+            const lane = document.createElement('div');
+            lane.className = 'staff-lane';
+            board.insertBefore(lane, target.after ? target.lane.nextElementSibling : target.lane);
+            lane.appendChild(column);
+          } else target.lane.insertBefore(column, target.before);
+          pruneEmptyLanes(board);
+          saveStaffColumnsOrder(extractStaffBoardLayout());
+          layoutStaffBoard();
+        }
       };
-
-      window.addEventListener('pointermove', onTouchMove, { passive: false });
-      window.addEventListener('pointerup', onTouchEnd);
-      window.addEventListener('pointercancel', onTouchEnd);
+      const up = event => {
+        if (event.pointerId !== e.pointerId) return;
+        x = event.clientX; y = event.clientY;
+        finish(true);
+      };
+      const cancel = () => finish(false);
+      const key = event => { if (event.key === 'Escape') { event.preventDefault(); cancel(); } };
+      cancelStaffDrag = cancel;
+      heading.setPointerCapture?.(e.pointerId);
+      heading.addEventListener('lostpointercapture', cancel);
+      window.addEventListener('pointermove', move, { passive: false });
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', cancel);
+      window.addEventListener('blur', cancel);
+      window.addEventListener('keydown', key);
     };
   });
 }
