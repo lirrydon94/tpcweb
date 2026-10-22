@@ -406,7 +406,6 @@ export const defaultWorkspace = {
               {
                 "memberId": "ce36d572-b884-48a0-95f2-08eb437928ed",
                 "effectiveFrom": "2026-10-12",
-                "employmentPercent": 100,
                 "rotation": [
                   [
                     null,
@@ -499,7 +498,9 @@ export const defaultWorkspace = {
                     null
                   ],
                   [
-                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null,
                     null,
@@ -532,7 +533,8 @@ export const defaultWorkspace = {
                     null,
                     null
                   ]
-                ]
+                ],
+                "employmentPercent": 76
               }
             ]
           }
@@ -1077,14 +1079,6 @@ export const defaultWorkspace = {
         "note": "ville ha semester"
       },
       {
-        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
-        "teamId": "team-1",
-        "memberId": "member-1",
-        "date": "2026-11-21",
-        "type": "vacation",
-        "note": "ville ha semester"
-      },
-      {
         "id": "41a63db2-707c-4afe-8bc0-b586baaeb929",
         "teamId": "team-1",
         "memberId": "member-1",
@@ -1147,9 +1141,17 @@ export const defaultWorkspace = {
         "date": "2027-01-03",
         "type": "vacation",
         "note": ""
+      },
+      {
+        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-21",
+        "type": "vacation",
+        "note": "ville ha semester"
       }
     ],
-    "publishedAt": "2026-10-21T09:05:55.039Z",
+    "publishedAt": "2026-10-22T20:00:37.788Z",
     "departments": [
       {
         "id": "department-default",
@@ -2045,7 +2047,6 @@ export const defaultWorkspace = {
               {
                 "memberId": "ce36d572-b884-48a0-95f2-08eb437928ed",
                 "effectiveFrom": "2026-10-12",
-                "employmentPercent": 100,
                 "rotation": [
                   [
                     null,
@@ -2138,7 +2139,9 @@ export const defaultWorkspace = {
                     null
                   ],
                   [
-                    null,
+                    {
+                      "type": "leave"
+                    },
                     null,
                     null,
                     null,
@@ -2171,7 +2174,8 @@ export const defaultWorkspace = {
                     null,
                     null
                   ]
-                ]
+                ],
+                "employmentPercent": 76
               }
             ]
           }
@@ -2714,13 +2718,6 @@ export const defaultWorkspace = {
         "type": "vacation"
       },
       {
-        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
-        "teamId": "team-1",
-        "memberId": "member-1",
-        "date": "2026-11-21",
-        "type": "vacation"
-      },
-      {
         "id": "41a63db2-707c-4afe-8bc0-b586baaeb929",
         "teamId": "team-1",
         "memberId": "member-1",
@@ -2775,9 +2772,16 @@ export const defaultWorkspace = {
         "memberId": "member-1",
         "date": "2027-01-03",
         "type": "vacation"
+      },
+      {
+        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-21",
+        "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-21T09:05:55.039Z",
+    "publishedAt": "2026-10-22T20:00:37.788Z",
     "departments": [
       {
         "id": "department-default",
@@ -3266,7 +3270,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 277,
+  "revision": 280,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"
