@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p _site
-          cp index.html styles.css config.js _site/
+          cp index.html styles.css config.js manifest.webmanifest sw.js _site/
           cp -r src _site/src
           if [ -d assets ]; then cp -r assets _site/assets; fi
           node scripts/version-assets.mjs _site

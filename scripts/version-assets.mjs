@@ -14,6 +14,7 @@ const htmlPath = path.join(root, 'index.html');
 const html = await fs.readFile(htmlPath, 'utf8');
 await fs.writeFile(htmlPath, html
   .replace('./styles.css"', `./styles.css?v=${version}"`)
+  .replace('./src/install.js"', `./src/install.js?v=${version}"`)
   .replace('./src/app.js"', `./src/app.js?v=${version}"`));
 for (const file of files.filter(file => file.endsWith('.js'))) {
   const filename = path.join(root, file);

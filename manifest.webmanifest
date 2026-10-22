@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "RSSB – Ditt schema",
+  "short_name": "RSSB",
+  "description": "Dina arbetspass, dina kollegor och nästa lediga dag.",
+  "lang": "sv",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f8f5",
+  "theme_color": "#176c58",
+  "icons": [
+    { "src": "./assets/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

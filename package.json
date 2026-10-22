@@ -7,7 +7,7 @@
     "dev": "node scripts/serve.mjs",
     "sync": "node scripts/sync-local.mjs",
     "test": "node --test tests/*.test.js",
-    "check": "node --check src/app.js && node --check src/model.js && node --check src/store.js && node --check src/default-data.js && node --check scripts/serve.mjs && node --check scripts/workspace-file.mjs && node --check scripts/sync-local.mjs"
+    "check": "node --check src/app.js && node --check src/install.js && node --check sw.js && node --check src/model.js && node --check src/store.js && node --check src/default-data.js && node --check scripts/serve.mjs && node --check scripts/workspace-file.mjs && node --check scripts/sync-local.mjs"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4"

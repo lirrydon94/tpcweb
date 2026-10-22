@@ -4,15 +4,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#176c58">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="RSSB">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="description" content="Dina arbetspass, dina kollegor och nästa lediga dag. Ett mobilvänligt schema för skiftarbete.">
   <title>RSSB</title>
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icon-180.png">
+  <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <div id="app"><div class="loading">Öppnar ditt schema</div></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="modal"></dialog>
+  <div class="install-entry" id="install-entry" hidden><button type="button" id="install-open">Lägg till RSSB på hemskärmen</button></div>
+  <dialog id="install-dialog" aria-labelledby="install-title" aria-describedby="install-description">
+    <img class="install-icon" src="./assets/app-icon-180.png" width="64" height="64" alt="">
+    <h2 id="install-title">Ditt schema, ett tryck bort</h2>
+    <p id="install-description">Lägg till RSSB på hemskärmen och öppna schemat som en app utan webbläsarens adressfält.</p>
+    <div id="install-guide" hidden></div>
+    <p id="install-status" role="status" aria-live="polite"></p>
+    <div class="install-actions">
+      <button type="button" class="primary-btn" id="install-confirm">Installera appen</button>
+      <button type="button" class="secondary-btn" id="install-dismiss">Inte nu</button>
+    </div>
+  </dialog>
+  <script type="module" src="./src/install.js"></script>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
