@@ -99,32 +99,57 @@ export const defaultWorkspace = {
               "C": {
                 "start": "11:30",
                 "end": "20:30",
-                "color": "purple"
+                "color": "peach"
               },
               "B": {
                 "start": "09:30",
                 "end": "18:30",
-                "color": "blue"
+                "color": "lavender"
               },
               "B2": {
                 "start": "08:30",
                 "end": "17:30",
-                "color": "blue"
+                "color": "purple"
               },
               "F": {
                 "start": "08:00",
                 "end": "17:00",
-                "color": "teal"
+                "color": "cyan"
               },
               "A2": {
                 "start": "06:15",
                 "end": "15:15",
-                "color": "amber"
+                "color": "mint"
               },
               "A3": {
                 "start": "06:15",
                 "end": "15:15",
+                "color": "sage"
+              },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
                 "color": "amber"
+              },
+              "N": {
+                "start": "19:49",
+                "end": "06:30",
+                "color": "indigo"
               }
             },
             "positions": {
@@ -396,10 +421,30 @@ export const defaultWorkspace = {
                 "end": "15:15",
                 "color": "sage"
               },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
               "Z": {
                 "start": "07:00",
                 "end": "15:50",
                 "color": "amber"
+              },
+              "N": {
+                "start": "19:49",
+                "end": "06:30",
+                "color": "indigo"
               }
             },
             "personalSchedules": [
@@ -588,60 +633,51 @@ export const defaultWorkspace = {
           {
             "id": "984286ae-72a7-4d9b-89bf-d9857c6974bf",
             "effectiveFrom": "2026-10-12",
-            "referenceMonday": "2026-10-12",
+            "referenceMonday": "2026-10-19",
             "rotation": [
               [
-                "N",
-                "N",
                 "",
                 "",
                 "",
-                "N",
-                "N"
+                "",
+                "V2",
+                "V2",
+                "V1"
               ],
               [
                 "",
                 "",
-                "N",
-                "N",
-                "N",
+                "V2",
+                "V2",
+                "",
                 "",
                 ""
               ],
               [
-                "N",
-                "N",
+                "V2",
+                "V2",
                 "",
                 "",
-                "",
-                "N",
-                "N"
+                "V2",
+                "V2",
+                "V1"
               ],
               [
                 "",
                 "",
-                "N",
-                "N",
-                "N",
-                "",
-                ""
-              ],
-              [
-                "",
-                "",
-                "",
-                "",
+                "V2",
+                "V2",
                 "",
                 "",
                 ""
               ]
             ],
             "positions": {
-              "a9eee573-b04a-40a9-a9c2-70d405056e18": 1,
-              "b89503f9-975f-4c27-9395-c6f2267e7717": 2,
-              "392a210e-fcae-4391-8704-7186b2aa50e3": 3,
+              "a9eee573-b04a-40a9-a9c2-70d405056e18": 2,
+              "b89503f9-975f-4c27-9395-c6f2267e7717": 1,
+              "392a210e-fcae-4391-8704-7186b2aa50e3": 2,
               "e8d4c5f3-31f3-4bdc-b3ea-beb0ec3d21f7": 4,
-              "c42875e8-f0cc-4a3c-8439-72462b05d92b": 5
+              "c42875e8-f0cc-4a3c-8439-72462b05d92b": 3
             },
             "shifts": {
               "A": {
@@ -679,6 +715,26 @@ export const defaultWorkspace = {
                 "end": "15:15",
                 "color": "sage"
               },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
+                "color": "amber"
+              },
               "N": {
                 "start": "19:49",
                 "end": "06:30",
@@ -687,7 +743,7 @@ export const defaultWorkspace = {
             }
           }
         ],
-        "showScheduleName": false
+        "showScheduleName": true
       },
       {
         "id": "ef525209-6e1c-4c02-91ae-fa690fa8b35b",
@@ -1059,6 +1115,104 @@ export const defaultWorkspace = {
           }
         ],
         "showScheduleName": false
+      },
+      {
+        "id": "9118f34d-8d55-4ccc-953d-5d868cb0af38",
+        "workTeamId": "work-team-1",
+        "name": "Natt+",
+        "color": "mint",
+        "members": [
+          {
+            "id": "a9eee573-b04a-40a9-a9c2-70d405056e18",
+            "name": "Rickard",
+            "role": "member",
+            "activeFrom": "2026-10-16",
+            "activeUntil": null
+          }
+        ],
+        "versions": [
+          {
+            "id": "9d243fd7-6066-4b05-b549-43096ced3d33",
+            "effectiveFrom": "2026-10-19",
+            "referenceMonday": "2026-10-19",
+            "rotation": [
+              [
+                "V2",
+                "V2",
+                "",
+                "",
+                "",
+                "",
+                "V3"
+              ]
+            ],
+            "positions": {
+              "a9eee573-b04a-40a9-a9c2-70d405056e18": 1
+            },
+            "shifts": {
+              "A": {
+                "start": "07:00",
+                "end": "16:00",
+                "color": "amber"
+              },
+              "C": {
+                "start": "11:30",
+                "end": "20:30",
+                "color": "peach"
+              },
+              "B": {
+                "start": "09:30",
+                "end": "18:30",
+                "color": "lavender"
+              },
+              "B2": {
+                "start": "08:30",
+                "end": "17:30",
+                "color": "purple"
+              },
+              "F": {
+                "start": "08:00",
+                "end": "17:00",
+                "color": "cyan"
+              },
+              "A2": {
+                "start": "06:15",
+                "end": "15:15",
+                "color": "mint"
+              },
+              "A3": {
+                "start": "06:15",
+                "end": "15:15",
+                "color": "sage"
+              },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
+                "color": "amber"
+              },
+              "N": {
+                "start": "19:49",
+                "end": "06:30",
+                "color": "indigo"
+              }
+            }
+          }
+        ]
       }
     ],
     "exceptions": [
@@ -1151,7 +1305,7 @@ export const defaultWorkspace = {
         "note": "ville ha semester"
       }
     ],
-    "publishedAt": "2026-10-22T20:00:37.788Z",
+    "publishedAt": "2026-10-23T20:21:53.169Z",
     "departments": [
       {
         "id": "department-default",
@@ -1167,25 +1321,198 @@ export const defaultWorkspace = {
         "id": "work-team-1",
         "departmentId": "department-default",
         "name": "Beställning",
-        "scheduleActive": true
+        "scheduleActive": true,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          },
+          "V1": {
+            "start": "19:00",
+            "end": "06:30",
+            "color": "rose"
+          },
+          "V2": {
+            "start": "19:04",
+            "end": "06:30",
+            "color": "rose"
+          },
+          "V3": {
+            "start": "19:04",
+            "end": "06:30",
+            "color": "red"
+          },
+          "Z": {
+            "start": "07:00",
+            "end": "15:50",
+            "color": "amber"
+          },
+          "N": {
+            "start": "19:49",
+            "end": "06:30",
+            "color": "indigo"
+          }
+        }
       },
       {
         "id": "13a13c00-b6b0-4a22-84b4-a40ea20a32d7",
         "name": "Avfall",
         "departmentId": "department-default",
-        "scheduleActive": false
+        "scheduleActive": false,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          }
+        }
       },
       {
         "id": "ebd8d4d8-095a-4add-a187-cc69e15178a6",
         "name": "Gods",
         "departmentId": "department-default",
-        "scheduleActive": false
+        "scheduleActive": false,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          }
+        }
       },
       {
         "id": "677895bd-4bb2-4643-ab13-9979e72f9dd5",
         "name": "Post",
         "departmentId": "department-default",
-        "scheduleActive": false
+        "scheduleActive": false,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          }
+        }
       }
     ],
     "employees": [
@@ -1366,6 +1693,11 @@ export const defaultWorkspace = {
             "from": "2026-10-16",
             "teamId": "work-team-1",
             "groupId": "fbecc7ad-3538-4ae5-a6e6-083bd92f63f7"
+          },
+          {
+            "from": "2026-10-23",
+            "teamId": "work-team-1",
+            "groupId": "9118f34d-8d55-4ccc-953d-5d868cb0af38"
           }
         ]
       },
@@ -1740,32 +2072,57 @@ export const defaultWorkspace = {
               "C": {
                 "start": "11:30",
                 "end": "20:30",
-                "color": "purple"
+                "color": "peach"
               },
               "B": {
                 "start": "09:30",
                 "end": "18:30",
-                "color": "blue"
+                "color": "lavender"
               },
               "B2": {
                 "start": "08:30",
                 "end": "17:30",
-                "color": "blue"
+                "color": "purple"
               },
               "F": {
                 "start": "08:00",
                 "end": "17:00",
-                "color": "teal"
+                "color": "cyan"
               },
               "A2": {
                 "start": "06:15",
                 "end": "15:15",
-                "color": "amber"
+                "color": "mint"
               },
               "A3": {
                 "start": "06:15",
                 "end": "15:15",
+                "color": "sage"
+              },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
                 "color": "amber"
+              },
+              "N": {
+                "start": "19:49",
+                "end": "06:30",
+                "color": "indigo"
               }
             },
             "positions": {
@@ -2037,10 +2394,30 @@ export const defaultWorkspace = {
                 "end": "15:15",
                 "color": "sage"
               },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
               "Z": {
                 "start": "07:00",
                 "end": "15:50",
                 "color": "amber"
+              },
+              "N": {
+                "start": "19:49",
+                "end": "06:30",
+                "color": "indigo"
               }
             },
             "personalSchedules": [
@@ -2229,60 +2606,51 @@ export const defaultWorkspace = {
           {
             "id": "984286ae-72a7-4d9b-89bf-d9857c6974bf",
             "effectiveFrom": "2026-10-12",
-            "referenceMonday": "2026-10-12",
+            "referenceMonday": "2026-10-19",
             "rotation": [
               [
-                "N",
-                "N",
                 "",
                 "",
                 "",
-                "N",
-                "N"
+                "",
+                "V2",
+                "V2",
+                "V1"
               ],
               [
                 "",
                 "",
-                "N",
-                "N",
-                "N",
+                "V2",
+                "V2",
+                "",
                 "",
                 ""
               ],
               [
-                "N",
-                "N",
+                "V2",
+                "V2",
                 "",
                 "",
-                "",
-                "N",
-                "N"
+                "V2",
+                "V2",
+                "V1"
               ],
               [
                 "",
                 "",
-                "N",
-                "N",
-                "N",
-                "",
-                ""
-              ],
-              [
-                "",
-                "",
-                "",
-                "",
+                "V2",
+                "V2",
                 "",
                 "",
                 ""
               ]
             ],
             "positions": {
-              "a9eee573-b04a-40a9-a9c2-70d405056e18": 1,
-              "b89503f9-975f-4c27-9395-c6f2267e7717": 2,
-              "392a210e-fcae-4391-8704-7186b2aa50e3": 3,
+              "a9eee573-b04a-40a9-a9c2-70d405056e18": 2,
+              "b89503f9-975f-4c27-9395-c6f2267e7717": 1,
+              "392a210e-fcae-4391-8704-7186b2aa50e3": 2,
               "e8d4c5f3-31f3-4bdc-b3ea-beb0ec3d21f7": 4,
-              "c42875e8-f0cc-4a3c-8439-72462b05d92b": 5
+              "c42875e8-f0cc-4a3c-8439-72462b05d92b": 3
             },
             "shifts": {
               "A": {
@@ -2320,6 +2688,26 @@ export const defaultWorkspace = {
                 "end": "15:15",
                 "color": "sage"
               },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
+                "color": "amber"
+              },
               "N": {
                 "start": "19:49",
                 "end": "06:30",
@@ -2328,7 +2716,7 @@ export const defaultWorkspace = {
             }
           }
         ],
-        "showScheduleName": false
+        "showScheduleName": true
       },
       {
         "id": "ef525209-6e1c-4c02-91ae-fa690fa8b35b",
@@ -2700,6 +3088,104 @@ export const defaultWorkspace = {
           }
         ],
         "showScheduleName": false
+      },
+      {
+        "id": "9118f34d-8d55-4ccc-953d-5d868cb0af38",
+        "workTeamId": "work-team-1",
+        "name": "Natt+",
+        "color": "mint",
+        "members": [
+          {
+            "id": "a9eee573-b04a-40a9-a9c2-70d405056e18",
+            "name": "Rickard",
+            "role": "member",
+            "activeFrom": "2026-10-16",
+            "activeUntil": null
+          }
+        ],
+        "versions": [
+          {
+            "id": "9d243fd7-6066-4b05-b549-43096ced3d33",
+            "effectiveFrom": "2026-10-19",
+            "referenceMonday": "2026-10-19",
+            "rotation": [
+              [
+                "V2",
+                "V2",
+                "",
+                "",
+                "",
+                "",
+                "V3"
+              ]
+            ],
+            "positions": {
+              "a9eee573-b04a-40a9-a9c2-70d405056e18": 1
+            },
+            "shifts": {
+              "A": {
+                "start": "07:00",
+                "end": "16:00",
+                "color": "amber"
+              },
+              "C": {
+                "start": "11:30",
+                "end": "20:30",
+                "color": "peach"
+              },
+              "B": {
+                "start": "09:30",
+                "end": "18:30",
+                "color": "lavender"
+              },
+              "B2": {
+                "start": "08:30",
+                "end": "17:30",
+                "color": "purple"
+              },
+              "F": {
+                "start": "08:00",
+                "end": "17:00",
+                "color": "cyan"
+              },
+              "A2": {
+                "start": "06:15",
+                "end": "15:15",
+                "color": "mint"
+              },
+              "A3": {
+                "start": "06:15",
+                "end": "15:15",
+                "color": "sage"
+              },
+              "V1": {
+                "start": "19:00",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V2": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "rose"
+              },
+              "V3": {
+                "start": "19:04",
+                "end": "06:30",
+                "color": "red"
+              },
+              "Z": {
+                "start": "07:00",
+                "end": "15:50",
+                "color": "amber"
+              },
+              "N": {
+                "start": "19:49",
+                "end": "06:30",
+                "color": "indigo"
+              }
+            }
+          }
+        ]
       }
     ],
     "exceptions": [
@@ -2781,7 +3267,7 @@ export const defaultWorkspace = {
         "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-22T20:00:37.788Z",
+    "publishedAt": "2026-10-23T20:21:53.169Z",
     "departments": [
       {
         "id": "department-default",
@@ -2797,25 +3283,198 @@ export const defaultWorkspace = {
         "id": "work-team-1",
         "departmentId": "department-default",
         "name": "Beställning",
-        "scheduleActive": true
+        "scheduleActive": true,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          },
+          "V1": {
+            "start": "19:00",
+            "end": "06:30",
+            "color": "rose"
+          },
+          "V2": {
+            "start": "19:04",
+            "end": "06:30",
+            "color": "rose"
+          },
+          "V3": {
+            "start": "19:04",
+            "end": "06:30",
+            "color": "red"
+          },
+          "Z": {
+            "start": "07:00",
+            "end": "15:50",
+            "color": "amber"
+          },
+          "N": {
+            "start": "19:49",
+            "end": "06:30",
+            "color": "indigo"
+          }
+        }
       },
       {
         "id": "13a13c00-b6b0-4a22-84b4-a40ea20a32d7",
         "name": "Avfall",
         "departmentId": "department-default",
-        "scheduleActive": false
+        "scheduleActive": false,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          }
+        }
       },
       {
         "id": "ebd8d4d8-095a-4add-a187-cc69e15178a6",
         "name": "Gods",
         "departmentId": "department-default",
-        "scheduleActive": false
+        "scheduleActive": false,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          }
+        }
       },
       {
         "id": "677895bd-4bb2-4643-ab13-9979e72f9dd5",
         "name": "Post",
         "departmentId": "department-default",
-        "scheduleActive": false
+        "scheduleActive": false,
+        "shifts": {
+          "A": {
+            "start": "07:00",
+            "end": "16:00",
+            "color": "amber"
+          },
+          "C": {
+            "start": "11:30",
+            "end": "20:30",
+            "color": "peach"
+          },
+          "B": {
+            "start": "09:30",
+            "end": "18:30",
+            "color": "lavender"
+          },
+          "B2": {
+            "start": "08:30",
+            "end": "17:30",
+            "color": "purple"
+          },
+          "F": {
+            "start": "08:00",
+            "end": "17:00",
+            "color": "cyan"
+          },
+          "A2": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "mint"
+          },
+          "A3": {
+            "start": "06:15",
+            "end": "15:15",
+            "color": "sage"
+          }
+        }
       }
     ],
     "employees": [
@@ -2996,6 +3655,11 @@ export const defaultWorkspace = {
             "from": "2026-10-16",
             "teamId": "work-team-1",
             "groupId": "fbecc7ad-3538-4ae5-a6e6-083bd92f63f7"
+          },
+          {
+            "from": "2026-10-23",
+            "teamId": "work-team-1",
+            "groupId": "9118f34d-8d55-4ccc-953d-5d868cb0af38"
           }
         ]
       },
@@ -3270,7 +3934,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 280,
+  "revision": 346,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"

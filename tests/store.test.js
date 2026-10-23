@@ -3,7 +3,37 @@ import assert from 'node:assert/strict';
 import { defaultWorkspace } from './fixtures/workspace.js';
 import { defaultWorkspace as hostedWorkspace } from '../src/default-data.js';
 import { init, saveDraft, publish, importData } from '../src/store.js';
-import { getShift, deleteTeam, validateState, organizeState, seedState, savePersonalSchedule } from '../src/model.js';
+import { getShift, deleteTeam, validateState, organizeState, seedState, savePersonalSchedule, saveTeamShift, useLoopingSchedules } from '../src/model.js';
+
+test('shared looping schedules persist in both saved views and survive reopening and backup import',async t=>{
+  const memory=new Map();
+  for(const [key,value] of Object.entries({
+    localStorage:{getItem:key=>memory.get(key)??null,setItem:(key,value)=>memory.set(key,value)},
+    location:{hostname:'schedule.example.test',protocol:'https:'},
+  })){
+    const original=Object.getOwnPropertyDescriptor(globalThis,key);
+    Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
+    t.after(()=>{if(original)Object.defineProperty(globalThis,key,original);else delete globalThis[key];});
+  }
+  const store=await import('../src/store.js?shared-team-passes');await store.init();
+  const state=useLoopingSchedules(seedState()),group=state.teams[0];
+  group.versions[0].effectiveFrom='2026-10-26';
+  const sibling=structuredClone(group);sibling.id='night';sibling.members=[];
+  for(const version of sibling.versions)version.positions={};
+  state.teams.push(sibling);
+  saveTeamShift(state,group.id,'C','DAG',{start:'08:00',end:'16:00',color:'mint'});
+  const saved=await store.publish(state);
+  const reopened=await store.init();
+  const imported=await store.importData(JSON.parse(JSON.stringify(saved.working)));
+  for(const workspace of [saved,reopened,imported])for(const snapshot of [workspace.working,workspace.published]){
+    assert.equal(getShift(snapshot,group.id,'member-1','2026-10-12').code,'DAG');
+    for(const target of snapshot.teams){
+      assert.deepEqual(target.versions[0].shifts,snapshot.workTeams[0].shifts);
+      assert.equal(target.versions[0].shifts.C,undefined);
+      assert.equal(target.versions[0].shifts.DAG.start,'08:00');
+    }
+  }
+});
 
 test('personal schedules publish, persist and reach another device on the hosted site',async t=>{
   const memory=new Map();

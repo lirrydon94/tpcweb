@@ -44,7 +44,7 @@ test('personal schedule validation and failed publication keep the form open wit
 });
 
 test('hourly skills save on the person, reopen after reload and can be cleared', async()=>{
-  const state=model.organizeState(model.seedState());
+  const state=model.useLoopingSchedules(model.seedState());
   const departmentId=state.departments[0].id;
   state.workTeams[0].name='Beställning';
   state.workTeams.push({id:'waste',name:'Avfall',departmentId,scheduleActive:false});
@@ -117,14 +117,17 @@ test('Bosse week 7 defaults to Monday so A2, A, A become leave in the visible we
   for(const cell of cells.slice(0,3)){assert.match(cell,/Tjänstledig/);assert.doesNotMatch(cell,/06:15–15:15|07:00–16:00/);}
 });
 
-test('new personal schedule start cannot precede the employee placement within the week',async()=>{
+test('a looping personal schedule can cover the week before the employee registration date',async()=>{
   const state=model.organizeState(model.seedState());
   const employee=state.employees[0];employee.activeFrom='2026-10-14';employee.placements[0].from='2026-10-14';
   state.teams[0].members[0].activeFrom='2026-10-14';
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
   await page.click('admin');await page.submit('lirrydoz');
   page.setToday('2026-10-16');await page.click('person-schedule',undefined,{member:employee.id});
-  assert.match(page.dialog.innerHTML,/name="effectiveFrom" value="2026-10-14"/);
+  assert.match(page.dialog.innerHTML,/name="effectiveFrom" value="2026-10-12"/);
+  await page.submit({effectiveFrom:'2026-10-12','mode-0-0':'leave'});
+  assert.equal(page.error.textContent,'');
+  assert.equal(model.getShift(page.getWorkspace().published,'team-1',employee.id,'2026-10-12').type,'leave');
 });
 
 test('viewers see published personal leave, days off and adjusted hours instead of the group shifts',async()=>{
@@ -374,8 +377,8 @@ test('rotation matching previews without saving, rebases weeks and saves the who
   for(const other of team.members.slice(1))assert.equal(model.rotationPosition(saved,other.id,'2026-10-19'),model.rotationPosition(version,other.id,'2026-10-19'));
 });
 
-test('Liridon matching uses the calendar week version even when the editor selected an older schedule',async()=>{
-  const state=model.organizeState(structuredClone(defaultWorkspace.working));
+test('Liridon matching uses the same looping schedule when comparing earlier weeks',async()=>{
+  const state=model.useLoopingSchedules(structuredClone(defaultWorkspace.working));
   const group=state.teams[0],member=group.members.find(m=>m.name==='Liridon');
   const current=model.activeVersion(group,'2026-10-12'),old=group.versions.find(v=>v.id!==current.id);
   const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
@@ -391,13 +394,108 @@ test('Liridon matching uses the calendar week version even when the editor selec
   assert.deepEqual(page.getWorkspace(),before);
   await page.click('match-week-step',undefined,{step:'-1'});
   row=preview();
-  assert.match(row[1],new RegExp(`value="${model.rotationPosition(old,member.id,'2026-10-05')}" selected`));
+  assert.match(row[1],new RegExp(`value="${model.rotationPosition(current,member.id,'2026-10-05')}" selected`));
   await page.click('match-week-step',undefined,{step:'1'});
   assert.match(preview()[1],/value="2" selected/);
   await page.submit();assert.equal(page.error.textContent,'');
   const after=page.getWorkspace().published;
   assert.deepEqual(after.teams[0].versions.find(v=>v.id===old.id),old);
   for(const date of model.weekDates('2026-10-12'))assert.deepEqual(model.getShift(after,group.id,member.id,date),model.getShift(before.published,group.id,member.id,date));
+});
+
+test('rotation matching shows a midweek transfer only in the current group without changing its loop on save',async()=>{
+  const state=model.organizeState(model.seedState()),night=state.teams[0];
+  night.name='Natt';
+  night.members[0].name='Rickard';state.employees[0].name='Rickard';
+  const plus={...structuredClone(night),id:'night-plus',name:'Natt+',members:[]};
+  for(const version of plus.versions)version.positions={};
+  state.teams.push(plus);
+  model.placeEmployee(state,'member-1',night.workTeamId,plus.id,'2026-10-23');
+  model.useLoopingSchedules(state);
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1},new Map(),'?date=2026-10-23');
+  page.setToday('2026-10-23');
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'rotation'});
+  await page.click('match-rotation');
+  assert.doesNotMatch(page.dialog.innerHTML,/data-member="member-1"/);
+  assert.match(page.dialog.innerHTML,/data-member="member-2"/);
+  assert.match(page.dialog.innerHTML,/personer som tillhör gruppen idag/);
+  // Changing the comparison week must not reintroduce former group members.
+  await page.change({id:'match-week-select',value:'2026-10-12'});
+  assert.doesNotMatch(page.dialog.innerHTML,/data-member="member-1"/);
+  await page.change({id:'',classList:{contains:name=>name==='match-position'},dataset:{member:'member-2'},value:'4'});
+  await page.click('match-week-step',undefined,{step:'2'});
+  assert.doesNotMatch(page.dialog.innerHTML,/data-member="member-1"/);
+  await page.submit();assert.equal(page.error.textContent,'');
+  const saved=page.getWorkspace().published;
+  for(let offset=0;offset<11;offset++){
+    const date=model.addDays('2026-10-12',offset);
+    assert.deepEqual(model.getShift(saved,night.id,'member-1',date),model.getShift(state,night.id,'member-1',date));
+    assert.deepEqual(model.getShift(saved,plus.id,'member-1',date),model.getShift(state,plus.id,'member-1',date));
+  }
+  assert.deepEqual(saved.teams.find(group=>group.id===plus.id),plus);
+  await page.change({id:'admin-team-select',value:plus.id});
+  await page.click('match-rotation');
+  assert.match(page.dialog.innerHTML,/<label>Rickard<select class="match-position" data-member="member-1"/);
+  assert.doesNotMatch(page.dialog.innerHTML,/data-member="member-2"/);
+  await page.change({id:'match-week-select',value:'2026-10-12'});
+  assert.match(page.dialog.innerHTML,/data-member="member-1"/);
+});
+
+test('rotation matching excludes ended and unassigned employees but ignores registration dates for loops',async()=>{
+  const state=model.organizeState(model.seedState());
+  state.employees[0].activeUntil='2026-10-23';
+  state.employees[1].activeFrom='2026-10-24';
+  model.placeEmployee(state,'member-3',null,null,'2026-10-23');
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  page.setToday('2026-10-23');
+  await page.click('admin');await page.submit('lirrydoz');await page.click('match-rotation');
+  for(const id of ['member-1','member-3'])assert.ok(!page.dialog.innerHTML.includes(`data-member="${id}"`));
+  assert.match(page.dialog.innerHTML,/data-member="member-2"/);
+  assert.match(page.dialog.innerHTML,/data-member="member-4"/);
+});
+
+test('the roster uses the current group for the whole week and recurring editors have no start-date controls',async()=>{
+  const state=model.organizeState(model.seedState()),old=state.teams[0];
+  old.members[0].name='Rickard';state.employees[0].name='Rickard';
+  old.members[0].activeFrom='2026-10-16';state.employees[0].activeFrom='2026-10-16';
+  state.employees[0].placements[0].from='2026-10-16';
+  const group={...structuredClone(old),id:'night-plus',name:'Natt+',members:[]};
+  const version=group.versions[0];
+  version.effectiveFrom='2026-10-26';version.referenceMonday='2026-10-19';version.positions={};
+  version.rotation=[['V2','V2','','','','','V3']];
+  version.shifts.V2={start:'19:04',end:'06:30',color:'rose'};
+  version.shifts.V3={start:'19:04',end:'06:30',color:'red'};
+  state.teams.push(group);
+  model.placeEmployee(state,'member-1',old.workTeamId,group.id,'2026-10-23');
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1},new Map(),'?date=2026-10-23');
+  page.setToday('2026-10-23');
+  const checkRow=()=>{
+    const rows=page.app.innerHTML.match(/<tbody class="roster-person">.*?<\/tbody>/gs).filter(row=>row.includes('<span>Rickard<'));
+    assert.equal(rows.length,1);
+    const cells=rows[0].match(/<td\b[^>]*>.*?<\/td>/gs);
+    assert.doesNotMatch(rows[0],/Ej aktiv/);
+    for(const day of [0,1])assert.match(cells[day],/<b>V2<\/b>/);
+    for(const day of [2,3,4,5])assert.match(cells[day],/Ledig/);
+    assert.match(cells[6],/<b>V3<\/b>/);
+  };
+  checkRow();
+  await page.click('navigate',undefined,{step:'-1'});checkRow(); // Registration week, 12–18 October.
+  await page.click('navigate',undefined,{step:'-1'});checkRow(); // Entirely before registration.
+  await page.click('navigate',undefined,{step:'3'});checkRow();
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'rotation'});
+  await page.change({id:'admin-team-select',value:group.id});
+  assert.match(page.app.innerHTML,/Schemat loopar utan start- eller slutdatum/);
+  assert.doesNotMatch(page.app.innerHTML,/Ändra startdatum|Gäller från måndag|version-dates/);
+  await page.click('add-team');
+  assert.doesNotMatch(page.dialog.innerHTML,/name="date"|Börjar på måndag/);
+  await page.submit({name:'Loopgrupp',length:'2'});
+  assert.equal(page.error.textContent,'');
+  const created=page.getWorkspace().working.teams.find(item=>item.name==='Loopgrupp');
+  assert.equal(created.loopSchedule,true);
+  assert.equal(created.versions[0].rotation.length,2);
+  await page.click('person-schedule',undefined,{member:'member-1'});
+  assert.doesNotMatch(page.dialog.innerHTML,/id="personal-start-week"|type="date" name="effectiveFrom"/);
+  assert.match(page.dialog.innerHTML,/upprepas varje varv utan startdatum/);
 });
 
 test('matching previews personal leave and dated absence through the same rules as the roster',async()=>{
@@ -438,6 +536,54 @@ test('rotation weeks can be deleted with confirmation and positions remain valid
   assert.equal(page.dialog.open,false);
   assert.equal(page.getWorkspace().working.teams[0].versions.at(-1).rotation.length,1);
   assert.deepEqual(model.validateState(page.getWorkspace().working),[]);
+});
+
+test('shared passes save across groups, reopen after reload and are inherited by new groups', async () => {
+  const state=model.organizeState(model.seedState()), group=state.teams[0];
+  const sibling=structuredClone(group);sibling.id='night';sibling.name='Natt';sibling.members=[];
+  for(const version of sibling.versions){version.positions={};version.shifts.N={start:'22:00',end:'06:00',color:'blue'};version.rotation[0][0]='N';}
+  state.teams.push(sibling);
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'rotation'});
+  assert.match(page.app.innerHTML,/Gemensamma pass för alla grupper i teamet/);
+  assert.match(page.app.innerHTML,/data-action="edit-shift" data-code="N"/);
+  await page.click('edit-shift',undefined,{code:'N'});
+  await page.submit({code:'NATT',start:'21:00',end:'06:00',color:'purple'});
+  assert.equal(page.error.textContent,'');
+  let saved=page.getWorkspace();
+  for(const snapshot of [saved.working,saved.published])for(const target of snapshot.teams){
+    assert.equal(target.versions[0].shifts.NATT.start,'21:00');
+    assert.equal(target.versions[0].shifts.N,undefined);
+  }
+  await page.change({id:'admin-team-select',value:'night'});
+  assert.match(page.app.innerHTML,/<option value="NATT" selected>NATT<\/option>/);
+  const beforeFailure=page.getWorkspace();
+  await page.click('edit-shift',undefined,{code:'NATT'});page.failPublish('Kunde inte spara');
+  await page.submit({code:'N2',start:'20:00',end:'06:00',color:'blue'});
+  assert.equal(page.dialog.open,true);assert.equal(page.error.textContent,'Kunde inte spara');
+  assert.deepEqual(page.getWorkspace(),beforeFailure);
+  page.failPublish(null);await page.click('close-modal');
+  await page.click('add-team');await page.submit({name:'Ny grupp',length:'1',date:'2026-10-12'});
+  assert.equal(page.error.textContent,'');saved=page.getWorkspace();
+  const created=saved.working.teams.find(item=>item.name==='Ny grupp');
+  assert.deepEqual(created.versions[0].shifts,saved.working.workTeams[0].shifts);
+  assert.deepEqual(created.versions[0].rotation,[Array(7).fill('')]);
+  const reloaded=await openApp('admin',saved);
+  await reloaded.click('admin');await reloaded.submit('lirrydoz');await reloaded.click('admin-tab',undefined,{tab:'rotation'});
+  await reloaded.change({id:'admin-team-select',value:created.id});
+  await reloaded.click('edit-shift',undefined,{code:'NATT'});
+  assert.match(reloaded.dialog.innerHTML,/value="21:00"/);
+});
+
+test('a new team starts with its own empty pass list instead of copying another team', async () => {
+  const page=await openApp();await page.click('admin');await page.submit('lirrydoz');
+  await page.click('admin-tab',undefined,{tab:'rotation'});
+  await page.click('add-work-team');await page.submit({name:'Nytt team'});
+  await page.click('add-team');await page.submit({name:'Första grupp',length:'1',date:'2026-10-12',copy:true});
+  assert.equal(page.error.textContent,'');
+  const state=page.getWorkspace().working,team=state.workTeams.find(item=>item.name==='Nytt team');
+  assert.deepEqual(team.shifts,{});
+  assert.deepEqual(state.teams.find(item=>item.workTeamId===team.id).versions[0].rotation,[Array(7).fill('')]);
 });
 
 test('settings, rotation changes and imports publish on save, and failed saves stay open', async () => {
@@ -562,7 +708,7 @@ test('department registration and placement persist without requiring a group', 
 test('adding a rotation week appends a blank row directly without creating a version', async () => {
   const page=await openApp();
   await page.click('admin');await page.submit('lirrydoz');
-  const before=model.organizeState(page.getWorkspace().working).teams[0];
+  const before=model.useLoopingSchedules(page.getWorkspace().working).teams[0];
   await page.click('new-rotation');
   assert.equal(page.dialog.open,false);
   const after=page.getWorkspace().working.teams[0];

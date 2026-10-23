@@ -126,7 +126,7 @@ function layoutStaffBoard() {
 function shell() {
   cancelStaffDrag?.();
   staffBoardObserver?.disconnect();
-  for (const state of [workspace.working,workspace.published]) if(state)model.organizeState(state);
+  for (const state of [workspace.working,workspace.published]) if(state)model.useLoopingSchedules(state);
   if (!hasAdminRole()) adminUnlocked = false;
   if (!admin()) { ui.editingSchedule = false; if (ui.view === 'admin') ui.view = 'schedule'; }
   normalizeSelection();
@@ -287,7 +287,7 @@ function colorFor(team,date,code) { return model.activeVersion(team,date)?.shift
 function rosterView(team, groups=[team], departmentScope=null) {
   const state=data(), dates=model.weekDates(ui.date), editable=admin()&&ui.editingSchedule;
   const assignments=Object.fromEntries(dates.map(d=>[d,groups.flatMap(g=>model.getDayAssignments(state,g.id,d))]));
-  const home=[...new Map(groups.flatMap(g=>g.members.filter(m=>(!m.activeUntil||m.activeUntil>dates[0])&&m.activeFrom<=dates[6]&&dates.some(d=>model.belongsToGroup(state,m.id,g.id,d)))).map(m=>[m.id,m])).values()];
+  const home=[...new Map(groups.flatMap(g=>g.members.filter(m=>dates.some(d=>model.isActive(m,d)&&model.belongsToGroup(state,m.id,g.id,d)))).map(m=>[m.id,m])).values()];
   const visitors=[...new Set(Object.values(assignments).flat().map(s=>s.memberId))].filter(id=>!home.some(m=>m.id===id)).map(findMember).filter(Boolean).filter(m=>!state.teams.some(g=>!visibleScheduleGroup(state,g)&&g.members.some(person=>person.id===m.id)&&dates.some(d=>model.belongsToGroup(state,m.id,g.id,d))));
   const members=[...home,...visitors].filter(m=>(findMember(m.id)?.role||m.role)!=='part-time');
   const groupFor=(id,date)=>groups.find(g=>g.members.some(m=>m.id===id)&&model.belongsToGroup(state,id,g.id,date));
@@ -304,7 +304,7 @@ function rosterView(team, groups=[team], departmentScope=null) {
   const rows=members.map((m,i)=>{
     const isHome=home.some(p=>p.id===m.id), ownGroup=groupFor(m.id,ui.date), version=model.activeVersion(ownGroup,ui.date), position=isHome&&version?model.rotationPosition(version,m.id,ui.date):0;
     const cells=dates.map(d=>{
-      const group=groupFor(m.id,d),active=Boolean(group&&m.activeFrom<=d&&(!m.activeUntil||m.activeUntil>d));
+      const group=groupFor(m.id,d),active=Boolean(group&&model.isActive(m,d));
       return {date:d,group,shifts:assignments[d].filter(a=>a.memberId===m.id),exception:group?state.exceptions.find(e=>e.teamId===group.id&&e.memberId===m.id&&e.date===d):null,main:group?model.getShift(state,group.id,m.id,d):null,active};
     });
     const shiftCells=cells.map(c=>{
@@ -503,7 +503,7 @@ function personScheduleModal(memberId, date=today()) {
   if (!employee || employee.role==='part-time' || !version) { toast('Personen behöver tillhöra en grupp med ett schema på det valda datumet.',true); return; }
   const personal=model.personalScheduleOn(version,memberId,date);
   const position=model.rotationPosition(version,memberId,date);
-  const weekStart=[model.mondayOf(date),version.effectiveFrom,employee.activeFrom||'1900-01-01',model.placementOn(employee,date)?.from||'1900-01-01'].sort().at(-1);
+  const weekStart=[model.mondayOf(date),!employee.loopSchedule&&employee.activeFrom||'1900-01-01'].sort().at(-1);
   const effectiveFrom=personal?.effectiveFrom||weekStart;
   const rows=version.rotation.map((row,week)=>`<tr data-personal-week="${week}" class="${week===position-1?'personal-current-week':''}"><th scope="row"><strong>Vecka ${week+1}</strong><span class="personal-week-marker" ${week===position-1?'':'hidden'}>${model.mondayOf(date)===model.mondayOf(today())?'Här är personen nu':'Personens vecka'}</span><small class="personal-week-count"></small></th>${row.map((code,day)=>{
     const cell=personal?.rotation[week]?.[day], shift=version.shifts[code], key=`${week}-${day}`;
@@ -512,7 +512,7 @@ function personScheduleModal(memberId, date=today()) {
     return `<td data-personal-day="${key}" class="${cell?'personal-changed-day':''}"><select class="personal-rotation-cell ${esc(selectedShift?.color||'')}" name="mode-${key}" aria-label="Schemavecka ${week+1}, ${weekdayNames[day]}"><option value="inherit" ${selected==='inherit'?'selected':''}>${esc(code||'—')}</option><optgroup label="Frånvaro">${model.PERSONAL_ABSENCE_TYPES.map(type=>`<option value="${type}" ${selected===type?'selected':''}>${label(type)}</option>`).join('')}</optgroup><optgroup label="Byt arbetspass">${Object.entries(version.shifts).map(([c,s])=>`<option value="shift:${esc(c)}" ${selected===`shift:${c}`?'selected':''}>${esc(c)} · ${s.start}–${s.end}</option>`).join('')}</optgroup><option value="custom" ${selected==='custom'?'selected':''}>Egna tider</option></select><span class="personal-cell-time">${selectedShift?selectedShift.start+'–'+selectedShift.end:'Ledig'}</span><small class="personal-cell-date" hidden></small><small class="personal-cell-base" ${cell?'':'hidden'}>Grundpass: ${esc(code||'Ledig')}</small><div class="personal-times" ${cell?.type==='custom'?'':'hidden'}><label>Från<input type="time" name="start-${key}" aria-label="Från, schemavecka ${week+1}, ${weekdayNames[day]}" value="${esc(cell?.start||shift?.start||'')}" ${cell?.type==='custom'?'required':'disabled'}></label><label>Till<input type="time" name="end-${key}" aria-label="Till, schemavecka ${week+1}, ${weekdayNames[day]}" value="${esc(cell?.end||shift?.end||'')}" ${cell?.type==='custom'?'required':'disabled'}></label></div></td>`;
   }).join('')}</tr>`).join('');
   modal(`Personligt schema · ${esc(employee.name)}`,'',
-    `<div class="personal-schedule-editor"><input type="hidden" name="effectiveFrom" value="${effectiveFrom}"><p id="personal-position" class="personal-position" aria-live="polite">Kalendervecka ${model.isoWeek(date).week} · ${esc(employee.name)} är på schemavecka ${position}.</p><button type="button" class="text-button" id="personal-start-week" hidden>Låt ändringarna gälla från den visade veckans början</button><div class="rotation-scroll personal-rotation-scroll" tabindex="0" role="region" aria-label="Personens återkommande grundschema"><table class="rotation-table personal-rotation-table"><caption class="sr-only">${esc(employee.name)} · gruppens grundschema med personliga ändringar</caption><thead><tr><th scope="col">Schemavecka</th>${weekdayLabels.map(day=>`<th scope="col">${day}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div><p class="field-note">Markerad rad visar personens plats i rotationen. Ändrade rutor upprepas varje varv från startdatumet. Välj det första alternativet i listan för att följa grundschemat igen. Anställningsgraden beräknas automatiskt från arbetstiden i hela rotationen.</p></div>`,async f=>{
+    `<div class="personal-schedule-editor"><input type="hidden" name="effectiveFrom" value="${effectiveFrom}"><p id="personal-position" class="personal-position" aria-live="polite">Kalendervecka ${model.isoWeek(date).week} · ${esc(employee.name)} är på schemavecka ${position}.</p><div class="rotation-scroll personal-rotation-scroll" tabindex="0" role="region" aria-label="Personens återkommande grundschema"><table class="rotation-table personal-rotation-table"><caption class="sr-only">${esc(employee.name)} · gruppens grundschema med personliga ändringar</caption><thead><tr><th scope="col">Schemavecka</th>${weekdayLabels.map(day=>`<th scope="col">${day}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div><p class="field-note">Markerad rad visar personens plats i rotationen. Ändrade rutor upprepas varje varv utan startdatum. Välj det första alternativet i listan för att följa grundschemat igen. Anställningsgraden beräknas automatiskt från arbetstiden i hela rotationen.</p></div>`,async f=>{
       const next=copy(), target=next.teams.find(g=>g.id===group.id)?.versions.find(v=>v.id===version.id);
       if(JSON.stringify(target)!==JSON.stringify(version))throw new Error('Gruppschemat har ändrats. Stäng och öppna personens schema igen.');
       const rotation=personalRotationFromFields(version,name=>f.get(name));
@@ -560,7 +560,7 @@ function setupPersonalScheduleFields(version, employee, group) {
   const updatePosition=()=>{
     const date=form.querySelector('#personal-position-date').value;
     if(!date)return;
-    const valid=model.activeVersion(group,date)?.id===version.id&&model.belongsToGroup(workspace.working,employee.id,group.id,date)&&(!employee.activeFrom||employee.activeFrom<=date)&&(!employee.activeUntil||date<employee.activeUntil);
+    const valid=model.activeVersion(group,date)?.id===version.id&&model.belongsToGroup(workspace.working,employee.id,group.id,date)&&model.isActive(employee,date);
     const position=valid?model.rotationPosition(version,employee.id,date):0;
     form.querySelectorAll('[data-personal-week]').forEach(row=>{
       const current=Number(row.dataset.personalWeek)===position-1;
@@ -568,20 +568,15 @@ function setupPersonalScheduleFields(version, employee, group) {
         const note=cell.querySelector('.personal-cell-date');
         note.hidden=!current;
         const cellDate=model.addDays(model.mondayOf(date),day);
-        const beforeStart=cellDate<field('effectiveFrom').value;
-        note.textContent=fmt(cellDate,{day:'numeric',month:'short'})+(beforeStart?' · före startdatum':'');
+        const beforeStart=Boolean(!employee.loopSchedule&&employee.activeFrom&&cellDate<employee.activeFrom);
+        note.textContent=fmt(cellDate,{day:'numeric',month:'short'})+(beforeStart?' · före anställningen':'');
         cell.classList.toggle('personal-before-start',current&&beforeStart);
       });
       row.classList.toggle('personal-current-week',current);
       const marker=row.querySelector('.personal-week-marker');marker.hidden=!current;
       marker.textContent=model.mondayOf(date)===model.mondayOf(today())?'Här är personen nu':'Personens vecka';
     });
-    form.querySelector('#personal-position').textContent=position?`Kalendervecka ${model.isoWeek(date).week} (${fmt(model.mondayOf(date),{day:'numeric',month:'short'})}) · ${employee.name} är på schemavecka ${position}.`:'Personen följer inte den här gruppens schemaversion på det valda datumet.';
-    const start=field('effectiveFrom').value;
-    const weekStart=[model.mondayOf(date),version.effectiveFrom,employee.activeFrom||'1900-01-01',model.placementOn(employee,date)?.from||'1900-01-01'].sort().at(-1);
-    const startWeekButton=form.querySelector('#personal-start-week');
-    startWeekButton.hidden=!position||!start||start<=weekStart;
-    startWeekButton.onclick=()=>{field('effectiveFrom').value=weekStart;updatePosition();};
+    form.querySelector('#personal-position').textContent=position?`Kalendervecka ${model.isoWeek(date).week} (${fmt(model.mondayOf(date),{day:'numeric',month:'short'})}) · ${employee.name} är på schemavecka ${position}.`:'Personen är inte aktiv i gruppen på det valda datumet.';
     const selectedRow=form.querySelector('.personal-current-week');
     if(selectedRow){
       const scroll=form.querySelector('.personal-rotation-scroll');
@@ -601,14 +596,14 @@ function setupPersonalScheduleFields(version, employee, group) {
 let editingVersionId;
 let rotationMatch;
 function rotationAdmin(team) {
-  const version=team.versions.find(v=>v.id===editingVersionId)||model.activeVersion(team,ui.date)||team.versions.at(-1);
+  const version=model.activeVersion(team,ui.date);
   if(!version)return empty('Inget grundschema ännu','Skapa ett grundschema för teamet.','new-rotation','Skapa grundschema');
   editingVersionId=version.id;
   const currentMon=model.mondayOf(today());
   const refMon=version.referenceMonday;
   const isCurrentWeek=refMon===currentMon;
   const weeksPassed=Math.round((Date.parse(currentMon)-Date.parse(refMon))/604800000);
-  return `<section class="admin-panel rotation-panel"><div class="panel-heading"><div><h2>Det återkommande grundschemat</h2><p>${version.rotation.length===1?'En vecka som upprepas varje vecka.':'Schemat upprepas efter '+version.rotation.length+' veckor.'} Välj ett pass i varje ruta. En tom ruta betyder ledig. Gäller från måndag ${fmt(version.effectiveFrom,{day:'numeric',month:'short',year:'numeric'})}.</p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="secondary-btn" data-action="version-dates">${icon('edit')} Ändra startdatum</button><button class="secondary-btn" data-action="new-rotation">${icon('plus')} Lägg till vecka</button></div></div><div class="rotation-scroll"><table class="rotation-table"><thead><tr><th>Vecka</th>${weekdayLabels.map(d=>`<th>${d}</th>`).join('')}<th></th></tr></thead><tbody>${version.rotation.map((row,i)=>`<tr draggable="true" data-row="${i}"><th><span class="drag-handle" title="Dra för att ändra ordning">⠿</span> ${i+1}</th>${row.map((code,j)=>`<td><select class="rotation-cell ${version.shifts[code]?.color || ''}" data-row="${i}" data-day="${j}" aria-label="Vecka ${i+1}, ${weekdayNames[j]}"><option value="">—</option>${Object.keys(version.shifts).map(c=>`<option value="${esc(c)}" ${c===code?'selected':''}>${esc(c)}</option>`).join('')}</select></td>`).join('')}<td><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="-1" aria-label="Flytta vecka ${i+1} uppåt" ${i===0?'disabled':''}>↑</button><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="1" aria-label="Flytta vecka ${i+1} nedåt" ${i===version.rotation.length-1?'disabled':''}>↓</button><button type="button" class="icon-btn danger-text" data-action="delete-row" data-row="${i}" aria-label="Ta bort vecka ${i+1}" title="${version.rotation.length===1?'Minst en vecka måste finnas kvar':'Ta bort veckan'}" ${version.rotation.length===1?'disabled':''}>${icon('close')}</button></td></tr>`).join('')}</tbody></table></div><div class="rotation-footnote">${icon('info')} På mobilen kan du svepa tabellen i sidled. Använd pilarna för att ändra veckornas ordning.</div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Stäm av mot jobbets schema</h2><p>Jämför schemaveckorna för gruppens medarbetare.</p></div><button class="primary-btn" data-action="match-rotation">Stäm av medarbetarnas veckor</button></div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Passtider</h2><p>Tiderna gäller för den här schemaversionen.</p></div><button class="secondary-btn" data-action="add-shift">${icon('plus')} Lägg till pass</button></div><div class="shift-definitions">${Object.entries(version.shifts).map(([code,s])=>`<button data-action="edit-shift" data-code="${esc(code)}"><span class="code-badge ${esc(s.color)}">${esc(code)}</span><strong>${s.start}–${s.end}</strong>${icon('edit')}</button>`).join('')}</div></section>`;
+  return `<section class="admin-panel rotation-panel"><div class="panel-heading"><div><h2>Det återkommande grundschemat</h2><p>${version.rotation.length===1?'En vecka som upprepas varje vecka.':'Schemat upprepas efter '+version.rotation.length+' veckor.'} Välj ett pass i varje ruta. En tom ruta betyder ledig. Schemat loopar utan start- eller slutdatum.</p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="secondary-btn" data-action="new-rotation">${icon('plus')} Lägg till vecka</button></div></div><div class="rotation-scroll"><table class="rotation-table"><thead><tr><th>Vecka</th>${weekdayLabels.map(d=>`<th>${d}</th>`).join('')}<th></th></tr></thead><tbody>${version.rotation.map((row,i)=>`<tr draggable="true" data-row="${i}"><th><span class="drag-handle" title="Dra för att ändra ordning">⠿</span> ${i+1}</th>${row.map((code,j)=>`<td><select class="rotation-cell ${version.shifts[code]?.color || ''}" data-row="${i}" data-day="${j}" aria-label="Vecka ${i+1}, ${weekdayNames[j]}"><option value="">—</option>${Object.keys(version.shifts).map(c=>`<option value="${esc(c)}" ${c===code?'selected':''}>${esc(c)}</option>`).join('')}</select></td>`).join('')}<td><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="-1" aria-label="Flytta vecka ${i+1} uppåt" ${i===0?'disabled':''}>↑</button><button class="icon-btn row-move" data-action="move-row" data-row="${i}" data-dir="1" aria-label="Flytta vecka ${i+1} nedåt" ${i===version.rotation.length-1?'disabled':''}>↓</button><button type="button" class="icon-btn danger-text" data-action="delete-row" data-row="${i}" aria-label="Ta bort vecka ${i+1}" title="${version.rotation.length===1?'Minst en vecka måste finnas kvar':'Ta bort veckan'}" ${version.rotation.length===1?'disabled':''}>${icon('close')}</button></td></tr>`).join('')}</tbody></table></div><div class="rotation-footnote">${icon('info')} På mobilen kan du svepa tabellen i sidled. Använd pilarna för att ändra veckornas ordning.</div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Stäm av mot jobbets schema</h2><p>Jämför schemaveckorna för gruppens medarbetare.</p></div><button class="primary-btn" data-action="match-rotation">Stäm av medarbetarnas veckor</button></div></section><section class="admin-panel"><div class="panel-heading"><div><h2>Passtider</h2><p>Gemensamma pass för alla grupper i teamet.</p></div><button class="secondary-btn" data-action="add-shift">${icon('plus')} Lägg till pass</button></div><div class="shift-definitions">${Object.entries(version.shifts).map(([code,s])=>`<button data-action="edit-shift" data-code="${esc(code)}"><span class="code-badge ${esc(s.color)}">${esc(code)}</span><strong>${s.start}–${s.end}</strong>${icon('edit')}</button>`).join('')}</div></section>`;
 }
 function changePeriods(entries) {
   const buckets = new Map();
@@ -708,27 +703,22 @@ function modal(title,description,body,onSubmit,options={}) {
 }
 async function save(next, message='Ändringarna har sparats') {
   if(!admin())throw new Error('Lås upp Hantera innan du gör ändringar.');
-  model.organizeState(next);
+  model.useLoopingSchedules(next);
   const errors=model.validateState(next); if(errors.length)throw new Error(errors[0]);
   if(ui.busy)throw new Error('En ändring sparas. Försök igen om en stund.');
   ui.busy=true;
   try{const result=await store.publish(next);workspace={...workspace,...result};ui.busy=false;shell();toast(result.fileSync?.message || message,result.fileSync?.state==='browser');}finally{ui.busy=false;}
 }
 const workingTeam = () => workspace.working.teams.find(t=>t.id===ui.teamId)||workspace.working.teams[0];
-const editingVersion = team => team.versions.find(v=>v.id===editingVersionId)||team.versions.at(-1);
+const editingVersion = team => model.activeVersion(team,ui.date);
 const copy = () => structuredClone(workspace.working);
 function setupRotationAdmin() {}
-function versionDates() {
-  const team=workingTeam(),version=editingVersion(team);
-  modal('Välj grundschemats startdatum.','Startpositionerna gäller på referensmåndagen. Kontrollera dem när du ändrar datumen.',`<label>Gäller från måndag<input name="effective" type="date" value="${version.effectiveFrom}" required></label><label>Referensmåndag<input name="reference" type="date" value="${version.referenceMonday}" required></label>`,async f=>{const effective=model.mondayOf(f.get('effective')),reference=model.mondayOf(f.get('reference'));if(team.versions.some(v=>v.id!==version.id&&v.effectiveFrom===effective))throw new Error('En annan version börjar redan det datumet.');const next=copy(),target=next.teams.find(t=>t.id===team.id).versions.find(v=>v.id===version.id);target.effectiveFrom=effective;target.referenceMonday=reference;await save(next,'Schemats datum har uppdaterats');});
-}
-
 function addTeam() {
   const parent=organizationSelection().team;if(!parent){organizationModal('team');return;}
-  modal('En ny grupp, ett eget schema.','Fyll sedan i passen och lägg till medarbetare.',`<label>Gruppnamn<input name="name" placeholder="t.ex. Daggruppen" required maxlength="60"></label><div class="form-grid"><label>Antal schemaveckor<input name="length" type="number" min="1" max="52" value="1" required></label><label>Börjar på måndag<input name="date" type="date" value="${model.mondayOf(ui.date)}" required></label></div><label class="checkbox-label"><input type="checkbox" name="copy"> Kopiera den valda gruppens grundschema</label>`,async f=>{
-    const date=f.get('date');if(model.mondayOf(date)!==date)throw new Error('Välj en måndag som grundschemats startdatum.');
-    const next=copy(), old=workingTeam(), length=Number(f.get('length')), template=old?.versions.at(-1) || model.seedState().teams[0].versions[0];
-    const version={id:model.uid(),effectiveFrom:date,referenceMonday:date,rotation:Array.from({length},(_,i)=>f.has('copy')?[...(template.rotation[i%template.rotation.length])]:Array(7).fill('')),positions:{},shifts:structuredClone(template.shifts)};
+  modal('En ny grupp, ett eget schema.','Gruppen får teamets gemensamma passlista. Fyll i grundschemat och lägg till medarbetare.',`<label>Gruppnamn<input name="name" placeholder="t.ex. Daggruppen" required maxlength="60"></label><div class="form-grid"><label>Antal schemaveckor<input name="length" type="number" min="1" max="52" value="1" required></label></div><label class="checkbox-label"><input type="checkbox" name="copy"> Kopiera den valda gruppens grundschema</label>`,async f=>{
+    const date=model.mondayOf(ui.date);
+    const next=copy(), old=next.teams.find(g=>g.id===ui.teamId&&g.workTeamId===parent.id), length=Number(f.get('length')), template=old?.versions.at(-1) || model.seedState().teams[0].versions[0];
+    const version={id:model.uid(),effectiveFrom:date,referenceMonday:date,rotation:Array.from({length},(_,i)=>f.has('copy')&&old?[...(template.rotation[i%template.rotation.length])]:Array(7).fill('')),positions:{},shifts:structuredClone(next.workTeams.find(t=>t.id===parent.id).shifts||{})};
     const team={id:model.uid(),workTeamId:parent.id,name:f.get('name').trim(),color:'mint',members:[],versions:[version]};
     if(!team.name)throw new Error('Ange ett teamnamn.');next.teams.push(team);ui.teamId=team.id;ui.view='admin';ui.adminTab='rotation';editingVersionId=version.id;await save(next,'Gruppen har lagts till. Fyll i grundschemat.');
   },{submit:'Skapa grupp'});
@@ -743,8 +733,11 @@ async function newRotation() {
 }
 function shiftModal(code) {
   const team=workingTeam(), version=editingVersion(team), shift=version.shifts[code];
-  modal(code?`Redigera pass ${esc(code)}`:'Lägg till ett pass','Välj passkod, tider och färg för den här schemaversionen.',`<label>Passkod<input name="code" value="${esc(code||'')}" required maxlength="6" ${code?'readonly':''} pattern="[A-Za-z0-9]+"></label><div class="form-grid"><label>Börjar<input name="start" type="time" value="${shift?.start||'07:00'}" required></label><label>Slutar<input name="end" type="time" value="${shift?.end||'16:00'}" required></label></div><fieldset class="shift-color-picker"><legend>Färg</legend><div class="shift-color-options">${['amber','yellow','orange','peach','red','rose','pink','lavender','purple','indigo','blue','cyan','teal','mint','sage','slate'].map(c=>`<label class="shift-color-option" title="${colorLabel(c)}"><input type="radio" name="color" value="${c}" aria-label="${colorLabel(c)}" ${(shift?.color||'amber')===c?'checked':''} required><span class="shift-color-swatch ${c}" aria-hidden="true">${icon('check')}</span></label>`).join('')}</div></fieldset><p class="field-note">Om sluttiden är tidigare än starttiden fortsätter passet nästa dag.</p>`,async f=>{
-    const newCode=f.get('code').toUpperCase();if(!code&&version.shifts[newCode])throw new Error('Den här passkoden finns redan.');if(f.get('start')===f.get('end'))throw new Error('Start- och sluttid måste vara olika.');const next=copy(), target=next.teams.find(t=>t.id===team.id).versions.find(v=>v.id===version.id);target.shifts[newCode]={start:f.get('start'),end:f.get('end'),color:f.get('color')};await save(next,'Passet har sparats');
+  modal(code?`Redigera pass ${esc(code)}`:'Lägg till ett pass','Passkod, tider och färg gäller för alla grupper i teamet.',`<label>Passkod<input name="code" value="${esc(code||'')}" required maxlength="6" pattern="[A-Za-z0-9]+"></label><div class="form-grid"><label>Börjar<input name="start" type="time" value="${shift?.start||'07:00'}" required></label><label>Slutar<input name="end" type="time" value="${shift?.end||'16:00'}" required></label></div><fieldset class="shift-color-picker"><legend>Färg</legend><div class="shift-color-options">${['amber','yellow','orange','peach','red','rose','pink','lavender','purple','indigo','blue','cyan','teal','mint','sage','slate'].map(c=>`<label class="shift-color-option" title="${colorLabel(c)}"><input type="radio" name="color" value="${c}" aria-label="${colorLabel(c)}" ${(shift?.color||'amber')===c?'checked':''} required><span class="shift-color-swatch ${c}" aria-hidden="true">${icon('check')}</span></label>`).join('')}</div></fieldset><p class="field-note">Om sluttiden är tidigare än starttiden fortsätter passet nästa dag.</p>`,async f=>{
+    const newCode=f.get('code').trim().toUpperCase();
+    const next=copy();
+    model.saveTeamShift(next,team.id,code,newCode,{start:f.get('start'),end:f.get('end'),color:f.get('color')});
+    await save(next,'Passet har sparats');
   });
 }
 function coverMinutes(start,end){const minute=t=>Number(t.slice(0,2))*60+Number(t.slice(3));return (minute(end)-minute(start)+1440)%1440;}
@@ -786,7 +779,7 @@ function exceptionModal(options={}) {
   const groupFor=(id,date)=>teamWide?groups.find(group=>model.belongsToGroup(workspace.working,id,group.id,date)):team;
   if(!members.length){toast('Lägg till en medarbetare först.',true);return;}
   const date=existing?.date||options.date||ui.date;
-  const people=[...new Map([...workspace.working.teams.flatMap(t=>t.members.map(m=>({...m,teamName:t.name}))),...(workspace.working.employees||[]).filter(e=>e.role==='part-time').map(e=>({...e,teamName:'Timmis'}))].filter(m=>(!m.activeFrom||m.activeFrom<=date)&&(!m.activeUntil||m.activeUntil>date)).map(m=>[m.id,m])).values()];
+  const people=[...new Map([...workspace.working.teams.flatMap(t=>t.members.map(m=>({...m,teamName:t.name}))),...(workspace.working.employees||[]).filter(e=>e.role==='part-time').map(e=>({...e,teamName:'Timmis'}))].filter(m=>model.isActive(m,date)).map(m=>[m.id,m])).values()];
   modal(existing?'Redigera individuell ändring':'En ändring för en medarbetare.','Grundschemat fortsätter som vanligt. Ändringen gäller bara de valda datumen.',`<label>Medarbetare<select name="member">${members.map(m=>`<option value="${esc(m.id)}" ${m.id===memberId?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label><div class="form-grid"><label>${existing?'Datum':'Från datum'}<input name="date" type="date" value="${date}" required></label>${!existing?`<label>Till och med<input name="through" type="date" value="${date}" required></label>`:''}</div><label>Typ av ändring<select name="type" id="exception-type">${['vacation','sick','leave','pension',...(existing?.type==='custom'?['custom']:[]),'off'].map(t=>`<option value="${t}" ${existing?.type===t?'selected':''}>${label(t)}</option>`).join('')}</select></label><label>Ersättare<select name="replacement"><option value="">Ingen ersättare</option>${people.map(m=>`<option value="${esc(m.id)}" ${m.id===existing?.replacementId?'selected':''}>${esc(m.name)} · ${esc(m.teamName)}</option>`).join('')}</select></label><div id="cover-options"><label>Omfattning<select name="coverMode"><option value="full">Hela passet</option><option value="partial" ${existing?.replacementStart?'selected':''}>Del av passet</option></select></label><div class="form-grid" id="cover-times"><label>Ersätter från<input name="coverStart" type="time" value="${existing?.replacementStart||''}"></label><label>Ersätter till<input name="coverEnd" type="time" value="${existing?.replacementEnd||''}"></label></div><p class="field-note" id="cover-summary" aria-live="polite"></p><p class="field-note">Vid del av passet väljer du från- och tilltid. Vid flera datum gäller samma tider varje valt datum. Överlappande pass tillåts inte.</p></div><label>Privat administratörsanteckning<textarea name="note" rows="2" maxlength="500" placeholder="Valfritt">${esc(existing?.note||'')}</textarea></label>`,async f=>{
     const next=copy(), from=f.get('date'), through=f.get('through')||from;
     if(through<from)throw new Error('Slutdatumet måste vara samma som eller efter startdatumet.');const span=Math.round((new Date(through)-new Date(from))/86400000);if(span>365)throw new Error('Välj ett datumintervall på högst ett år.');
@@ -1046,7 +1039,6 @@ async function handleAction(button) {
     case 'edit-person':if(admin())personModal(button.dataset.member);break;
     case 'person-schedule':if(admin())personScheduleModal(button.dataset.member);break;
     case 'new-rotation':if(admin())await newRotation();break;
-    case 'version-dates':if(admin())versionDates();break;
     case 'sync-reference-today':if(admin()){
       const currentMonday=model.mondayOf(today());
       const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id),v=editingVersion(team);
@@ -1055,7 +1047,7 @@ async function handleAction(button) {
         if(curPos)v.positions[m.id]=curPos;
       }
       v.referenceMonday=currentMonday;
-      await save(next,`Startmåndag har synkats till denna vecka (v. ${model.isoWeek(currentMonday).week})`);
+      await save(next,'Rotationens veckor har stämts av');
     }break;
     case 'shift-team-rotation':if(admin()){
       const step=Number(button.dataset.step);
@@ -1138,7 +1130,6 @@ document.addEventListener('change',async e=>{
     }
     else if(target.classList?.contains?.('match-position')&&admin()&&rotationMatch){rotationMatch.positions[target.dataset.member]=Number(target.value);renderRotationMatch();}
     else if(target.id==='jump-date'){if(target.value){ui.date=target.value;shell();scrollToDate(ui.date,true);}}
-    else if(target.id==='version-select'){editingVersionId=target.value;shell();}
     else if(target.classList.contains('rotation-cell')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);editingVersion(team).rotation[Number(target.dataset.row)][Number(target.dataset.day)]=target.value;await save(next,'Passet har uppdaterats');}
     else if(target.classList.contains('position-select')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);if(Number(target.value))editingVersion(team).positions[target.dataset.member]=Number(target.value);else delete editingVersion(team).positions[target.dataset.member];await save(next,'Startpositionen har uppdaterats');}
     else if(target.id==='import-file'&&admin()&&target.files[0]){let state;try{state=JSON.parse(await target.files[0].text());}catch{throw new Error('Filen kunde inte läsas. Välj en giltig säkerhetskopia från RSSB.');}const errors=model.validateState(state);if(errors.length)throw new Error(errors[0]);modal('Ersätta schemat?','Säkerhetskopian ersätter det aktuella schemat och publiceras direkt när du bekräftar.',`<p>${state.teams.length} team i säkerhetskopian.</p>`,async()=>{await save(state,'Säkerhetskopian har importerats');ui.teamId=undefined;editingVersionId=undefined;shell();},{submit:'Importera schema'});}
@@ -1178,7 +1169,7 @@ async function refreshSharedSchedule() {
   const canApply=()=>Boolean(workspace)&&workspace.role!=='signed-out'&&!$('#modal').open&&!ui.busy;
   if(refreshingSchedule||!canApply())return;
   refreshingSchedule=true;
-  try {const fresh=await store.refresh({canApply});if(!canApply())return;if(fresh.role==='signed-out'){workspace=fresh;shell();return;}if(fresh.error){toast(fresh.error,true);return;}for(const state of [fresh.working,fresh.published])if(state)model.organizeState(state);if(fresh.revision!==workspace.revision||fresh.role!==workspace.role||JSON.stringify(fresh.published)!==JSON.stringify(workspace.published)||JSON.stringify(fresh.working)!==JSON.stringify(workspace.working)){workspace=fresh;shell();toast('Ditt schema är uppdaterat');}}catch(error){toast(error.message,true);}finally{refreshingSchedule=false;}
+  try {const fresh=await store.refresh({canApply});if(!canApply())return;if(fresh.role==='signed-out'){workspace=fresh;shell();return;}if(fresh.error){toast(fresh.error,true);return;}for(const state of [fresh.working,fresh.published])if(state)model.useLoopingSchedules(state);if(fresh.revision!==workspace.revision||fresh.role!==workspace.role||JSON.stringify(fresh.published)!==JSON.stringify(workspace.published)||JSON.stringify(fresh.working)!==JSON.stringify(workspace.working)){workspace=fresh;shell();toast('Ditt schema är uppdaterat');}}catch(error){toast(error.message,true);}finally{refreshingSchedule=false;}
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshSharedSchedule();});
 window.addEventListener('focus',refreshSharedSchedule);
@@ -1224,7 +1215,16 @@ function matchWeekOptions(team, version, currentMonday) {
   }).join('');
 }
 function createRotationMatch(team,version,monday) {
+  // Keep all saved rotation positions aligned when changing the comparison week.
   return {teamId:team.id,versionId:version.id,version:structuredClone(version),monday,positions:Object.fromEntries(team.members.map(m=>[m.id,model.rotationPosition(version,m.id,monday)]))};
+}
+function rotationMatchMembers(team) {
+  const state=workspace.working,date=today();
+  return team.members.filter(member=>{
+    const employee=state.employees?.find(item=>item.id===member.id)||member;
+    return model.isActive(employee,date)
+      &&model.belongsToGroup(state,member.id,team.id,date);
+  });
 }
 function openRotationMatch() {
   const team=workingTeam(),monday=model.mondayOf(ui.date);
@@ -1234,23 +1234,20 @@ function openRotationMatch() {
 }
 function renderRotationMatch() {
   const draft=rotationMatch,team=workspace.working.teams.find(t=>t.id===draft.teamId),version=draft.version,week=model.isoWeek(draft.monday);
+  const members=rotationMatchMembers(team);
   const options=matchWeekOptions(team,version,draft.monday);
   const preview=copy(),previewVersion=preview.teams.find(t=>t.id===team.id).versions.find(v=>v.id===version.id);
   previewVersion.referenceMonday=draft.monday;previewVersion.positions={...draft.positions};
-  if(!model.activeVersion(team,draft.monday))previewVersion.effectiveFrom=draft.monday;
   const previewDays=member=>model.weekDates(draft.monday).map((date,i)=>{
     const shift=model.getShift(preview,team.id,member.id,date);
     const own=shift.working?`${esc(shift.code)} ${esc(shift.start)}–${esc(shift.end)}${shift.type==='cover'?' (ersättningspass)':''}`:label(shift.type);
     const covers=(shift.covers||[]).filter(cover=>shift.type!=='cover'||cover.exceptionId!==shift.exceptionId).map(cover=>`Ersättningspass ${esc(cover.start)}–${esc(cover.end)}`);
     return `${weekdayLabels[i]}: ${[own,...covers].join(' + ')}`;
   }).join(' · ');
-  modal('Stäm av medarbetarnas veckor','Välj den schemavecka som stämmer med varje person. Förhandsvisningen inkluderar personligt schema och registrerad frånvaro. Inget sparas förrän du trycker Spara.',`<label>Kalendervecka att jämföra<div class="match-week-bar" style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap"><button type="button" class="icon-btn" data-action="match-week-step" data-step="-1" title="Föregående vecka" aria-label="Föregående vecka">${icon('left')}</button><select id="match-week-select" style="flex:1;min-width:180px">${options}</select><button type="button" class="icon-btn" data-action="match-week-step" data-step="1" title="Nästa vecka" aria-label="Nästa vecka">${icon('right')}</button><button type="button" class="secondary-btn" data-action="match-week-today" style="min-height:42px;padding:0 12px;font-size:12px;white-space:nowrap">Denna vecka</button></div><input id="match-calendar-week" type="week" value="${week.year}-W${String(week.week).padStart(2,'0')}" style="margin-top:6px"></label><p class="field-note">Grundschema som gäller från ${fmt(version.effectiveFrom,{day:'numeric',month:'short',year:'numeric'})}. Vid byte till en annan schemaversion visas dess sparade veckor.</p>${team.members.map(m=>`<label>${esc(m.name)}<select class="match-position" data-member="${esc(m.id)}">${m.role==='part-time'?'<option value="0">Endast ersättningspass</option>':''}${version.rotation.map((_,i)=>`<option value="${i+1}" ${draft.positions[m.id]===i+1?'selected':''}>Vecka ${i+1}</option>`).join('')}</select></label><p class="field-note">${previewDays(m)}</p>`).join('')}`,async()=>{
+  modal('Stäm av medarbetarnas veckor','Här visas personer som tillhör gruppen idag. Välj den schemavecka som stämmer med varje person. Förhandsvisningen inkluderar personligt schema och registrerad frånvaro. Inget sparas förrän du trycker Spara.',`<label>Kalendervecka att jämföra<div class="match-week-bar" style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap"><button type="button" class="icon-btn" data-action="match-week-step" data-step="-1" title="Föregående vecka" aria-label="Föregående vecka">${icon('left')}</button><select id="match-week-select" style="flex:1;min-width:180px">${options}</select><button type="button" class="icon-btn" data-action="match-week-step" data-step="1" title="Nästa vecka" aria-label="Nästa vecka">${icon('right')}</button><button type="button" class="secondary-btn" data-action="match-week-today" style="min-height:42px;padding:0 12px;font-size:12px;white-space:nowrap">Denna vecka</button></div><input id="match-calendar-week" type="week" value="${week.year}-W${String(week.week).padStart(2,'0')}" style="margin-top:6px"></label><p class="field-note">Grundschemat loopar utan start- eller slutdatum. Kalenderveckan används bara för att stämma av personernas plats i rotationen.</p>${members.map(m=>`<label>${esc(m.name)}<select class="match-position" data-member="${esc(m.id)}">${m.role==='part-time'?'<option value="0">Endast ersättningspass</option>':''}${version.rotation.map((_,i)=>`<option value="${i+1}" ${draft.positions[m.id]===i+1?'selected':''}>Vecka ${i+1}</option>`).join('')}</select></label><p class="field-note">${previewDays(m)}</p>`).join('')}`,async()=>{
     const next=copy(),target=next.teams.find(t=>t.id===draft.teamId).versions.find(v=>v.id===draft.versionId);
     if(JSON.stringify(target)!==JSON.stringify(draft.version))throw new Error('Grundschemat har ändrats. Stäng och öppna avstämningen igen.');
     target.referenceMonday=draft.monday;target.positions={...draft.positions};
-    if(target.effectiveFrom>draft.monday&&!next.teams.find(t=>t.id===draft.teamId).versions.some(v=>v.id!==target.id&&v.effectiveFrom===draft.monday)){
-      target.effectiveFrom=draft.monday;
-    }
     for(const [id,value] of Object.entries(target.positions))if(!value)delete target.positions[id];
     await save(next,'Schemaveckorna har sparats');
   });

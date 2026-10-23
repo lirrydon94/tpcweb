@@ -71,8 +71,8 @@ function overlap(a, b) {
 
 const clockTime = total => `${String(Math.floor(mod(total, 1440) / 60)).padStart(2, '0')}:${String(mod(total, 60)).padStart(2, '0')}`;
 
-function isActive(member, date) {
-  return Boolean(member && (!member.activeFrom || member.activeFrom <= date) && (!member.activeUntil || date < member.activeUntil));
+export function isActive(member, date) {
+  return Boolean(member && (member.loopSchedule || !member.activeFrom || member.activeFrom <= date) && (!member.activeUntil || date < member.activeUntil));
 }
 
 function findMember(state, memberId, date) {
@@ -88,7 +88,7 @@ function findMember(state, memberId, date) {
 export function activeVersion(team, date) {
   const target = dateString(civilDate(date));
   return [...(team?.versions || [])]
-    .filter(version => version.effectiveFrom <= target)
+    .filter(version => team.loopSchedule || version.effectiveFrom <= target)
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0] || null;
 }
 
@@ -102,7 +102,7 @@ export function rotationPosition(version, memberId, date) {
 
 export function personalScheduleOn(version, memberId, date) {
   return [...(version?.personalSchedules || [])]
-    .filter(item => item.memberId === memberId && item.effectiveFrom <= date)
+    .filter(item => item.memberId === memberId && (version.loopSchedule || item.effectiveFrom <= date))
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0] || null;
 }
 
@@ -441,7 +441,13 @@ export function validateState(state) {
         ids.add(item.id);
       }
     }
-    for (const team of state.workTeams) if (!state.departments.some(d => d.id === team.departmentId)) errors.push('Teamets avdelning saknas.');
+    for (const team of state.workTeams) {
+      if (!state.departments.some(d => d.id === team.departmentId)) errors.push('Teamets avdelning saknas.');
+      if (team.shifts !== undefined && (!team.shifts || typeof team.shifts !== 'object' || Array.isArray(team.shifts)
+        || Object.entries(team.shifts).some(([code, shift]) => !code.trim() || !shift || !duration(shift.start, shift.end)))) {
+        errors.push('Teamets passlista måste innehålla passkoder med giltiga och olika start- och sluttider.');
+      }
+    }
     for (const group of state.teams) {
       if (!group || !state.workTeams.some(t => t.id === group.workTeamId)) { errors.push('Gruppens team saknas.'); continue; }
       const ids = new Set();
@@ -655,17 +661,100 @@ export function seedState(referenceDate = '2026-10-12') {
 }
 // The legacy `teams` field stores schedule groups for backup compatibility.
 export function organizeState(state) {
-  if (state.departments) return state;
+  if (state.departments) return shareTeamShifts(state);
   const departmentId = 'department-default';
   state.departments = [{ id: departmentId, name: 'Min avdelning' }];
   state.workTeams = state.teams.map(group => ({ id: `work-${group.id}`, departmentId, name: group.name }));
   state.employees = state.teams.flatMap(group => group.members.map(member => ({ ...structuredClone(member), departmentId, placements: [{ from: member.activeFrom || '1900-01-01', teamId: `work-${group.id}`, groupId: group.id }] })));
   for (const group of state.teams) { group.workTeamId = `work-${group.id}`; }
+  return shareTeamShifts(state);
+}
+
+// Retain legacy dated records in backups, but use the latest recurring schedule
+// and current group throughout the calendar. Reference Mondays only align cycles.
+export function useLoopingSchedules(state) {
+  organizeState(state);
+  for (const group of state.teams) {
+    group.loopSchedule = true;
+    for (const version of group.versions) version.loopSchedule = true;
+    for (const member of group.members) member.loopSchedule = member.role === 'member';
+  }
+  for (const employee of state.employees) {
+    employee.fixedPlacement = true;
+    employee.loopSchedule = employee.role === 'member';
+  }
   return state;
 }
 
+function remapShiftCodes(version, codes) {
+  version.rotation = version.rotation.map(row => row.map(code => codes.get(code) || code));
+  for (const schedule of version.personalSchedules || []) {
+    for (const row of schedule.rotation) {
+      for (const cell of row) if (cell?.type === 'shift' && codes.has(cell.code)) cell.code = codes.get(cell.code);
+    }
+  }
+}
+
+// Keep version snapshots self-contained for exports and existing schedule readers.
+// The team's catalogue is shared by every group, including hidden groups.
+function shareTeamShifts(state) {
+  for (const team of state.workTeams || []) {
+    const versions = state.teams.filter(group => group.workTeamId === team.id).flatMap(group => group.versions)
+      .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
+    const shifts = clone(team.shifts || {});
+    // Reserve original codes before assigning suffixes to conflicting old times.
+    const reserved = new Set([...Object.keys(shifts), ...versions.flatMap(version => Object.keys(version.shifts))]);
+    for (const version of versions) {
+      for (const [code, shift] of Object.entries(version.shifts)) {
+        if (!Object.hasOwn(shifts, code)) Object.defineProperty(shifts, code, { value: clone(shift), enumerable: true, writable: true, configurable: true });
+      }
+    }
+    const variants = new Map();
+    for (const version of versions) {
+      const codes = new Map();
+      for (const [code, shift] of Object.entries(version.shifts)) {
+        if (shifts[code].start === shift.start && shifts[code].end === shift.end) continue;
+        const key = JSON.stringify([code, shift.start, shift.end]);
+        let replacement = variants.get(key);
+        if (!replacement) {
+          const base = code.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'P';
+          let suffix = 2;
+          do { replacement = base.slice(0, Math.max(1, 6 - String(suffix).length)) + suffix++; } while (reserved.has(replacement));
+          reserved.add(replacement);
+          variants.set(key, replacement);
+          shifts[replacement] = clone(shift);
+        }
+        codes.set(code, replacement);
+      }
+      if (codes.size) remapShiftCodes(version, codes);
+    }
+    team.shifts = shifts;
+    for (const version of versions) version.shifts = clone(shifts);
+  }
+  return state;
+}
+
+export function saveTeamShift(state, groupId, oldCode, newCode, shift) {
+  if (!/^[A-Z0-9]{1,6}$/.test(newCode)) throw new Error('Ange en passkod med 1–6 bokstäver (A–Z) eller siffror.');
+  if (!duration(shift.start, shift.end)) throw new Error('Start- och sluttid måste vara giltiga och olika.');
+  const group = state.teams.find(item => item.id === groupId);
+  const team = state.workTeams?.find(item => item.id === group?.workTeamId);
+  if (!team) throw new Error('Teamet kunde inte hittas.');
+  if (oldCode && !Object.hasOwn(team.shifts, oldCode)) throw new Error('Passet kunde inte hittas. Ladda om sidan.');
+  if (newCode !== oldCode && Object.hasOwn(team.shifts, newCode)) throw new Error('Den här passkoden finns redan.');
+  if (oldCode && newCode !== oldCode) {
+    team.shifts = Object.fromEntries(Object.entries(team.shifts).map(([code, value]) => code === oldCode ? [newCode, clone(shift)] : [code, value]));
+  } else team.shifts[newCode] = clone(shift);
+  for (const target of state.teams.filter(item => item.workTeamId === team.id)) {
+    for (const version of target.versions) {
+      if (oldCode && newCode !== oldCode) remapShiftCodes(version, new Map([[oldCode, newCode]]));
+      version.shifts = clone(team.shifts);
+    }
+  }
+}
+
 export function placementOn(employee, date) {
-  return [...(employee?.placements || [])].filter(p => p.from <= date).sort((a,b) => b.from.localeCompare(a.from))[0] || null;
+  return [...(employee?.placements || [])].filter(p => employee.fixedPlacement || p.from <= date).sort((a,b) => b.from.localeCompare(a.from))[0] || null;
 }
 
 export function belongsToGroup(state, memberId, groupId, date) {
