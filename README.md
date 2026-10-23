@@ -91,6 +91,12 @@ När du använder den lokala sidan med `npm run dev` igång sparas hela arbetsyt
 
 Arbetsflödet publicerar bara webbplatsens filer. SQL-schema, tester, README och säkerhetskopior publiceras inte. Relativa länkar fungerar även när webbplatsen ligger i en undermapp för GitHub-arkivet. GitHub Pages är [tillgängligt för publika arkiv med GitHub Free](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
 
+### Om installationen på Android misslyckas
+
+Efter att installationen godkänts fortsätter webbläsaren att installera i bakgrunden. Följ statusen i telefonens aviseringar; ett godkännande betyder inte att installationen är klar. **Installationshjälp för RSSB** finns kvar längst ned på sidan även om Android senare meddelar att installationen misslyckades. Välj **Problem med installationen?** för instruktioner för den aktuella webbläsaren.
+
+Om QR-koden öppnat sidan inne i en annan app, öppna samma adress direkt i Google Chrome. Välj **⋮ → Lägg till på startskärmen → Installera**, eller **Installera appen** om menyn heter så. Om Samsung Internet misslyckas, kopiera sidans adress och prova den i Chrome. Uppdatera webbläsaren om problemet kvarstår. Schemat kan användas på webbplatsen under tiden. Webbplatsen får inget tillförlitligt besked om Androids senare installationsfel.
+
 Supabase har en [gratisnivå med begränsningar](https://supabase.com/pricing). Gratisprojekt kan pausas efter inaktivitet. Det här är en möjlig start för ett litet team, inom tjänsternas aktuella gränser. Den lokala installationen skapar inga externa konton och publicerar ingen webbplats.
 
 ## Säkerhetskopiera och underhåll

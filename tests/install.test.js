@@ -6,10 +6,10 @@ import vm from 'node:vm';
 const source = (await readFile(new URL('../src/install.js', import.meta.url), 'utf8'))
   .replaceAll('import.meta.url', "'https://example.com/tpcweb/src/install.js?v=123'");
 
-function setup({ ios = false, standalone = false, dismissed = false, desktop = false, storageBlocked = false } = {}) {
+function setup({ ios = false, userAgent, standalone = false, dismissed = false, desktop = false, storageBlocked = false } = {}) {
   const listeners = {}, elements = {}, media = {}, timers = [];
   const stored = new Map(dismissed ? [['rssb-install-dismissed:/tpcweb/', String(Date.now())]] : []);
-  for (const id of ['install-dialog', 'install-entry', 'install-confirm', 'install-dismiss', 'install-guide', 'install-status', 'install-open']) {
+  for (const id of ['install-dialog', 'install-entry', 'install-confirm', 'install-dismiss', 'install-guide', 'install-status', 'install-open', 'install-help']) {
     elements[`#${id}`] = {
       hidden: false, open: false, textContent: '', handlers: {},
       addEventListener(type, fn) { this.handlers[type] = fn; },
@@ -25,7 +25,7 @@ function setup({ ios = false, standalone = false, dismissed = false, desktop = f
       setItem(key, value) { if (storageBlocked) throw Error(); stored.set(key, value); },
     },
     navigator: {
-      userAgent: ios ? 'iPhone' : 'Android', standalone,
+      userAgent: userAgent ?? (ios ? 'iPhone' : 'Android'), standalone,
       serviceWorker: { register: (...args) => { registrations.push(args); return Promise.resolve(); } },
     },
     document: {
@@ -36,14 +36,18 @@ function setup({ ios = false, standalone = false, dismissed = false, desktop = f
       isSecureContext: true,
       addEventListener: (type, fn) => { listeners[type] = fn; },
       matchMedia(query) {
-        return media[query] = { matches: query.includes('standalone') ? standalone : !desktop, addEventListener() {} };
+        return media[query] = {
+          matches: query.includes('standalone') ? standalone : !desktop,
+          handlers: {},
+          addEventListener(type, fn) { this.handlers[type] = fn; },
+        };
       },
     },
   });
   return { elements, listeners, timers, registrations, media, stored };
 }
 
-test('Android uses the native install prompt only after the install button is tapped', async () => {
+test('Android requests installation only after a tap and keeps help available after acceptance', async () => {
   const { elements: el, listeners, registrations } = setup();
   let prompted = 0, prevented = false;
   listeners.beforeinstallprompt({
@@ -58,11 +62,98 @@ test('Android uses the native install prompt only after the install button is ta
   assert.equal(registrations[0][0].href, 'https://example.com/tpcweb/sw.js');
   await el['#install-confirm'].handlers.click();
   assert.equal(prompted, 1);
-  assert.equal(el['#install-dialog'].open, false);
+  assert.equal(el['#install-dialog'].open, true);
+  assert.match(el['#install-status'].textContent, /Installationen har begärts/);
+  assert.equal(el['#install-help'].hidden, false);
+  assert.equal(el['#install-entry'].hidden, false);
   listeners.appinstalled();
+  assert.equal(el['#install-entry'].hidden, false);
+  el['#install-help'].handlers.click();
+  assert.equal(el['#install-guide'].hidden, false);
+  assert.match(el['#install-guide'].innerHTML, /Chrome/);
+  el['#install-dismiss'].handlers.click();
   el['#install-open'].handlers.click();
-  assert.equal(el['#install-entry'].hidden, true);
-  assert.equal(el['#install-dialog'].open, false);
+  assert.equal(el['#install-dialog'].open, true);
+  assert.equal(el['#install-help'].hidden, false);
+  el['#install-help'].handlers.click();
+  assert.equal(el['#install-guide'].hidden, false);
+  assert.equal(prompted, 1);
+});
+
+test('a fresh browser prompt permits retry without reusing the previous native prompt', async () => {
+  const { elements: el, listeners } = setup();
+  let firstCalls = 0, retryCalls = 0;
+  listeners.beforeinstallprompt({
+    preventDefault() {},
+    prompt: async () => { firstCalls++; },
+    userChoice: Promise.resolve({ outcome: 'accepted' }),
+  });
+  await el['#install-confirm'].handlers.click();
+  listeners.appinstalled();
+  el['#install-help'].handlers.click();
+  el['#install-dismiss'].handlers.click();
+  el['#install-open'].handlers.click();
+  el['#install-help'].handlers.click();
+  assert.equal(firstCalls, 1);
+  listeners.beforeinstallprompt({
+    preventDefault() {},
+    prompt: async () => { retryCalls++; },
+    userChoice: Promise.resolve({ outcome: 'accepted' }),
+  });
+  assert.equal(el['#install-confirm'].hidden, false);
+  assert.equal(el['#install-confirm'].textContent, 'Installera appen');
+  assert.equal(el['#install-guide'].hidden, true);
+  await el['#install-confirm'].handlers.click();
+  assert.equal(firstCalls, 1);
+  assert.equal(retryCalls, 1);
+  assert.match(el['#install-status'].textContent, /Installationen har begärts/);
+});
+
+test('double taps and an early appinstalled event preserve Android recovery help', async () => {
+  const { elements: el, listeners } = setup();
+  let calls = 0, resolveChoice;
+  listeners.beforeinstallprompt({
+    preventDefault() {},
+    prompt: async () => { calls++; },
+    userChoice: new Promise(resolve => { resolveChoice = resolve; }),
+  });
+  const requesting = el['#install-confirm'].handlers.click();
+  await el['#install-confirm'].handlers.click();
+  assert.equal(calls, 1);
+  assert.equal(el['#install-confirm'].disabled, true);
+  listeners.appinstalled();
+  assert.equal(el['#install-entry'].hidden, false);
+  assert.equal(el['#install-help'].hidden, false);
+  assert.match(el['#install-status'].textContent, /Installationen har begärts/);
+  resolveChoice({ outcome: 'accepted' });
+  await requesting;
+  assert.equal(calls, 1);
+  assert.equal(el['#install-confirm'].disabled, false);
+  assert.equal(el['#install-dialog'].open, true);
+  assert.equal(el['#install-entry'].hidden, false);
+  el['#install-help'].handlers.click();
+  assert.equal(el['#install-guide'].hidden, false);
+});
+
+test('Samsung Internet has matching menu instructions and can still use its native prompt', async () => {
+  const { elements: el, listeners, timers } = setup({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S921B) SamsungBrowser/28.0 Chrome/130.0 Mobile Safari/537.36',
+  });
+  timers[0]();
+  await el['#install-confirm'].handlers.click();
+  assert.equal(el['#install-guide'].hidden, false);
+  assert.match(el['#install-guide'].innerHTML, /Samsung Internet/);
+  assert.match(el['#install-guide'].innerHTML, /[☰≡]|tre streck/i);
+  assert.match(el['#install-guide'].innerHTML, /Chrome/);
+  let calls = 0;
+  listeners.beforeinstallprompt({
+    preventDefault() {},
+    prompt: async () => { calls++; },
+    userChoice: Promise.resolve({ outcome: 'accepted' }),
+  });
+  await el['#install-confirm'].handlers.click();
+  assert.equal(calls, 1);
+  assert.equal(el['#install-help'].hidden, false);
 });
 
 test('iPhone shows manual instructions and can reopen after dismissal', async () => {
@@ -96,6 +187,22 @@ test('standalone app and desktop do not show the mobile installation popup', () 
     assert.equal(el['#install-entry'].hidden, true);
     assert.equal(el['#install-dialog'].open, false);
   }
+});
+
+test('entering standalone mode hides Android installation help after a request', async () => {
+  const { elements: el, listeners, media } = setup();
+  listeners.beforeinstallprompt({
+    preventDefault() {},
+    prompt: async () => {},
+    userChoice: Promise.resolve({ outcome: 'accepted' }),
+  });
+  await el['#install-confirm'].handlers.click();
+  listeners.appinstalled();
+  const displayMode = media['(display-mode: standalone)'];
+  displayMode.matches = true;
+  displayMode.handlers.change();
+  assert.equal(el['#install-entry'].hidden, true);
+  assert.equal(el['#install-dialog'].open, false);
 });
 
 test('rejected native prompt falls back to useful instructions and is never reused', async () => {
