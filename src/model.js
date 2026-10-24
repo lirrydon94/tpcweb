@@ -1,6 +1,6 @@
 // Civil dates use UTC internally so rotations do not change at daylight-saving boundaries.
 const DAY = 86_400_000;
-const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'custom', 'off', 'leave']);
+const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave']);
 export const PERSONAL_ABSENCE_TYPES = ['off', 'leave', 'vacation', 'sick', 'pension'];
 
 export function uid() {
@@ -202,6 +202,61 @@ export function isScheduledWorkday(state, teamId, memberId, date) {
   return baseShift(state, teamId, memberId, dateString(civilDate(date))).working;
 }
 
+// Build and validate every calendar batch together, without changing saved data.
+export function applyExceptionDrafts(state, drafts, { groupIds } = {}) {
+  if (!Array.isArray(drafts) || !drafts.length) throw new Error('Välj minst en dag för ändringen.');
+  const next = clone(state), entries = [], skippedDates = [];
+  const allowedGroups = groupIds === undefined ? null : new Set(groupIds);
+  const datedDrafts = new Map();
+  for (const draft of drafts) {
+    if (!draft || typeof draft !== 'object') throw new Error('Välj en giltig schemaändring.');
+    const date = dateString(civilDate(draft.date));
+    datedDrafts.set(`${draft.memberId}:${date}`, { ...draft, date });
+  }
+  for (const draft of datedDrafts.values()) {
+    const { memberId, date, type } = draft;
+    const group = next.teams.find(team => (!allowedGroups || allowedGroups.has(team.id))
+      && (!draft.teamId || draft.teamId === team.id)
+      && team.members.some(member => member.id === memberId && isActive(member, date))
+      && belongsToGroup(next, memberId, team.id, date));
+    const employee = next.employees?.find(member => member.id === memberId);
+    if (!group || (employee && !isActive(employee, date))) {
+      throw new Error(`Medarbetaren saknar en aktiv placering i det valda teamet den ${date}.`);
+    }
+    if (!ABSENCE_TYPES.has(type)) throw new Error('Välj en giltig typ av schemaändring.');
+    const previous = draft.id ? next.exceptions.find(entry => entry.id === draft.id)
+      : next.exceptions.find(entry => entry.teamId === group.id && entry.memberId === memberId && entry.date === date);
+    if (draft.id && (!previous || previous.memberId !== memberId)) throw new Error('Ändringen kunde inte hittas. Öppna den igen.');
+    const scheduled = isScheduledWorkday(next, group.id, memberId, date);
+    if (draft.replacementId && !scheduled) throw new Error(`Det finns inget ordinarie pass att ersätta den ${date}.`);
+    if (['vacation', 'sick'].includes(type) && !scheduled) { skippedDates.push(date); continue; }
+    const start = draft.start ?? (previous?.type === type ? previous.start : '') ?? '';
+    const end = draft.end ?? (previous?.type === type ? previous.end : '') ?? '';
+    if ((start || end || ['custom','overtime'].includes(type)) && !duration(start, end)) throw new Error('Ändrade pass måste ha giltiga och olika start- och sluttider.');
+    if (start && ['sick', 'vacation', 'off'].includes(type)) throw new Error('Välj Anpassat pass eller Övertid när du anger arbetstider.');
+    if (draft.replacementId === memberId) throw new Error('Välj en annan person som ersättare.');
+    if (draft.replacementId && (draft.replacementStart || draft.replacementEnd)
+      && !duration(draft.replacementStart, draft.replacementEnd)) {
+      throw new Error('Ersättningspass måste ha giltiga och olika start- och sluttider.');
+    }
+    const entry = {
+      id: previous?.id || uid(), teamId: group.id, memberId, date, type,
+      ...(start && end ? { start, end } : {}),
+      ...(draft.replacementId ? { replacementId: draft.replacementId,
+        ...(draft.replacementStart && draft.replacementEnd ? { replacementStart: draft.replacementStart, replacementEnd: draft.replacementEnd } : {}) } : {}),
+      note: String(draft.note || '').trim(),
+    };
+    next.exceptions = next.exceptions.filter(item => item.id !== entry.id
+      && !(item.teamId === group.id && item.memberId === memberId && item.date === date));
+    next.exceptions.push(entry);
+    entries.push(entry);
+  }
+  if (!entries.length) throw new Error('Det finns inga schemalagda arbetsdagar bland de valda datumen.');
+  const errors = validateState(next);
+  if (errors.length) throw new Error(errors[0]);
+  return { state: next, entries, skippedDates: [...new Set(skippedDates)] };
+}
+
 function currentExceptions(state, date) {
   // A later exception supersedes an earlier one for the same person/date.
   const map = new Map();
@@ -231,7 +286,7 @@ function adjustedShift(state, teamId, memberId, date) {
   if (!isActive(member, date) || !belongsToGroup(state, memberId, teamId, date)) return base;
   const exception = currentExceptions(state, date).find(item => item.teamId === teamId && item.memberId === memberId);
   if (!exception) return base;
-  const works = ['custom', 'pension'].includes(exception.type) && duration(exception.start, exception.end) > 0;
+  const works = ['custom', 'pension', 'overtime'].includes(exception.type) && duration(exception.start, exception.end) > 0;
   const result = {
     ...base,
     type: exception.type,
@@ -579,7 +634,7 @@ export function validateState(state) {
     if (exceptionKeys.has(key)) errors.push('Ange endast en schemaändring per medarbetare och datum.');
     exceptionKeys.add(key);
     if (!ABSENCE_TYPES.has(exception.type)) errors.push('Välj en giltig typ av schemaändring.');
-    if (exception.type === 'custom' || exception.start || exception.end) {
+    if (['custom','overtime'].includes(exception.type) || exception.start || exception.end) {
       if (!duration(exception.start, exception.end)) errors.push('Ändrade pass måste ha giltiga och olika start- och sluttider.');
     }
     if (exception.replacementId) {

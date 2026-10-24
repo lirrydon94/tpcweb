@@ -208,7 +208,7 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
   });
   const source = (await readFile(new URL('../src/app.js', import.meta.url), 'utf8'))
     .replace(/^import .*;\r?\n/gm, '');
-  await vm.runInContext(`(async () => { ${source}\n })()`, context);
+  await vm.runInContext(`(async () => { ${source}\n globalThis.openExceptionForTest=exceptionModal; })()`, context);
   return {
     app, dialog, error,
     setToday: date => { currentDate = date; },
@@ -218,6 +218,7 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     input: target => listeners.input({ target }),
     toggle: target => listeners.toggle({ target }),
     click: (action, view, extra = {}) => listeners.click({ target: { closest: () => ({ dataset: { action, view, ...extra } }) } }),
+    openException: options => context.openExceptionForTest(options),
     submit: (values = {}) => form.onsubmit({ preventDefault() {}, submitter: {}, target: typeof values === 'string' ? { password: values } : values }),
   };
 }
@@ -751,7 +752,8 @@ test('individual changes filter by team across groups and keep edits in the corr
   await page.click('exception');
   assert.match(page.dialog.innerHTML,/value="member-1"/);
   assert.match(page.dialog.innerHTML,/value="member-3"/);
-  await page.submit({member:'member-1',date:'2026-10-16',through:'2026-10-16',days:['4'],type:'vacation',replacement:'',note:''});
+  page.openException({memberId:'member-1',date:'2026-10-16'});
+  await page.submit({member:'member-1',type:'vacation',replacement:'',note:''});
   assert.equal(page.error.textContent,'');
   assert.equal(page.getWorkspace().working.exceptions.find(e=>e.date==='2026-10-16').teamId,night.id);
   await page.click('delete-exception',undefined,{id:'night-absence'});
@@ -763,6 +765,51 @@ test('individual changes filter by team across groups and keep edits in the corr
   assert.doesNotMatch(yearOptions,/2026/);
   assert.match(page.app.innerHTML,/data-id="other-absence"/);
   assert.doesNotMatch(page.app.innerHTML,/data-id="day-absence"/);
+});
+
+test('department-wide absence selection includes every team, persists and keeps new changes in the correct group',async()=>{
+  const state=model.organizeState(model.seedState()),first=state.teams[0],department=state.departments[0];
+  department.name='Transport Centralen';
+  state.departments.push({id:'elsewhere',name:'Annan avdelning'});
+  state.workTeams.push({id:'second-team',name:'Avfall',departmentId:department.id},{id:'foreign-team',name:'Externt team',departmentId:'elsewhere'});
+  for(const [id,workTeamId] of [['second-group','second-team'],['foreign-group','foreign-team']]){
+    const group=structuredClone(first);group.id=id;group.workTeamId=workTeamId;group.members=[];group.versions.forEach(version=>{version.positions={};});state.teams.push(group);
+  }
+  state.employees.push({id:'foreign-person',name:'Utomstående',role:'member',departmentId:'elsewhere',activeFrom:'2026-01-01',placements:[]});
+  model.placeEmployee(state,'member-2','second-team','second-group','2026-10-12');
+  model.placeEmployee(state,'foreign-person','foreign-team','foreign-group','2026-10-12');
+  state.exceptions=[
+    {id:'first-absence',teamId:first.id,memberId:'member-1',date:'2026-10-14',type:'sick'},
+    {id:'second-absence',teamId:'second-group',memberId:'member-2',date:'2031-10-14',type:'sick'},
+    {id:'foreign-absence',teamId:'foreign-group',memberId:'foreign-person',date:'2035-10-14',type:'leave'},
+  ];
+  const navigation=new Map(),page=await openApp('admin',{working:state,published:model.publishState(state),revision:1},new Map(),'?date=2026-10-14',navigation);
+  const scope='dept:'+department.id,selector=()=>page.app.innerHTML.match(/id="work-team-select">(.*?)<\/select>/s)[1];
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'changes'});
+  assert.ok(selector().includes('value="'+scope+'"'));assert.match(selector(),/>Transport Centralen<\/option>/);
+  assert.match(page.app.innerHTML,/data-id="first-absence"/);assert.doesNotMatch(page.app.innerHTML,/data-id="second-absence"/);
+  await page.change({id:'work-team-select',value:scope});
+  assert.ok(selector().includes('value="'+scope+'" selected'));
+  assert.match(page.app.innerHTML,/data-id="first-absence"/);assert.match(page.app.innerHTML,/data-id="second-absence"/);assert.doesNotMatch(page.app.innerHTML,/data-id="foreign-absence"/);
+  const years=page.app.innerHTML.match(/id="changes-year">(.*?)<\/select>/s)[1];
+  assert.match(years,/2026/);assert.match(years,/2031/);assert.doesNotMatch(years,/2035/);
+  await page.input({id:'changes-search',value:'Anna'});
+  assert.match(page.app.innerHTML,/data-id="second-absence"/);assert.doesNotMatch(page.app.innerHTML,/data-id="first-absence"/);
+  await page.click('changes-reset');
+  await page.click('exception');assert.match(page.dialog.innerHTML,/value="member-2"/);assert.doesNotMatch(page.dialog.innerHTML,/value="foreign-person" selected/);await page.click('close-modal');
+  await page.click('admin-tab',undefined,{tab:'rotation'});assert.ok(!selector().includes('value="'+scope+'"'));
+  await page.click('admin-tab',undefined,{tab:'changes'});assert.ok(selector().includes('value="'+scope+'" selected'));
+  const reloaded=await openApp('admin',page.getWorkspace(),new Map(),'?date=2026-10-14',navigation);
+  assert.ok(reloaded.app.innerHTML.includes('value="'+scope+'" selected'));
+  assert.match(reloaded.app.innerHTML,/data-id="first-absence"/);assert.match(reloaded.app.innerHTML,/data-id="second-absence"/);
+  reloaded.openException({memberId:'member-2',date:'2026-10-16'});await reloaded.submit({type:'leave',replacement:'',note:''});
+  assert.equal(reloaded.error.textContent,'');
+  assert.equal(reloaded.getWorkspace().working.exceptions.find(entry=>entry.memberId==='member-2'&&entry.date==='2026-10-16').teamId,'second-group');
+  await reloaded.change({id:'work-team-select',value:'second-team'});
+  assert.match(reloaded.app.innerHTML,/data-id="second-absence"/);assert.doesNotMatch(reloaded.app.innerHTML,/data-id="first-absence"/);
+  await reloaded.change({id:'work-team-select',value:scope});await reloaded.change({id:'department-select',value:'elsewhere'});
+  assert.match(reloaded.app.innerHTML,/<option value="dept:elsewhere" selected>Annan avdelning<\/option>/);
+  assert.match(reloaded.app.innerHTML,/data-id="foreign-absence"/);assert.doesNotMatch(reloaded.app.innerHTML,/data-id="first-absence"|data-id="second-absence"/);
 });
 
 test('51 people with 20 vacation dates each render compactly and can be searched, paged and filtered', async () => {

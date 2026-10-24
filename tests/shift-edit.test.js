@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import * as model from '../src/model.js';
 
 const source = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
-const modalSource = source.slice(source.indexOf('function shiftModal('), source.indexOf('function coverMinutes('));
+const modalSource = source.slice(source.indexOf('function shiftModal('), source.indexOf('function exceptionModal('));
 
 function editor(code = 'N', personal = true) {
   const state = model.seedState(), team = state.teams[0], version = team.versions[0];
