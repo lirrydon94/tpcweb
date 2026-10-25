@@ -223,6 +223,72 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
   };
 }
 
+test('employee deletion requires confirmation, can be cancelled and persists in both saved views',async()=>{
+  const state=model.organizeState(model.seedState()),employee=state.employees[0];
+  employee.name='Hilde & <test>';state.teams[0].members[0].name=employee.name;
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('delete-person',undefined,{member:employee.id});assert.equal(page.dialog.open,false);
+  await page.click('admin');await page.submit('lirrydoz');
+  await page.click('edit-person',undefined,{member:employee.id});
+  assert.match(page.dialog.innerHTML,/data-action="delete-person" data-member="member-1">Ta bort medarbetare/);
+  const before=page.getWorkspace();
+  await page.click('delete-person',undefined,{member:employee.id});
+  assert.match(page.dialog.innerHTML,/Ta bort medarbetare\?/);
+  assert.match(page.dialog.innerHTML,/<strong>Hilde &amp; &lt;test&gt;<\/strong>/);
+  assert.match(page.dialog.innerHTML,/lämnas utan ersättare/);
+  assert.match(page.dialog.innerHTML,/class="primary-btn danger-btn" type="submit">Ta bort medarbetare/);
+  assert.deepEqual(page.getWorkspace(),before);
+  await page.click('close-modal');assert.deepEqual(page.getWorkspace(),before);
+  await page.click('edit-person',undefined,{member:employee.id});await page.click('delete-person',undefined,{member:employee.id});await page.submit();
+  assert.equal(page.error.textContent,'');assert.equal(page.dialog.open,false);
+  const saved=page.getWorkspace();
+  for(const snapshot of [saved.working,saved.published]){
+    assert.equal(snapshot.employees.some(person=>person.id===employee.id),false);
+    assert.equal(snapshot.teams.some(group=>group.members.some(person=>person.id===employee.id)),false);
+  }
+  assert.equal(saved.revision,before.revision+1);
+  assert.doesNotMatch(page.app.innerHTML,/data-action="edit-person" data-member="member-1"/);
+  const reloaded=await openApp('admin',saved,new Map(),'?date=2026-10-14',new Map([['skift-admin-remembered','true']]));
+  await reloaded.click('admin');assert.doesNotMatch(reloaded.app.innerHTML,/data-action="edit-person" data-member="member-1"/);
+  assert.match(reloaded.app.innerHTML,/data-action="edit-person" data-member="member-2"/);
+});
+
+test('failed employee deletion keeps both saved views intact and allows retrying the confirmation',async()=>{
+  const state=model.organizeState(model.seedState()),page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('edit-person',undefined,{member:'member-1'});
+  await page.click('delete-person',undefined,{member:'member-1'});
+  const before=page.getWorkspace();page.failPublish('Kunde inte spara borttagningen');await page.submit();
+  assert.equal(page.error.textContent,'Kunde inte spara borttagningen');assert.equal(page.dialog.open,true);
+  assert.deepEqual(page.getWorkspace(),before);
+  page.failPublish(null);await page.submit();assert.equal(page.error.textContent,'');assert.equal(page.dialog.open,false);
+  assert.equal(page.getWorkspace().working.employees.some(person=>person.id==='member-1'),false);
+});
+
+test('employee deletion works for hourly staff and the last employee, while new people and viewers have no delete control',async()=>{
+  for(const role of ['part-time','member']){
+    let state=model.organizeState(model.seedState());
+    for(const person of state.employees.slice(1))state=model.deleteEmployee(state,person.id);
+    if(role==='part-time'){
+      state.employees[0].role=role;
+      model.placeEmployee(state,'member-1',null,null,'2026-10-12');
+    }
+    const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+    await page.click('admin');await page.submit('lirrydoz');
+    for(const action of ['add-person','add-hourly']){
+      await page.click(action);assert.doesNotMatch(page.dialog.innerHTML,/data-action="delete-person"/);
+      await page.click('close-modal');
+    }
+    await page.click('edit-person',undefined,{member:'member-1'});assert.match(page.dialog.innerHTML,/data-action="delete-person"/);
+    await page.click('delete-person',undefined,{member:'member-1'});await page.submit();
+    assert.equal(page.error.textContent,'');assert.deepEqual(page.getWorkspace().working.employees,[]);
+    assert.match(page.app.innerHTML,/Lägg till personal/);
+    await page.click('view','schedule');assert.equal(page.error.textContent,'');
+  }
+  const viewer=await openApp('viewer');
+  await viewer.click('edit-person',undefined,{member:'member-1'});await viewer.click('delete-person',undefined,{member:'member-1'});
+  assert.equal(viewer.dialog.open,false);
+});
+
 test('deleting an individual change keeps Hantera and its tab after a file-triggered reload', async () => {
   const state = model.organizeState(model.seedState());
   state.exceptions = [{ id: 'remove-absence', teamId: 'team-1', memberId: 'member-1', date: '2026-10-14', type: 'vacation' }];
@@ -621,6 +687,71 @@ test('viewer accounts cannot open Hantera through either navigation action', asy
   await page.click('admin');
   assert.equal(page.dialog.open, false);
   assert.ok(!page.app.innerHTML.includes('Dina medarbetare'));
+});
+
+test('team and group cog buttons open settings and rename only the selected item',async()=>{
+  const state=model.organizeState(model.seedState()),original=state.workTeams[0];
+  state.workTeams.push({id:'second-team',name:'Avfall & service',departmentId:state.departments[0].id});
+  const group=structuredClone(state.teams[0]);group.id='second-group';group.name='Kväll';group.workTeamId='second-team';group.members=[];group.versions.forEach(version=>{version.positions={};});state.teams.push(group);
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'rotation'});
+  assert.match(page.app.innerHTML,/<button[^>]*data-action="work-team-settings"[^>]*aria-label="Teaminställningar"[^>]*aria-haspopup="dialog"/);
+  assert.match(page.app.innerHTML,/<button[^>]*data-action="settings"[^>]*aria-label="Gruppinställningar"[^>]*aria-haspopup="dialog"/);
+  assert.doesNotMatch(page.app.innerHTML,/data-action="rename-work-team"|>Byt namn på grupp</);
+  await page.change({id:'work-team-select',value:'second-team'});await page.click('work-team-settings');
+  assert.match(page.dialog.innerHTML,/Teaminställningar/);
+  assert.match(page.dialog.innerHTML,/value="Avfall &amp; service"/);
+  assert.match(page.dialog.innerHTML,/data-action="delete-work-team" data-team="second-team"/);
+  await page.submit({name:'   '});assert.equal(page.error.textContent,'Ange ett teamnamn.');assert.equal(page.dialog.open,true);
+  await page.submit({name:'Nytt teamnamn'});assert.equal(page.error.textContent,'');
+  assert.equal(page.getWorkspace().published.workTeams.find(team=>team.id==='second-team').name,'Nytt teamnamn');
+  assert.equal(page.getWorkspace().published.workTeams.find(team=>team.id===original.id).name,original.name);
+  assert.equal(page.getWorkspace().published.teams.find(item=>item.id===group.id).name,'Kväll');
+  await page.click('settings');assert.match(page.dialog.innerHTML,/Gruppinställningar/);assert.match(page.dialog.innerHTML,/value="Kväll"/);
+  await page.submit({name:'Nytt gruppnamn'});assert.equal(page.error.textContent,'');
+  assert.equal(page.getWorkspace().published.teams.find(item=>item.id===group.id).name,'Nytt gruppnamn');
+  assert.equal(page.getWorkspace().published.workTeams.find(team=>team.id==='second-team').name,'Nytt teamnamn');
+});
+
+test('work team deletion requires confirmation, can be cancelled and keeps staff when deleting the last team',async()=>{
+  const state=model.organizeState(model.seedState()),id=state.workTeams[0].id;
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('work-team-settings');await page.click('delete-work-team',undefined,{team:id});assert.equal(page.dialog.open,false);
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'rotation'});
+  await page.click('work-team-settings');await page.click('delete-work-team',undefined,{team:id});
+  assert.match(page.dialog.innerHTML,/Ta bort team\?/);
+  assert.match(page.dialog.innerHTML,/1 grupp och dess schema/);
+  assert.match(page.dialog.innerHTML,/Personalen finns kvar i avdelningen/);
+  assert.match(page.dialog.innerHTML,/class="primary-btn danger-btn" type="submit">Ta bort team/);
+  const before=page.getWorkspace();await page.click('close-modal');assert.deepEqual(page.getWorkspace(),before);
+  await page.click('work-team-settings');await page.click('delete-work-team',undefined,{team:id});
+  page.failPublish('Kunde inte ta bort teamet');await page.submit();
+  assert.equal(page.error.textContent,'Kunde inte ta bort teamet');assert.equal(page.dialog.open,true);assert.deepEqual(page.getWorkspace(),before);
+  page.failPublish(null);await page.submit();assert.equal(page.error.textContent,'');assert.equal(page.dialog.open,false);
+  for(const snapshot of [page.getWorkspace().working,page.getWorkspace().published]){
+    assert.deepEqual(snapshot.workTeams,[]);assert.deepEqual(snapshot.teams,[]);assert.equal(snapshot.employees.length,7);
+  }
+  assert.match(page.app.innerHTML,/Skapa avdelningens första team/);
+  assert.doesNotMatch(page.app.innerHTML,/data-action="work-team-settings"|data-action="settings"|data-team-active=/);
+  await page.click('admin-tab',undefined,{tab:'people'});assert.match(page.app.innerHTML,/Ej placerade/);
+  assert.equal((page.app.innerHTML.match(/class="staff-person-card"/g)||[]).length,7);
+  const reloaded=await openApp('admin',page.getWorkspace(),new Map(),'?date=2026-10-14',new Map([['skift-admin-remembered','true']]));
+  await reloaded.click('admin');await reloaded.click('admin-tab',undefined,{tab:'rotation'});assert.match(reloaded.app.innerHTML,/Skapa avdelningens första team/);
+});
+
+test('removing the selected work team falls back to another team and viewers cannot open its settings',async()=>{
+  const state=model.useLoopingSchedules(model.seedState()),first=state.workTeams[0];
+  state.workTeams.push({id:'empty-team',name:'Tomt team',departmentId:state.departments[0].id});
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'rotation'});
+  await page.change({id:'work-team-select',value:'empty-team'});
+  assert.match(page.app.innerHTML,/data-action="work-team-settings"/);assert.doesNotMatch(page.app.innerHTML,/data-action="settings"/);
+  await page.click('work-team-settings');await page.click('delete-work-team',undefined,{team:'empty-team'});await page.submit();
+  assert.equal(page.error.textContent,'');assert.match(page.app.innerHTML,new RegExp(`value="${first.id}" selected`));
+  assert.match(page.app.innerHTML,/data-action="settings"/);assert.deepEqual(page.getWorkspace().working.teams,state.teams);
+  const viewer=await openApp('viewer');
+  for(const action of ['work-team-settings','delete-work-team','settings','delete-team'])await viewer.click(action);
+  assert.equal(viewer.dialog.open,false);
 });
 
 test('team settings require confirmation and immediately publish deletion, including the last team', async () => {

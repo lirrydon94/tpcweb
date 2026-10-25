@@ -328,6 +328,9 @@
 .organization-select .text-button { min-height:44px; }
 .team-group-selectors { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 32px; margin:20px 0; align-items:start; }
 .team-group-selectors > .organization-select { margin:0; min-width:0; }
+.organization-settings{width:44px;height:46px;flex:0 0 44px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+.organization-settings:hover{background:#eaf3ed;color:var(--green)}
+.organization-settings .icon{width:21px;height:21px}
 @media(max-width:760px) { .team-group-selectors { grid-template-columns:minmax(0,1fr); } }
 .admin-panel .person-row { gap:14px; }
 @media(max-width:1000px) { .organization-select label { flex:1; } .admin-panel .person-row { flex-wrap:wrap; } }
@@ -718,6 +721,9 @@ dialog:has(.exception-editor) .modal-actions{position:sticky;bottom:-28px;backgr
   .exception-settings label{margin-top:6px}
   .exception-assignment-hint{font-size:9px}
 }
+.primary-btn.danger-btn{background:#a84436;border-color:#a84436;color:#fff}
+.primary-btn.danger-btn:hover{background:#8c372b;border-color:#8c372b}
+.confirmation-description{margin-top:14px;font-size:15px;line-height:1.65;color:var(--ink)}
 .exception-member-picker{position:relative;margin-top:7px}
 .exception-member-picker input{width:100%;padding-right:38px}
 .exception-member-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:36px;display:grid;place-items:center;color:var(--ink)}
@@ -728,6 +734,15 @@ dialog:has(.exception-editor) .modal-actions{position:sticky;bottom:-28px;backgr
 .exception-member-options [role=option]:hover,.exception-member-options [aria-selected=true]{background:#eaf3ed;color:var(--green)}
 .exception-member-options small{font-size:10px;color:var(--muted)}
 .exception-member-options p{padding:10px;font-size:12px;color:var(--muted)}
+.exception-replacement-person{line-height:1.5;overflow-wrap:anywhere}
+.exception-replacement-person>span{font-weight:550}
+.exception-replacement-availability{display:flex;flex-wrap:wrap;column-gap:5px;row-gap:2px;font-size:10px;line-height:1.5}
+.exception-availability-label{color:var(--muted)}
+.exception-availability-status{color:#8a5b22}
+.exception-availability-status:not(:last-child)::after{content:" ㆍ";color:var(--muted)}
+.exception-availability-status[data-availability="available"]{color:var(--green)}
+.exception-availability-status[data-availability="vacation"],.exception-availability-status[data-availability="sick"],.exception-availability-status[data-availability="leave"],.exception-availability-status[data-availability="pension"],.exception-availability-status[data-availability="off"]{color:#71568d}
+.exception-availability-status[data-availability="inactive"]{color:var(--muted)}
 @media(min-width:851px) and (max-height:740px){.exception-member-picker{margin-top:4px}}
 .exception-settings:has(.exception-member-options:not([hidden])){overflow:visible}
 /* Align the settings panel with the first calendar week. */

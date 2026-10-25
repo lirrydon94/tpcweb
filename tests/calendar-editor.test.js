@@ -82,6 +82,152 @@ const selectDays=(editor,dates)=>{for(const date of dates)editor.click('day',{da
 const firstDates=['2026-10-28','2026-10-29','2026-10-30'];
 const nextDates=['2026-11-02','2026-11-03','2026-11-04','2026-11-05','2026-11-06'];
 const calendarCell=(editor,date)=>editor.nodes['#exception-month'].innerHTML.match(new RegExp(`<button\\b[^>]*data-date="${date}"[^>]*>[\\s\\S]*?<\\/button>`))?.[0]||'';
+const replacementOption=(editor,id)=>editor.nodes['#exception-replacement-options'].innerHTML.match(new RegExp(`<button\\b[^>]*data-member-id="${id}"[^>]*>[\\s\\S]*?<\\/button>`))?.[0]||'';
+
+test('recurring personal leave shows the group pass in the calendar while remaining absence',()=>{
+  const state=calendarState(),group=state.teams[0],version=group.versions[0],memberId='member-2';
+  version.rotation=[['A','A','A','A','A','',''],['B','B','F','A','','C','C']];
+  version.positions[memberId]=2;
+  const rotation=version.rotation.map(row=>row.map(()=>({type:'leave'})));
+  model.savePersonalSchedule(state,group.id,version.id,{memberId,effectiveFrom:'2026-10-12',rotation});
+  const original=structuredClone(state),editor=openEditor({state,options:{memberId,date:'2026-10-28'}});
+  for(const [date,code,time] of [['2026-10-28','F','08:00–17:00'],['2026-10-29','A','07:00–16:00'],['2026-10-31','C','11:30–20:30']]){
+    const cell=calendarCell(editor,date);
+    assert.match(cell,new RegExp(`exception-day-code">${code}<`));
+    assert.ok(cell.includes(time));assert.match(cell,/Tjänstledig/);
+    assert.ok(cell.includes(`, ${time}, Tjänstledig"`));
+    assert.equal(model.isScheduledWorkday(state,group.id,memberId,date),false);
+    assert.equal(model.getShift(state,group.id,memberId,date).minutes,0);
+  }
+  assert.doesNotMatch(calendarCell(editor,'2026-10-30'),/exception-day-code|exception-day-pass/);
+  editor.click('month',{step:'1'});
+  assert.match(calendarCell(editor,'2026-11-01'),/exception-day-code">C</);
+  assert.match(calendarCell(editor,'2026-11-01'),/11:30–20:30/);
+  assert.match(calendarCell(editor,'2026-11-01'),/Tjänstledig/);
+  assert.equal(editor.saves(),0);assert.deepEqual(editor.current(),original);assert.deepEqual(state,original);
+});
+
+test('calendar leave display preserves personal days off and dated working hours',()=>{
+  const state=calendarState(),group=state.teams[0],version=group.versions[0],memberId='member-1';
+  const rotation=version.rotation.map(()=>Array(7).fill(null));
+  rotation[0][2]={type:'leave'};rotation[0][3]={type:'off'};rotation[0][4]={type:'custom',start:'09:00',end:'12:00'};
+  model.savePersonalSchedule(state,group.id,version.id,{memberId,effectiveFrom:'2026-10-12',rotation});
+  state.exceptions.push({id:'working',teamId:group.id,memberId,date:'2026-10-28',type:'overtime',start:'10:00',end:'13:00'});
+  const editor=openEditor({state});
+  assert.match(calendarCell(editor,'2026-10-28'),/10:00–13:00/);
+  assert.doesNotMatch(calendarCell(editor,'2026-10-28'),/07:00–16:00/);
+  assert.match(calendarCell(editor,'2026-10-29'),/Ledig/);
+  assert.doesNotMatch(calendarCell(editor,'2026-10-29'),/exception-day-code|exception-day-pass/);
+  assert.match(calendarCell(editor,'2026-10-30'),/09:00–12:00/);
+  assert.doesNotMatch(calendarCell(editor,'2026-10-30'),/07:00–16:00/);
+});
+
+test('replacement suggestions show only unavailable dates and distinguish bookings from personal absence',()=>{
+  const state=calendarState();
+  state.exceptions.push({id:'booked',teamId:'team-1',memberId:'member-2',date:firstDates[1],type:'vacation',replacementId:'anna'});
+  const editor=openEditor({state});
+  selectDays(editor,[firstDates[1],firstDates[0]]);editor.search('Anna','replacement');
+  const anna=replacementOption(editor,'anna');
+  assert.match(anna,/Anna<\/span> ㆍ <small>Timmis<\/small>/);
+  assert.match(anna,/Ej tillgänglig:/);
+  assert.doesNotMatch(anna,/28\/10|data-availability="available"/);
+  assert.match(anna,/data-availability="busy">29\/10 Jobbar/);
+  state.exceptions.push({id:'holiday',teamId:'team-1',memberId:'anna',date:firstDates[1],type:'vacation'});
+  const absent=openEditor({state});selectDays(absent,firstDates.slice(0,2));absent.search('Anna','replacement');
+  assert.match(replacementOption(absent,'anna'),/data-availability="vacation">29\/10 Semester/);
+  assert.doesNotMatch(replacementOption(absent,'anna'),/Jobbar/);
+  assert.equal(editor.saves(),0);assert.equal(absent.saves(),0);
+});
+
+test('replacement status follows changed dates across months and disappears when no dates are selected',()=>{
+  const editor=openEditor();editor.search('Anna','replacement');
+  assert.doesNotMatch(replacementOption(editor,'anna'),/exception-replacement-availability/);
+  editor.click('day',{date:firstDates[2]});editor.click('month',{step:'1'});editor.click('day',{date:nextDates[0]});
+  editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/Tillgänglig alla dagar 30\/10, 2\/11/);
+  editor.click('day',{date:firstDates[2]});editor.search('Anna','replacement');
+  assert.doesNotMatch(replacementOption(editor,'anna'),/30\/10/);
+  assert.match(replacementOption(editor,'anna'),/Tillgänglig 2\/11/);
+  editor.click('clear');editor.search('Anna','replacement');
+  assert.doesNotMatch(replacementOption(editor,'anna'),/exception-replacement-availability/);
+});
+
+test('replacement availability checks the requested partial hours and refreshes when those hours change',()=>{
+  const state=calendarState();
+  state.exceptions.push({id:'morning',teamId:'team-1',memberId:'member-2',date:firstDates[0],type:'vacation',replacementId:'anna',replacementStart:'07:00',replacementEnd:'11:00'});
+  const editor=openEditor({state});editor.click('day',{date:firstDates[0]});editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/28\/10 Jobbar/);
+  editor.set('replacement','johan');editor.set('coverMode','partial');editor.set('coverStart','11:00');editor.set('coverEnd','16:00');
+  editor.search('Anna','replacement');assert.match(replacementOption(editor,'anna'),/Tillgänglig 28\/10/);
+  editor.set('coverStart','10:30');editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/28\/10 Jobbar/);
+});
+
+test('editing saved or staged replacements does not count their own assignment as a conflicting booking',async()=>{
+  const state=calendarState(),entry={id:'own',teamId:'team-1',memberId:'member-1',date:firstDates[0],type:'vacation',replacementId:'anna'};
+  state.exceptions.push(entry);
+  const saved=openEditor({state,options:{id:entry.id}});saved.search('Anna','replacement');
+  assert.match(replacementOption(saved,'anna'),/Tillgänglig 28\/10/);
+  const staged=openEditor();staged.set('type','vacation');staged.set('replacement','anna');
+  staged.click('day',{date:firstDates[0]});await staged.click('assign');
+  staged.click('day',{date:firstDates[0]});staged.search('Anna','replacement');
+  assert.match(replacementOption(staged,'anna'),/Tillgänglig 28\/10/);
+  assert.equal(staged.saves(),0);
+});
+
+test('replacement summaries show inactive working dates and omit selected dates without a shift',()=>{
+  const state=calendarState();state.employees.find(person=>person.id==='anna').activeUntil=firstDates[1];
+  const editor=openEditor({state});selectDays(editor,[firstDates[0],firstDates[1],'2026-10-31']);editor.search('Anna','replacement');
+  assert.doesNotMatch(replacementOption(editor,'anna'),/28\/10|31\/10|Inget pass/);
+  assert.match(replacementOption(editor,'anna'),/29\/10 Ej aktiv/);
+  editor.search('Johan','replacement');
+  assert.match(replacementOption(editor,'johan'),/Tillgänglig alla dagar 28–29\/10/);
+  assert.doesNotMatch(replacementOption(editor,'johan'),/31\/10|Inget pass/);
+});
+
+test('all available working dates collapse to one range while selected days off are omitted',()=>{
+  const editor=openEditor();selectDays(editor,[...firstDates,'2026-10-31']);editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/data-availability="available">Tillgänglig alla dagar 28–30\/10/);
+  assert.equal((replacementOption(editor,'anna').match(/data-availability=/g)||[]).length,1);
+  assert.doesNotMatch(replacementOption(editor,'anna'),/31\/10|Inget pass/);
+  editor.click('clear');editor.click('day',{date:'2026-10-31'});editor.search('Anna','replacement');
+  assert.doesNotMatch(replacementOption(editor,'anna'),/exception-replacement-availability/);
+});
+
+test('unavailable dates are chronological, preserve each cause and group consecutive matching dates',()=>{
+  const state=calendarState();
+  state.exceptions.push(
+    {id:'sick-1',teamId:'team-1',memberId:'anna',date:firstDates[0],type:'sick'},
+    {id:'sick-2',teamId:'team-1',memberId:'anna',date:firstDates[1],type:'sick'},
+    {id:'leave',teamId:'team-1',memberId:'anna',date:firstDates[2],type:'leave'}
+  );
+  const editor=openEditor({state});selectDays(editor,[...firstDates].reverse());editor.search('Anna','replacement');
+  const summary=replacementOption(editor,'anna');
+  assert.match(summary,/Ej tillgänglig:/);
+  assert.match(summary,/data-availability="sick">28–29\/10 Sjuk/);
+  assert.match(summary,/data-availability="leave">30\/10 Tjänstledig/);
+  assert.ok(summary.indexOf('28–29/10')<summary.indexOf('30/10'));
+  assert.doesNotMatch(summary,/Tillgänglig alla dagar/);
+});
+
+test('unavailable ranges never include an unselected date or an available date between them',()=>{
+  const state=calendarState();
+  for(const d of [firstDates[0],firstDates[2]])state.exceptions.push({id:d,teamId:'team-1',memberId:'anna',date:d,type:'sick'});
+  const editor=openEditor({state});selectDays(editor,firstDates);editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/28\/10 Sjuk/);
+  assert.match(replacementOption(editor,'anna'),/30\/10 Sjuk/);
+  assert.doesNotMatch(replacementOption(editor,'anna'),/28–30|29\/10/);
+  state.exceptions.push({id:'middle',teamId:'team-1',memberId:'anna',date:firstDates[1],type:'sick'});
+  const gaps=openEditor({state});selectDays(gaps,[firstDates[0],firstDates[2]]);gaps.search('Anna','replacement');
+  assert.doesNotMatch(replacementOption(gaps,'anna'),/28–30|29\/10/);
+});
+
+test('available date ranges preserve month and year boundaries',()=>{
+  const editor=openEditor();selectDays(editor,['2026-04-30','2026-05-01']);editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/Tillgänglig alla dagar 30\/4–1\/5/);
+  editor.click('clear');selectDays(editor,['2026-12-31','2027-01-01']);editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/Tillgänglig alla dagar 31\/12\/2026–1\/1\/2027/);
+});
 
 test('Save all on an empty editor confirms there is nothing pending and closes the popup',async()=>{
   const editor=openEditor({options:{}});

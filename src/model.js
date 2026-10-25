@@ -272,12 +272,17 @@ function replacementAvailable(state, memberId, date) {
 }
 
 function unavailableForCover(state, memberId, date) {
+  return Boolean(coverAbsence(state, memberId, date));
+}
+
+function coverAbsence(state, memberId, date) {
   const exceptions = currentExceptions(state, date).filter(exception => exception.memberId === memberId);
-  if (exceptions.length) return exceptions.some(exception =>
+  if (exceptions.length) return exceptions.find(exception =>
     (['vacation', 'sick', 'off', 'leave'].includes(exception.type)
-      || (exception.type === 'pension' && !duration(exception.start, exception.end))));
+      || (exception.type === 'pension' && !duration(exception.start, exception.end))))?.type || null;
   const person = findMember(state, memberId, date);
-  return Boolean(person?.team && ['vacation', 'sick', 'leave', 'pension'].includes(baseShift(state, person.team.id, memberId, date).type));
+  const type = person?.team && baseShift(state, person.team.id, memberId, date).type;
+  return ['vacation', 'sick', 'leave', 'pension'].includes(type) ? type : null;
 }
 
 function adjustedShift(state, teamId, memberId, date) {
@@ -356,6 +361,28 @@ function rawAssignments(state, date) {
   const scheduled = (state.teams || []).flatMap(team => team.members
     .map(member => adjustedShift(state, team.id, member.id, date)).filter(shift => shift.working));
   return [...scheduled, ...coversOnDate(state, date)];
+}
+
+// Share the same assignments across all candidates for a selected replacement shift.
+export function getReplacementAvailability(state, teamId, memberId, date, { start, end } = {}) {
+  const targetDate = dateString(civilDate(date));
+  const base = baseShift(state, teamId, memberId, targetDate);
+  const requested = { date: targetDate, start: start || base.start, end: end || base.end };
+  const hasShift = base.working && duration(requested.start, requested.end) > 0;
+  const assignments = hasShift ? [addDays(targetDate, -1), targetDate, addDays(targetDate, 1)]
+    .flatMap(day => rawAssignments(state, day))
+    // Keeping or changing an existing replacement must not conflict with itself.
+    .filter(record => !(record.type === 'cover' && record.teamId === teamId
+      && record.sourceMemberId === memberId && record.date === targetDate)) : [];
+  const people = new Map([...(state.teams || []).flatMap(team => team.members), ...(state.employees || [])]
+    .map(person => [person.id, person]));
+  return new Map([...people].map(([id, person]) => {
+    const active = isActive(person, targetDate) && Boolean(findMember(state, id, targetDate));
+    const absence = active && coverAbsence(state, id, targetDate);
+    const type = !active ? 'inactive' : absence || (!hasShift ? 'no-shift'
+      : assignments.some(record => record.memberId === id && overlap(requested, record) > 0) ? 'busy' : 'available');
+    return [id, type];
+  }));
 }
 
 function assignmentsWithConflicts(state, date) {
@@ -460,6 +487,31 @@ export function archiveMember(team, memberId, date) {
   return member;
 }
 
+export function deleteEmployee(state, employeeId) {
+  if (!state.employees?.some(employee => employee.id === employeeId)
+    && !state.teams.some(group => group.members.some(member => member.id === employeeId))) {
+    throw new Error('Medarbetaren kunde inte hittas.');
+  }
+  const next = clone(state);
+  if (next.employees) next.employees = next.employees.filter(employee => employee.id !== employeeId);
+  for (const group of next.teams) {
+    group.members = group.members.filter(member => member.id !== employeeId);
+    for (const version of group.versions) {
+      if (version.positions) delete version.positions[employeeId];
+      if (version.personalSchedules) version.personalSchedules = version.personalSchedules.filter(schedule => schedule.memberId !== employeeId);
+    }
+  }
+  next.exceptions = next.exceptions.filter(exception => exception.memberId !== employeeId);
+  for (const exception of next.exceptions) {
+    if (exception.replacementId === employeeId) {
+      delete exception.replacementId;
+      delete exception.replacementStart;
+      delete exception.replacementEnd;
+    }
+  }
+  return next;
+}
+
 export function deleteTeam(state, teamId) {
   const team = state.teams.find(item => item.id === teamId);
   if (!team) throw new Error('Teamet kunde inte hittas.');
@@ -470,6 +522,34 @@ export function deleteTeam(state, teamId) {
   next.exceptions = next.exceptions.filter(item => item.teamId !== teamId);
   for (const exception of next.exceptions) {
     if (removedMembers.has(exception.replacementId)) {
+      delete exception.replacementId;
+      delete exception.replacementStart;
+      delete exception.replacementEnd;
+    }
+  }
+  return next;
+}
+
+export function deleteWorkTeam(state, teamId) {
+  if (!state.workTeams?.some(team => team.id === teamId)) throw new Error('Teamet kunde inte hittas.');
+  const next = clone(state);
+  const groupIds = new Set(next.teams.filter(group => group.workTeamId === teamId).map(group => group.id));
+  const affectedEmployees = new Set();
+  next.workTeams = next.workTeams.filter(team => team.id !== teamId);
+  next.teams = next.teams.filter(group => !groupIds.has(group.id));
+  next.exceptions = next.exceptions.filter(exception => !groupIds.has(exception.teamId));
+  for (const employee of next.employees) {
+    for (const placement of employee.placements) {
+      if (placement.teamId === teamId || groupIds.has(placement.groupId)) {
+        affectedEmployees.add(employee.id);
+        placement.teamId = null;
+        placement.groupId = null;
+      }
+    }
+    if (employee.skilledTeamIds) employee.skilledTeamIds = employee.skilledTeamIds.filter(id => id !== teamId);
+  }
+  for (const exception of next.exceptions) {
+    if (affectedEmployees.has(exception.replacementId) && !findMember(next, exception.replacementId, exception.date)) {
       delete exception.replacementId;
       delete exception.replacementStart;
       delete exception.replacementEnd;
