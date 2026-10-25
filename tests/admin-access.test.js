@@ -898,6 +898,28 @@ test('individual changes filter by team across groups and keep edits in the corr
   assert.doesNotMatch(page.app.innerHTML,/data-id="day-absence"/);
 });
 
+test('parental leave is available in the overview filter and popup and filters only matching periods',async()=>{
+  const state=model.organizeState(model.seedState());
+  state.exceptions=[
+    {id:'parental-day',teamId:'team-1',memberId:'member-1',date:'2026-10-14',type:'parental'},
+    {id:'vacation-day',teamId:'team-1',memberId:'member-1',date:'2026-10-15',type:'vacation'},
+  ];
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');
+  await page.click('admin-tab',undefined,{tab:'changes'});
+  const options=page.app.innerHTML.match(/id="changes-type">(.*?)<\/select>/s)[1];
+  assert.match(options,/<option value="parental"[^>]*>Föräldraledig<\/option>/);
+  await page.change({id:'changes-type',value:'parental'});
+  assert.match(page.app.innerHTML,/data-id="parental-day"/);
+  assert.doesNotMatch(page.app.innerHTML,/data-id="vacation-day"/);
+  assert.match(page.app.innerHTML,/change-type-parental">Föräldraledig<\/span>/);
+  await page.click('exception');
+  assert.match(page.dialog.innerHTML,/<option value="parental"[^>]*>Föräldraledig<\/option>/);
+  await page.click('close-modal');await page.click('changes-reset');
+  assert.match(page.app.innerHTML,/data-id="parental-day"/);
+  assert.match(page.app.innerHTML,/data-id="vacation-day"/);
+});
+
 test('department-wide absence selection includes every team, persists and keeps new changes in the correct group',async()=>{
   const state=model.organizeState(model.seedState()),first=state.teams[0],department=state.departments[0];
   department.name='Transport Centralen';
@@ -941,6 +963,27 @@ test('department-wide absence selection includes every team, persists and keeps 
   await reloaded.change({id:'work-team-select',value:scope});await reloaded.change({id:'department-select',value:'elsewhere'});
   assert.match(reloaded.app.innerHTML,/<option value="dept:elsewhere" selected>Annan avdelning<\/option>/);
   assert.match(reloaded.app.innerHTML,/data-id="foreign-absence"/);assert.doesNotMatch(reloaded.app.innerHTML,/data-id="first-absence"|data-id="second-absence"/);
+});
+
+test('period summaries distinguish missing, partial, complete and unnecessary replacement coverage',async()=>{
+  const state=model.organizeState(model.seedState()),group=state.teams[0],version=group.versions[0];
+  version.rotation=[['A','A','A','A','A','','']];
+  version.positions=Object.fromEntries(group.members.map(member=>[member.id,1]));
+  state.employees.push({id:'relief',name:'Alex',role:'part-time',activeFrom:'2026-01-01',activeUntil:null,departmentId:state.departments[0].id,placements:[]});
+  const entry=(id,date,extra={})=>({id,teamId:group.id,memberId:'member-1',date,type:'vacation',...extra});
+  state.exceptions=[entry('missing','2026-10-12'),entry('partial','2026-10-13',{replacementId:'relief',replacementStart:'07:00',replacementEnd:'11:00'}),entry('full','2026-10-14',{replacementId:'relief'}),entry('ready','2026-10-19',{replacementId:'relief'}),entry('no-pass','2026-10-24',{type:'leave'})];
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'changes'});
+  const summary=id=>page.app.innerHTML.match(new RegExp('data-change-period="'+id+'"[^>]*><summary>([\\s\\S]*?)</summary>'))[1];
+  assert.match(summary('missing'),/2 av 3 dagar behöver ersättare/);
+  assert.match(summary('missing'),/change-coverage-badge/);
+  assert.match(summary('ready'),/change-covered[\s\S]*Bemanningen är klar/);
+  assert.match(summary('no-pass'),/change-coverage-neutral[\s\S]*Ingen ersättare behövs/);
+  const day=id=>page.app.innerHTML.match(new RegExp('class="change-day"[^>]*data-id="'+id+'"[^>]*>([\\s\\S]*?)</button>'))[1];
+  assert.match(day('missing'),/data-coverage="needed"[\s\S]*9 timmar behöver ersättare/);
+  assert.match(day('partial'),/data-coverage="needed"[\s\S]*Ersättare: Alex[\s\S]*5 timmar behöver ersättare/);
+  assert.match(day('full'),/data-coverage="covered"[\s\S]*Bemanningen är klar/);
+  assert.match(day('no-pass'),/data-coverage="none"[\s\S]*Ingen ersättare behövs/);
 });
 
 test('51 people with 20 vacation dates each render compactly and can be searched, paged and filtered', async () => {

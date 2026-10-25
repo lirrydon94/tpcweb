@@ -180,7 +180,7 @@ test('a person joining the current rotation needs a position, historical version
 });
 
 test('full-day absence makes a coworker unavailable as a replacement and leaves coverage open', () => {
-  for (const type of ['sick', 'vacation', 'off', 'pension']) {
+  for (const type of ['sick', 'vacation', 'off', 'pension', 'parental']) {
     const state = seedState();
     state.exceptions.push({ id: 'absent', teamId: 'team-1', memberId: 'member-2', date: '2026-10-12', type });
     state.exceptions.push({ id: 'needs-cover', teamId: 'team-1', memberId: 'member-1', date: '2026-10-12', type: 'sick', replacementId: 'member-2' });

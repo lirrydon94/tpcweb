@@ -19,7 +19,7 @@ test('availability distinguishes a free day, another employee’s cover and the 
   assert.equal(status(state),'available');
   state.exceptions.push({id:'booking',teamId:'team-1',memberId:'member-2',date:'2026-11-22',type:'vacation',replacementId:'hourly'});
   assert.equal(status(state),'busy');
-  for(const type of ['vacation','sick','leave','off','pension']) {
+  for(const type of ['vacation','sick','leave','parental','off','pension']) {
     state.exceptions.push({id:'absence',teamId:'team-1',memberId:'hourly',date:'2026-11-22',type});
     assert.equal(status(state),type);
     state.exceptions.pop();

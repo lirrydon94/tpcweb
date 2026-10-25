@@ -123,7 +123,7 @@ begin
       or jsonb_typeof(item->'teamId') is distinct from 'string'
       or jsonb_typeof(item->'memberId') is distinct from 'string'
       or (item->>'date') is null or not (item->>'date' ~ '^\d{4}-\d{2}-\d{2}$')
-      or (item->>'type') is null or item->>'type' not in ('vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave') then
+      or (item->>'type') is null or item->>'type' not in ('vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave', 'parental') then
       raise exception 'En individuell schemaändring har ett ogiltigt format.';
     end if;
   end loop;

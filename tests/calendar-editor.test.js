@@ -6,7 +6,7 @@ import * as model from '../src/model.js';
 
 const source=await readFile(new URL('../src/app.js',import.meta.url),'utf8');
 const editorSource=source.slice(source.indexOf('function exceptionModal('),source.indexOf('function teamSettings('));
-const labels={vacation:'Semester',sick:'Sjuk',leave:'Tjänstledig',pension:'Pensionsdag',overtime:'Övertid',custom:'Anpassat pass',off:'Ledig',shift:'Arbetar'};
+const labels={vacation:'Semester',sick:'Sjuk',leave:'Tjänstledig',parental:'Föräldraledig',pension:'Pensionsdag',overtime:'Övertid',custom:'Anpassat pass',off:'Ledig',shift:'Arbetar'};
 const esc=(value='')=>String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
 function calendarState(){
@@ -350,6 +350,36 @@ test('new changes require an explicit type and do not silently become vacation',
   assert.equal(editor.saves(),1);
   assert.ok(editor.saved().exceptions.every(entry=>entry.type==='sick'));
   assert.equal(openEditor({state:editor.current()}).fields.type.value,'');
+});
+
+test('parental leave saves with coverage, displays its label and can be reopened and edited',async()=>{
+  const editor=openEditor();
+  const typeOptions=editor.body().match(/<select name="type">([\s\S]*?)<\/select>/)[1];
+  assert.match(typeOptions,/<option value="parental"[^>]*>Föräldraledig<\/option>/);
+  editor.set('type','parental');selectDays(editor,firstDates);
+  editor.set('replacement','anna');await editor.submit();
+  assert.equal(editor.error.textContent,'');assert.equal(editor.saves(),1);
+  const saved=editor.saved(),published=model.publishState(saved);
+  assert.equal(saved.exceptions.length,3);
+  for(const entry of saved.exceptions){
+    assert.equal(entry.type,'parental');assert.equal(entry.replacementId,'anna');
+    const shift=model.getShift(published,entry.teamId,entry.memberId,entry.date);
+    assert.equal(shift.type,'parental');assert.equal(shift.working,false);
+    assert.equal(shift.minutes,0);assert.equal(shift.needsCoverage,false);
+    const cover=model.getDayAssignments(published,entry.teamId,entry.date).find(pass=>pass.memberId==='anna');
+    assert.equal(cover.start,'07:00');assert.equal(cover.end,'16:00');
+    assert.match(calendarCell(editor,entry.date),/data-change-type="parental"/);
+    assert.match(calendarCell(editor,entry.date),/>Föräldraledig<\/small>/);
+  }
+  const original=saved.exceptions[0],reopened=openEditor({state:saved,options:{id:original.id}});
+  assert.equal(reopened.fields.type.value,'parental');
+  assert.equal(reopened.nodes['#exception-work-times'].hidden,true);
+  reopened.set('replacement','');reopened.set('note','Uppdaterad');await reopened.click('assign');
+  assert.equal(reopened.error.textContent,'');assert.equal(reopened.saved().exceptions.length,3);
+  const updated=reopened.saved().exceptions.find(entry=>entry.id===original.id);
+  assert.equal(updated.type,'parental');assert.equal(updated.note,'Uppdaterad');
+  assert.equal(updated.replacementId,undefined);
+  assert.equal(model.getShift(reopened.saved(),original.teamId,original.memberId,original.date).needsCoverage,true);
 });
 
 test('overtime replaces pension in new changes and saves the full working hours',async()=>{
@@ -804,6 +834,65 @@ test('saved custom shifts can be selected from the calendar and keep their adjus
   await editor.submit();
   assert.equal(editor.error.textContent,'');
   assert.deepEqual(editor.saved().exceptions.find(item=>item.id===entry.id),entry);
+});
+
+test('an existing change allows switching employees and edits only the newly selected employee',async()=>{
+  const state=calendarState(),original={id:'original',teamId:'team-1',memberId:'member-1',date:firstDates[0],type:'vacation',replacementId:'anna',replacementStart:'10:00',replacementEnd:'14:00',note:'Första personen'};
+  const other={id:'other',teamId:'team-1',memberId:'member-2',date:firstDates[0],type:'sick',note:'Andra personen'};
+  state.exceptions.push(original,other);
+  const editor=openEditor({state,options:{id:original.id}});
+  assert.equal(editor.fields.member.disabled,false);
+  assert.equal(editor.fields.memberSearch.disabled,false);
+  assert.equal(editor.nodes['#exception-member-toggle'].disabled,false);
+  await editor.click('member-toggle');
+  assert.equal(editor.nodes['#exception-member-options'].hidden,false);
+  assert.match(editor.nodes['#exception-member-options'].innerHTML,/data-member-id="member-2"/);
+  await editor.click('member-option',{memberId:original.memberId});
+  assert.match(calendarCell(editor,original.date),/is-selected/);
+  assert.equal(editor.fields.note.value,original.note);
+  await editor.click('member-option',{memberId:other.memberId});
+  assert.equal(editor.fields.member.value,other.memberId);
+  assert.equal(editor.fields.memberSearch.value,state.teams[0].members[1].name);
+  assert.doesNotMatch(calendarCell(editor,other.date),/is-selected|Semester/);
+  assert.match(calendarCell(editor,other.date),/Sjuk/);
+  assert.equal(editor.nodes['#exception-delete'].hidden,true);
+  assert.equal(editor.fields.replacement.value,'');
+  assert.equal(editor.fields.replacementSearch.value,'');
+  assert.equal(editor.fields.coverMode.value,'full');
+  assert.equal(editor.fields.note.value,'');
+  assert.equal(editor.saves(),0);
+  assert.deepEqual(editor.current().exceptions,[original,other]);
+  await editor.click('day',{date:other.date});
+  assert.equal(editor.fields.note.value,other.note);
+  editor.set('replacement','johan');editor.set('note','Uppdaterad');
+  await editor.click('assign');
+  assert.equal(editor.error.textContent,'');assert.equal(editor.saves(),1);
+  assert.deepEqual(editor.saved().exceptions.find(entry=>entry.id===original.id),original);
+  assert.deepEqual(editor.saved().exceptions.find(entry=>entry.id===other.id),{...other,replacementId:'johan',note:'Uppdaterad'});
+  assert.equal(editor.saved().exceptions.length,2);
+  assert.equal(editor.fields.memberSearch.disabled,false);
+});
+
+test('editing from the changes overview can select another group by keyboard and save to that group',async()=>{
+  const state=calendarState(),group=state.teams[0],other={...structuredClone(group),id:'other-group',name:'Andra gruppen',members:[]};
+  other.versions[0].rotation=[['B','B','B','B','B','','']];
+  state.teams.push(other);
+  model.placeEmployee(state,'member-2',group.workTeamId,other.id,'2026-10-12');
+  const original={id:'original',teamId:group.id,memberId:'member-1',date:firstDates[0],type:'vacation',note:'Sparad anteckning'};
+  state.exceptions.push(original);
+  const editor=openEditor({state,options:{id:original.id}});
+  editor.search(other.members[0].name);editor.key('Enter');
+  assert.equal(editor.fields.member.value,'member-2');
+  assert.match(calendarCell(editor,original.date),/09:30–18:30/);
+  assert.doesNotMatch(calendarCell(editor,original.date),/is-selected|Semester/);
+  await editor.click('day',{date:firstDates[1]});
+  await editor.submit();
+  assert.equal(editor.error.textContent,'');assert.equal(editor.saves(),1);
+  assert.deepEqual(editor.saved().exceptions.find(entry=>entry.id===original.id),original);
+  const added=editor.saved().exceptions.find(entry=>entry.memberId==='member-2');
+  assert.equal(added.teamId,other.id);assert.equal(added.date,firstDates[1]);
+  assert.equal(added.type,'vacation');assert.equal(added.note,'');
+  assert.equal(editor.saved().exceptions.length,2);
 });
 
 test('changing employee clears pending selections before a new employee is edited',async()=>{

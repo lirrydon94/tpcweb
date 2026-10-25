@@ -70,7 +70,7 @@ function restoreAbsenceStatuses(saved) {
     if (entry.type !== 'off') continue;
     const original = saved.working.exceptions.find(item => item.id === entry.id
       && item.teamId === entry.teamId && item.memberId === entry.memberId && item.date === entry.date);
-    if (original && ['vacation', 'sick', 'leave', 'pension'].includes(original.type)
+    if (original && ['vacation', 'sick', 'leave', 'parental', 'pension'].includes(original.type)
       && !original.start && !original.end) {
       entry.type = original.type;
       changed = true;

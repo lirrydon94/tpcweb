@@ -1,6 +1,6 @@
 // Civil dates use UTC internally so rotations do not change at daylight-saving boundaries.
 const DAY = 86_400_000;
-const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave']);
+const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave', 'parental']);
 export const PERSONAL_ABSENCE_TYPES = ['off', 'leave', 'vacation', 'sick', 'pension'];
 
 export function uid() {
@@ -246,7 +246,7 @@ export function applyExceptionDrafts(state, drafts, { groupIds } = {}) {
     const start = draft.start ?? (previous?.type === type ? previous.start : '') ?? '';
     const end = draft.end ?? (previous?.type === type ? previous.end : '') ?? '';
     if ((start || end || ['custom','overtime'].includes(type)) && !duration(start, end)) throw new Error('Ändrade pass måste ha giltiga och olika start- och sluttider.');
-    if (start && ['sick', 'vacation', 'off'].includes(type)) throw new Error('Välj Anpassat pass eller Övertid när du anger arbetstider.');
+    if (start && ['sick', 'vacation', 'off', 'parental'].includes(type)) throw new Error('Välj Anpassat pass eller Övertid när du anger arbetstider.');
     if (draft.replacementId === memberId) throw new Error('Välj en annan person som ersättare.');
     if (draft.replacementId && (draft.replacementStart || draft.replacementEnd)
       && !duration(draft.replacementStart, draft.replacementEnd)) {
@@ -291,7 +291,7 @@ function unavailableForCover(state, memberId, date) {
 function coverAbsence(state, memberId, date) {
   const exceptions = currentExceptions(state, date).filter(exception => exception.memberId === memberId);
   if (exceptions.length) return exceptions.find(exception =>
-    (['vacation', 'sick', 'off', 'leave'].includes(exception.type)
+    (['vacation', 'sick', 'off', 'leave', 'parental'].includes(exception.type)
       || (exception.type === 'pension' && !duration(exception.start, exception.end))))?.type || null;
   const person = findMember(state, memberId, date);
   const type = person?.team && baseShift(state, person.team.id, memberId, date).type;
@@ -723,7 +723,7 @@ export function validateState(state) {
     const team = state.teams.find(item => item?.id === exception.teamId);
     const member = Array.isArray(team?.members) ? team.members.find(item => item?.id === exception.memberId) : null;
     if (!member) errors.push('En schemaändring hänvisar till en medarbetare eller ett team som saknas.');
-    checkDate(exception.date, ['vacation', 'sick', 'pension', 'off', 'leave'].includes(exception.type) ? 'Frånvarodatum' : 'Datum för schemaändring');
+    checkDate(exception.date, ['vacation', 'sick', 'pension', 'off', 'leave', 'parental'].includes(exception.type) ? 'Frånvarodatum' : 'Datum för schemaändring');
     const key = `${exception.teamId}:${exception.memberId}:${exception.date}`;
     if (exceptionKeys.has(key)) errors.push('Ange endast en schemaändring per medarbetare och datum.');
     exceptionKeys.add(key);

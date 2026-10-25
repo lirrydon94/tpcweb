@@ -934,14 +934,6 @@ export const defaultWorkspace = {
         "note": ""
       },
       {
-        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
-        "teamId": "team-1",
-        "memberId": "member-1",
-        "date": "2026-11-21",
-        "type": "vacation",
-        "note": "ville ha semester"
-      },
-      {
         "id": "89cb2c3f-b28f-4520-b4ff-1339f066ba8c",
         "teamId": "team-1",
         "memberId": "member-1",
@@ -956,9 +948,17 @@ export const defaultWorkspace = {
         "date": "2026-11-23",
         "type": "vacation",
         "note": ""
+      },
+      {
+        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-21",
+        "type": "vacation",
+        "note": "ville ha semester"
       }
     ],
-    "publishedAt": "2026-10-25T16:23:13.087Z",
+    "publishedAt": "2026-10-25T22:53:50.963Z",
     "departments": [
       {
         "id": "department-default",
@@ -2306,13 +2306,6 @@ export const defaultWorkspace = {
         "type": "vacation"
       },
       {
-        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
-        "teamId": "team-1",
-        "memberId": "member-1",
-        "date": "2026-11-21",
-        "type": "vacation"
-      },
-      {
         "id": "89cb2c3f-b28f-4520-b4ff-1339f066ba8c",
         "teamId": "team-1",
         "memberId": "member-1",
@@ -2325,9 +2318,16 @@ export const defaultWorkspace = {
         "memberId": "member-1",
         "date": "2026-11-23",
         "type": "vacation"
+      },
+      {
+        "id": "d0ee73f0-cf1e-40ad-ac51-e503b6d0026b",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-21",
+        "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-25T16:23:13.087Z",
+    "publishedAt": "2026-10-25T22:53:50.963Z",
     "departments": [
       {
         "id": "department-default",
@@ -2748,7 +2748,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 413,
+  "revision": 417,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"
