@@ -122,6 +122,32 @@ test('calendar leave display preserves personal days off and dated working hours
   assert.doesNotMatch(calendarCell(editor,'2026-10-30'),/07:00–16:00/);
 });
 
+test('a five-day selection includes recurring leave in availability and saves every replacement pass',async()=>{
+  const state=calendarState(),group=state.teams[0],version=group.versions[0],memberId='member-1';
+  const rotation=version.rotation.map(()=>Array(7).fill(null));
+  rotation[0][0]={type:'leave'};rotation[0][4]={type:'leave'};
+  model.savePersonalSchedule(state,group.id,version.id,{memberId,effectiveFrom:'2026-10-12',rotation});
+  const before=structuredClone(state),dates=model.weekDates('2027-01-11').slice(0,5),editor=openEditor({state});
+  editor.set('calendarDate',dates[0]);selectDays(editor,dates);editor.search('Anna','replacement');
+  assert.match(replacementOption(editor,'anna'),/Tillgänglig alla dagar 11–15\/1/);
+  editor.set('replacement','anna');editor.set('coverMode','partial');
+  assert.equal(editor.fields.coverStart.value,'07:00');assert.equal(editor.fields.coverEnd.value,'16:00');
+  editor.set('coverMode','full');editor.set('type','vacation');await editor.click('assign');
+  assert.equal(editor.error.textContent,'');assert.equal(editor.saves(),0);
+  await editor.submit();assert.equal(editor.error.textContent,'');
+  assert.deepEqual(editor.saved().exceptions.map(entry=>entry.date),dates);
+  const published=model.publishState(editor.saved());
+  for(const date of dates){
+    const cover=model.getDayAssignments(published,group.id,date).find(pass=>pass.memberId==='anna');
+    assert.equal(cover.type,'cover');assert.equal(cover.start,'07:00');assert.equal(cover.end,'16:00');
+    const own=model.getShift(published,group.id,memberId,date);
+    assert.equal(own.working,false);assert.equal(own.minutes,0);assert.equal(own.needsCoverage,false);
+    assert.match(calendarCell(editor,date),/07:00–16:00/);
+  }
+  assert.deepEqual(editor.saved().teams[0].versions[0].personalSchedules,version.personalSchedules);
+  assert.deepEqual(state,before);
+});
+
 test('replacement suggestions show only unavailable dates and distinguish bookings from personal absence',()=>{
   const state=calendarState();
   state.exceptions.push({id:'booked',teamId:'team-1',memberId:'member-2',date:firstDates[1],type:'vacation',replacementId:'anna'});

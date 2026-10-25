@@ -202,6 +202,19 @@ export function isScheduledWorkday(state, teamId, memberId, date) {
   return baseShift(state, teamId, memberId, dateString(civilDate(date))).working;
 }
 
+// A recurring leave day can still have a group pass for someone else to cover.
+// Keep it separate from the employee's actual working time and availability.
+export function getReplacementShift(state, teamId, memberId, date) {
+  const targetDate = dateString(civilDate(date));
+  const base = baseShift(state, teamId, memberId, targetDate);
+  if (!base.personalSchedule || base.type !== 'leave') return base;
+  const group = state.teams.find(team => team.id === teamId);
+  const shift = activeVersion(group, targetDate)?.shifts[base.code];
+  if (!shift) return base;
+  return { ...base, start: shift.start, end: shift.end, color: shift.color,
+    type: 'shift', working: true, minutes: duration(shift.start, shift.end) };
+}
+
 // Build and validate every calendar batch together, without changing saved data.
 export function applyExceptionDrafts(state, drafts, { groupIds } = {}) {
   if (!Array.isArray(drafts) || !drafts.length) throw new Error('Välj minst en dag för ändringen.');
@@ -227,7 +240,7 @@ export function applyExceptionDrafts(state, drafts, { groupIds } = {}) {
     const previous = draft.id ? next.exceptions.find(entry => entry.id === draft.id)
       : next.exceptions.find(entry => entry.teamId === group.id && entry.memberId === memberId && entry.date === date);
     if (draft.id && (!previous || previous.memberId !== memberId)) throw new Error('Ändringen kunde inte hittas. Öppna den igen.');
-    const scheduled = isScheduledWorkday(next, group.id, memberId, date);
+    const scheduled = getReplacementShift(next, group.id, memberId, date).working;
     if (draft.replacementId && !scheduled) throw new Error(`Det finns inget ordinarie pass att ersätta den ${date}.`);
     if (['vacation', 'sick'].includes(type) && !scheduled) { skippedDates.push(date); continue; }
     const start = draft.start ?? (previous?.type === type ? previous.start : '') ?? '';
@@ -291,6 +304,7 @@ function adjustedShift(state, teamId, memberId, date) {
   if (!isActive(member, date) || !belongsToGroup(state, memberId, teamId, date)) return base;
   const exception = currentExceptions(state, date).find(item => item.teamId === teamId && item.memberId === memberId);
   if (!exception) return base;
+  const planned = getReplacementShift(state, teamId, memberId, date);
   const works = ['custom', 'pension', 'overtime'].includes(exception.type) && duration(exception.start, exception.end) > 0;
   const result = {
     ...base,
@@ -299,19 +313,19 @@ function adjustedShift(state, teamId, memberId, date) {
     start: works ? exception.start : null,
     end: works ? exception.end : null,
     minutes: works ? duration(exception.start, exception.end) : 0,
-    originalStart: base.start,
-    originalEnd: base.end,
+    originalStart: planned.start,
+    originalEnd: planned.end,
     note: exception.note || '',
     exceptionId: exception.id,
     replacementId: exception.replacementId || null,
   };
-  if (base.working) {
+  if (planned.working) {
     const occupied = [];
-    const original = interval(base);
+    const original = interval(planned);
     if (result.working) occupied.push(interval(result));
     if (exception.replacementId && exception.replacementId !== memberId && replacementAvailable(state, exception.replacementId, date)) {
-      const coverStart = exception.replacementStart || base.start;
-      const coverEnd = exception.replacementEnd || base.end;
+      const coverStart = exception.replacementStart || planned.start;
+      const coverEnd = exception.replacementEnd || planned.end;
       if (duration(coverStart, coverEnd)) occupied.push(interval({ date, start: coverStart, end: coverEnd }));
     }
     const clipped = occupied.map(([start, end]) => [Math.max(start, original[0]), Math.min(end, original[1])])
@@ -322,7 +336,7 @@ function adjustedShift(state, teamId, memberId, date) {
       covered += Math.max(0, end - Math.max(start, lastEnd));
       lastEnd = Math.max(lastEnd, end);
     }
-    result.uncoveredMinutes = Math.max(0, base.minutes - covered);
+    result.uncoveredMinutes = Math.max(0, planned.minutes - covered);
     result.needsCoverage = result.uncoveredMinutes > 0;
   }
   return result;
@@ -333,7 +347,7 @@ function coversOnDate(state, date) {
   for (const exception of currentExceptions(state, date)) {
     if (!exception.replacementId || exception.replacementId === exception.memberId
       || !replacementAvailable(state, exception.replacementId, date)) continue;
-    const base = baseShift(state, exception.teamId, exception.memberId, date);
+    const base = getReplacementShift(state, exception.teamId, exception.memberId, date);
     if (!findMember(state, exception.memberId, date) || !belongsToGroup(state, exception.memberId, exception.teamId, date)) continue;
     const start = exception.replacementStart || base.start;
     const end = exception.replacementEnd || base.end;
@@ -366,7 +380,7 @@ function rawAssignments(state, date) {
 // Share the same assignments across all candidates for a selected replacement shift.
 export function getReplacementAvailability(state, teamId, memberId, date, { start, end } = {}) {
   const targetDate = dateString(civilDate(date));
-  const base = baseShift(state, teamId, memberId, targetDate);
+  const base = getReplacementShift(state, teamId, memberId, targetDate);
   const requested = { date: targetDate, start: start || base.start, end: end || base.end };
   const hasShift = base.working && duration(requested.start, requested.end) > 0;
   const assignments = hasShift ? [addDays(targetDate, -1), targetDate, addDays(targetDate, 1)]

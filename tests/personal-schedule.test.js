@@ -94,6 +94,52 @@ test('recurring leave prevents replacement bookings, while a dated working overr
   assert.equal(shift(f.state,'2026-10-12').type,'custom');
 });
 
+test('full and partial replacement passes cover recurring leave without adding work to the absent person',()=>{
+  for(const partial of [false,true]){
+    const f=fixture();f.plan.rotation[0][0]={type:'leave'};save(f);
+    f.state.employees.push({id:'temp',name:'Kim',role:'part-time',departmentId:f.state.departments[0].id,activeFrom:'2026-01-01',placements:[]});
+    const before=structuredClone(f.state),date='2026-10-12';
+    const draft={teamId:f.group.id,memberId:'member-1',date,type:'leave',replacementId:'temp',
+      ...(partial?{replacementStart:'14:00',replacementEnd:'16:00'}:{})};
+    const result=model.applyExceptionDrafts(f.state,[draft]);
+    const published=model.publishState(result.state),own=shift(published,date);
+    assert.equal(own.type,'leave');assert.equal(own.working,false);assert.equal(own.minutes,0);
+    assert.equal(own.originalStart,'11:30');assert.equal(own.originalEnd,'20:30');
+    assert.equal(own.needsCoverage,partial);assert.equal(own.uncoveredMinutes,partial?420:0);
+    const cover=model.getDayAssignments(published,f.group.id,date).find(pass=>pass.memberId==='temp');
+    assert.equal(cover.type,'cover');assert.equal(cover.code,'C');
+    assert.equal(cover.start,partial?'14:00':'11:30');assert.equal(cover.end,partial?'16:00':'20:30');
+    assert.equal(cover.minutes,partial?120:540);
+    assert.equal(model.getReplacementAvailability(published,f.group.id,'member-1',date).get('temp'),'available');
+    assert.deepEqual(f.state,before);
+  }
+});
+
+test('recurring leave over a day off and a personal day off still have no pass to replace',()=>{
+  for(const type of ['leave','off']){
+    const f=fixture();f.plan.rotation[0][0]={type};
+    if(type==='leave')f.version.rotation[0][0]='';
+    save(f);
+    assert.equal(model.getReplacementShift(f.state,f.group.id,'member-1','2026-10-12').working,false);
+    assert.throws(()=>model.applyExceptionDrafts(f.state,[{teamId:f.group.id,memberId:'member-1',date:'2026-10-12',type:'leave',replacementId:'member-2'}]),/inget ordinarie pass/);
+  }
+});
+
+test('overnight replacement of recurring leave participates in availability and conflict validation',()=>{
+  const f=fixture();f.plan.rotation[0][0]={type:'leave'};
+  f.version.shifts.C={start:'22:00',end:'06:00',color:'blue'};
+  f.state.workTeams[0].shifts.C=structuredClone(f.version.shifts.C);save(f);
+  f.state.employees.push({id:'temp',name:'Kim',role:'part-time',departmentId:f.state.departments[0].id,activeFrom:'2026-01-01',placements:[]});
+  f.state.exceptions.push({id:'morning',teamId:f.group.id,memberId:'member-2',date:'2026-10-13',type:'sick',replacementId:'temp',replacementStart:'05:00',replacementEnd:'08:00'});
+  const availability=times=>model.getReplacementAvailability(f.state,f.group.id,'member-1','2026-10-12',times).get('temp');
+  assert.equal(availability(),'busy');assert.equal(availability({start:'22:00',end:'05:00'}),'available');
+  const draft={teamId:f.group.id,memberId:'member-1',date:'2026-10-12',type:'leave',replacementId:'temp'};
+  assert.throws(()=>model.applyExceptionDrafts(f.state,[draft]),/överlappande pass/);
+  const saved=model.applyExceptionDrafts(f.state,[{...draft,replacementStart:'22:00',replacementEnd:'05:00'}]).state;
+  const cover=model.getDayAssignments(saved,f.group.id,draft.date).find(pass=>pass.memberId==='temp');
+  assert.equal(cover.minutes,420);assert.equal(cover.conflict,false);
+});
+
 test('personal hours and days off repeat in the group rotation without changing colleagues or positions',()=>{
   const f=fixture(), original=structuredClone(f.state), rotation=structuredClone(f.version.rotation), positions={...f.version.positions};
   save(f);
