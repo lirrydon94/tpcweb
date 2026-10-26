@@ -826,6 +826,7 @@ dialog:has(.exception-editor) .modal-actions{position:sticky;bottom:-28px;backgr
 .roster-shift:has(>.roster-shift-status)>b{line-height:18px}
 .roster-shift:has(>.roster-shift-status)>span{line-height:14px}
 .roster-shift>.roster-shift-status{line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;flex-shrink:0}
+.roster-shift>.roster-overtime-badge{align-self:center;padding:0 5px;border-radius:4px;background:#ffffff70;color:inherit;font-size:10px;font-weight:400;line-height:14px}
 @media screen and (orientation:landscape) and (max-height:600px){
   .roster-shift:has(>.roster-shift-status){height:56px;min-height:56px;padding:3px 2px}
   .roster-shift:has(>.roster-shift-status)>b{line-height:14px}

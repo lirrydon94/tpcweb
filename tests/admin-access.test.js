@@ -986,6 +986,49 @@ test('period summaries distinguish missing, partial, complete and unnecessary re
   assert.match(day('no-pass'),/data-coverage="none"[\s\S]*Ingen ersättare behövs/);
 });
 
+test('change overview lists, filters and edits both regular and hourly replacement bookings',async()=>{
+  const state=model.organizeState(model.seedState());
+  for(const person of [state.employees[0],state.teams[0].members[0]])person.name='Agne';
+  for(const person of [state.employees[1],state.teams[0].members[1]])person.name='Bosse';
+  state.employees.push({id:'hourly',name:'Kim',role:'part-time',departmentId:state.departments[0].id,placements:[]});
+  state.exceptions=[
+    {id:'regular-cover',teamId:'team-1',memberId:'member-1',date:'2026-10-12',type:'vacation',replacementId:'member-2'},
+    {id:'hourly-cover',teamId:'team-1',memberId:'member-1',date:'2026-10-13',type:'vacation',replacementId:'hourly',replacementStart:'10:00',replacementEnd:'14:00'},
+  ];
+  const page=await openApp('admin',{working:state,published:model.publishState(state),revision:1});
+  await page.click('admin');await page.submit('lirrydoz');await page.click('admin-tab',undefined,{tab:'changes'});
+  assert.equal((page.app.innerHTML.match(/class="change-person"/g)||[]).length,3);
+  assert.match(page.app.innerHTML,/<strong>4<\/strong> registrerade dagar/);
+  assert.match(page.app.innerHTML,/data-change-person="member-2"[\s\S]*?<small>Övertid<\/small>/);
+  assert.match(page.app.innerHTML,/data-change-person="hourly"[\s\S]*?<small>Ersättningspass<\/small>/);
+  assert.match(page.app.innerHTML,/data-id="cover:regular-cover" data-source-id="regular-cover"[^>]*>[\s\S]*?11:30–20:30[\s\S]*?Ersätter: Agne[\s\S]*?Övertid · 9 timmar/);
+  assert.match(page.app.innerHTML,/data-id="cover:hourly-cover"[\s\S]*?10:00–14:00[\s\S]*?Ersättningspass · 4 timmar/);
+  await page.input({id:'changes-search',value:'bosse'});
+  assert.equal((page.app.innerHTML.match(/class="change-person"/g)||[]).length,1);
+  assert.match(page.app.innerHTML,/data-id="cover:regular-cover"/);
+  await page.click('changes-reset');await page.change({id:'changes-type',value:'overtime'});
+  assert.match(page.app.innerHTML,/data-change-person="member-2"/);
+  assert.doesNotMatch(page.app.innerHTML,/data-change-person="member-1"|data-change-person="hourly"/);
+  await page.change({id:'changes-type',value:'cover'});
+  assert.match(page.app.innerHTML,/data-change-person="hourly"/);
+  assert.doesNotMatch(page.app.innerHTML,/data-change-person="member-1"|data-change-person="member-2"/);
+  await page.change({id:'changes-year',value:'2026'});await page.change({id:'changes-month',value:'11'});
+  assert.match(page.app.innerHTML,/Inga ändringar matchar dina filter/);
+  await page.click('changes-reset');
+  await page.click('edit-exception',undefined,{id:'cover:regular-cover',sourceId:'regular-cover'});
+  assert.equal(page.dialog.open,true);
+  assert.match(page.dialog.innerHTML,/value="member-1" selected/);
+  assert.match(page.dialog.innerHTML,/value="member-2" selected/);
+  await page.submit({type:'vacation',replacement:'hourly',coverMode:'partial',coverStart:'12:00',coverEnd:'16:00',note:''});
+  assert.equal(page.error.textContent,'');
+  assert.doesNotMatch(page.app.innerHTML,/data-change-person="member-2"/);
+  assert.match(page.app.innerHTML,/data-id="cover:regular-cover"[\s\S]*?12:00–16:00/);
+  assert.equal(page.getWorkspace().working.exceptions.length,2);
+  await page.click('delete-exception',undefined,{id:'regular-cover'});
+  assert.doesNotMatch(page.app.innerHTML,/data-id="(?:cover:)?regular-cover"/);
+  assert.match(page.app.innerHTML,/data-id="cover:hourly-cover"/);
+});
+
 test('51 people with 20 vacation dates each render compactly and can be searched, paged and filtered', async () => {
   const state=model.seedState(),group=state.teams[0],template=group.members[0];
   group.members=Array.from({length:51},(_,i)=>({...template,id:'person-'+(i+1),name:'Person '+String(i+1).padStart(2,'0')}));

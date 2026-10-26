@@ -314,7 +314,15 @@ function rosterView(team, groups=[team], departmentScope=null) {
       const isToday=c.date===today();
       const editAttr=(editable&&c.active&&c.group)?' data-action="roster-edit" data-group="'+esc(c.group.id)+'" data-member="'+esc(m.id)+'" data-date="'+c.date+'" role="button" tabindex="0" title="Ändra pass för '+esc(m.name)+', '+fmt(c.date,{day:'numeric',month:'short'})+'"':'';
       const offText=c.exception?label(c.exception.type):(c.active?label(c.main?.type||'off'):isHome?'Ej aktiv':'Inget pass');
-      const content=c.shifts.length?c.shifts.map(a=>'<div class="roster-shift '+esc(a.color||colorFor(state.teams.find(g=>g.id===a.teamId),c.date,a.code))+'"><b>'+esc(a.code||'↗')+(a.type==='cover'?' ↗':'')+'</b><span>'+a.start+'–'+a.end+'</span>'+(a.type==='cover'?'<small class="roster-shift-status">Ersättningspass</small>':c.exception?'<small class="roster-shift-status">'+label(c.exception.type)+'</small>':'')+'</div>').join(''):'<div class="roster-off'+(offText==='Ledig'?' roster-day-off':'')+'">'+(offText==='Ledig'?'':(c.exception||c.main?.personalSchedule)&&c.main?.code?'<b class="roster-absence-code">'+esc(c.main.code)+'</b>':'—')+'<span>'+offText+'</span></div>';
+      const content=c.shifts.length?c.shifts.map(a=>{
+        const overtime=a.type==='overtime'||(a.type==='cover'&&(findMember(m.id)?.role||m.role)!=='part-time');
+        const color=esc(a.color||colorFor(state.teams.find(g=>g.id===a.teamId),c.date,a.code));
+        if(overtime){
+          const source=a.sourceMemberId?'Ersätter '+(findMember(a.sourceMemberId)?.name||'tidigare medarbetare'):'';
+          return '<div class="roster-shift '+color+'"'+(source?' title="'+esc(source)+'"':'')+'><b>'+esc(a.code||'Pass')+'</b><small class="roster-shift-status roster-overtime-badge">Övertid</small><span>'+a.start+'–'+a.end+'</span></div>';
+        }
+        return '<div class="roster-shift '+color+'"><b>'+esc(a.code||'↗')+(a.type==='cover'?' ↗':'')+'</b><span>'+a.start+'–'+a.end+'</span>'+(a.type==='cover'?'<small class="roster-shift-status">Ersättningspass</small>':c.exception?'<small class="roster-shift-status">'+label(c.exception.type)+'</small>':'')+'</div>';
+      }).join(''):'<div class="roster-off'+(offText==='Ledig'?' roster-day-off':'')+'">'+(offText==='Ledig'?'':(c.exception||c.main?.personalSchedule)&&c.main?.code?'<b class="roster-absence-code">'+esc(c.main.code)+'</b>':'—')+'<span>'+offText+'</span></div>';
       const replacement=c.exception?.replacementId?findMember(c.exception.replacementId):null;
       const replacementTime=c.exception?.replacementStart&&c.exception?.replacementEnd?'<small class="roster-cover-time">'+esc(c.exception.replacementStart)+'–'+esc(c.exception.replacementEnd)+'</small>':'';
       const replacementInfo=replacement?'<div class="roster-replacement"><span>Ersättare: <strong>'+esc(replacement.name)+'</strong></span>'+replacementTime+'</div>':editable&&c.main?.needsCoverage?'<div class="roster-replacement roster-needs-cover">Ersättare behövs</div>':'';
@@ -622,7 +630,7 @@ function rotationAdmin(team) {
 function changePeriods(entries) {
   const buckets = new Map();
   for (const entry of entries) {
-    const key=JSON.stringify([entry.teamId,entry.type,entry.start||'',entry.end||'']);
+    const key=JSON.stringify([entry.teamId,entry.type,entry.start||'',entry.end||'',entry.sourceMemberId||'']);
     if(!buckets.has(key))buckets.set(key,[]);
     buckets.get(key).push(entry);
   }
@@ -646,7 +654,7 @@ function changeRange(start,end){
 function changeOverview(groups){
   const groupIds=new Set(groups.map(group=>group.id)),people=new Map();
   const query=(ui.changeQuery||'').trim().toLocaleLowerCase('sv');
-  for(const entry of workspace.working.exceptions){
+  for(const entry of model.getChangeEntries(workspace.working)){
     if(!groupIds.has(entry.teamId)||(ui.changeYear&&entry.date.slice(0,4)!==ui.changeYear)||(ui.changeMonth&&entry.date.slice(5,7)!==ui.changeMonth)||(ui.changeType&&entry.type!==ui.changeType))continue;
     const name=findMember(entry.memberId)?.name||'Tidigare medarbetare';
     if(query&&!name.toLocaleLowerCase('sv').includes(query))continue;
@@ -664,7 +672,7 @@ function changeResults(groups){
   const count=(n,one,many)=>n+' '+(n===1?one:many);
   return '<div class="change-totals" role="status"><span><strong>'+people.length+'</strong> medarbetare</span><span><strong>'+periods+'</strong> '+(periods===1?'period':'perioder')+'</span><span><strong>'+days+'</strong> '+(days===1?'registrerad dag':'registrerade dagar')+'</span></div>'
     +(people.length?'<div class="change-column-head"><span>Medarbetare</span><span>Omfattning</span><span>Bemanning</span><span></span></div><div class="change-people">'+visible.map(person=>{
-      const shifts=new Map(person.entries.map(entry=>[entry.id,model.getShift(workspace.working,entry.teamId,entry.memberId,entry.date)]));
+      const shifts=new Map(person.entries.map(entry=>[entry.id,entry.sourceExceptionId?entry:model.getShift(workspace.working,entry.teamId,entry.memberId,entry.date)]));
       const uncovered=person.entries.filter(e=>shifts.get(e.id).needsCoverage).length;
       const types=[...new Set(person.entries.map(e=>label(e.type)))].join(' · ');
       const initials=person.name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('');
@@ -674,20 +682,21 @@ function changeResults(groups){
         +'<span class="change-person-coverage">'+(uncovered?'<span class="change-coverage-badge">'+icon('warning')+'<span>'+count(uncovered,'dag','dagar')+' behöver ersättare</span></span>':'<span class="change-covered">'+icon('check')+'<span>Inget behov av ersättare</span></span>')+'</span>'+icon('down')+'</summary>'
         +'<div class="change-periods">'+person.periods.map(period=>{
           const needs=period.entries.filter(e=>shifts.get(e.id).needsCoverage).length;
-          const hasReplacement=period.entries.some(e=>e.replacementId);
-          const coverage=needs?(needs===period.entries.length?count(needs,'dag','dagar'):needs+' av '+count(period.entries.length,'dag','dagar'))+' behöver ersättare':hasReplacement?'Bemanningen är klar':'Ingen ersättare behövs';
+          const isCover=Boolean(period.entries[0].sourceExceptionId);
+          const hasReplacement=period.entries.some(e=>e.replacementId)||isCover;
+          const coverage=needs?(needs===period.entries.length?count(needs,'dag','dagar'):needs+' av '+count(period.entries.length,'dag','dagar'))+' behöver ersättare':isCover?'Bokad som ersättare':hasReplacement?'Bemanningen är klar':'Ingen ersättare behövs';
           return '<details class="change-period" data-change-period="'+esc(period.id)+'" '+((ui.changeOpenPeriods||[]).includes(period.id)?'open':'')+'><summary>'
             +'<span class="change-type change-type-'+esc(period.type)+'">'+esc(label(period.type))+'</span>'
             +'<span class="change-period-date">'+changeRange(period.start,period.end)+'</span>'
             +'<span class="change-period-count">'+count(period.entries.length,'dag','dagar')+'</span>'
             +'<span class="change-period-coverage"><span class="'+(needs?'change-coverage-badge':hasReplacement?'change-covered':'change-coverage-neutral')+'">'+icon(needs?'warning':hasReplacement?'check':'info')+'<span>'+coverage+'</span></span></span>'
             +'<span class="change-period-hint">Visa dagar '+icon('down')+'</span></summary>'
-            +'<div class="change-day-list"><p>'+ (needs?count(needs,'dag behöver','dagar behöver')+' ersättare. ':'')+'Välj en dag för att redigera eller ta bort ändringen.</p>'
+            +'<div class="change-day-list"><p>'+ (needs?count(needs,'dag behöver','dagar behöver')+' ersättare. ':'')+(isCover?'Välj en dag för att redigera den kopplade frånvaron och ersättaren.':'Välj en dag för att redigera eller ta bort ändringen.')+'</p>'
             +period.entries.map(entry=>{
               const shift=shifts.get(entry.id);
-              const detail=entry.replacementId?'Ersättare: '+(findMember(entry.replacementId)?.name||'Medarbetare'):shift.needsCoverage?'Ingen ersättare':'Ingen ersättare behövs';
-              return '<button class="change-day" data-action="edit-exception" data-id="'+esc(entry.id)+'" aria-label="'+esc('Redigera '+person.name+', '+changeRange(entry.date,entry.date))+'"><span><strong>'+fmt(entry.date,{weekday:'short',day:'numeric',month:'short'})+'</strong>'
-                +'<small>'+esc(entry.start&&entry.end?entry.start+'–'+entry.end:label(entry.type))+'</small></span><span class="change-day-cover" data-coverage="'+(shift.needsCoverage?'needed':entry.replacementId?'covered':'none')+'"><strong>'+esc(detail)+'</strong>'+(shift.needsCoverage?'<small class="coverage-warning">'+hours(shift.uncoveredMinutes||0)+' timmar behöver ersättare</small>':entry.replacementId?'<small>Bemanningen är klar</small>':'')+'</span>'+icon('edit')+'</button>';
+              const detail=isCover?'Ersätter: '+(findMember(entry.sourceMemberId)?.name||'Tidigare medarbetare'):entry.replacementId?'Ersättare: '+(findMember(entry.replacementId)?.name||'Medarbetare'):shift.needsCoverage?'Ingen ersättare':'Ingen ersättare behövs';
+              return '<button class="change-day" data-action="edit-exception" data-id="'+esc(entry.id)+'"'+(isCover?' data-source-id="'+esc(entry.sourceExceptionId)+'"':'')+' aria-label="'+esc((isCover?'Redigera ersättningsbokning för ':'Redigera ')+person.name+', '+changeRange(entry.date,entry.date))+'"><span><strong>'+fmt(entry.date,{weekday:'short',day:'numeric',month:'short'})+'</strong>'
+                +'<small>'+esc(entry.start&&entry.end?entry.start+'–'+entry.end:label(entry.type))+'</small></span><span class="change-day-cover" data-coverage="'+(shift.needsCoverage?'needed':entry.replacementId||isCover?'covered':'none')+'"><strong>'+esc(detail)+'</strong>'+(shift.needsCoverage?'<small class="coverage-warning">'+hours(shift.uncoveredMinutes||0)+' timmar behöver ersättare</small>':isCover?'<small>'+esc(label(entry.type))+' · '+hours(entry.minutes)+' timmar</small>':entry.replacementId?'<small>Bemanningen är klar</small>':'')+'</span>'+icon('edit')+'</button>';
             }).join('')+'</div></details>';
         }).join('')+'</div></details>';
     }).join('')+'</div><div class="change-pagination"><span>Visar '+(first+1)+'–'+Math.min(first+size,people.length)+' av '+people.length+' medarbetare</span><div><button class="icon-btn" data-action="changes-page" data-step="-1" aria-label="Föregående medarbetare" '+(ui.changePage===0?'disabled':'')+'>'+icon('left')+'</button><span>'+(ui.changePage+1)+' / '+pages+'</span><button class="icon-btn" data-action="changes-page" data-step="1" aria-label="Nästa medarbetare" '+(ui.changePage===pages-1?'disabled':'')+'>'+icon('right')+'</button></div></div>'
@@ -707,7 +716,7 @@ function changesAdmin(groups) {
     +'<div class="change-filters"><label class="change-search">Sök medarbetare<input id="changes-search" type="search" placeholder="Skriv ett namn…" value="'+esc(ui.changeQuery||'')+'"></label>'
     +'<label>År<select id="changes-year"><option value="">Alla år</option>'+years.map(value=>'<option value="'+esc(value)+'" '+(ui.changeYear===value?'selected':'')+'>'+esc(value)+'</option>').join('')+'</select></label>'
     +'<label>Månad<select id="changes-month"><option value="">'+(ui.changeYear?'Hela året':'Alla månader')+'</option>'+Array.from({length:12},(_,i)=>{const value=String(i+1).padStart(2,'0');return '<option value="'+value+'" '+(ui.changeMonth===value?'selected':'')+'>'+fmt('2026-'+value+'-01',{month:'long'})+'</option>';}).join('')+'</select></label>'
-    +'<label>Typ av ändring<select id="changes-type"><option value="">Alla typer</option>'+['vacation','sick','leave','parental','overtime',...(workspace.working.exceptions.some(entry=>entry.type==='pension')?['pension']:[]),'off'].map(type=>'<option value="'+type+'" '+(ui.changeType===type?'selected':'')+'>'+label(type)+'</option>').join('')+'</select></label>'
+    +'<label>Typ av ändring<select id="changes-type"><option value="">Alla typer</option>'+['vacation','sick','leave','parental','overtime','cover',...(workspace.working.exceptions.some(entry=>entry.type==='pension')?['pension']:[]),'off'].map(type=>'<option value="'+type+'" '+(ui.changeType===type?'selected':'')+'>'+label(type)+'</option>').join('')+'</select></label>'
     +'<button class="text-button" data-action="changes-reset">Rensa filter</button></div><div id="change-results">'+changeResults(groups)+'</div>'
     +'</section>';
 }
@@ -1377,7 +1386,7 @@ async function handleAction(button) {
     case 'add-shift':if(admin())shiftModal();break;
     case 'edit-shift':if(admin())shiftModal(button.dataset.code);break;
     case 'exception':if(admin())exceptionModal({date:button.dataset.date,memberId:button.dataset.member});break;
-    case 'edit-exception':if(admin())exceptionModal({id:button.dataset.id});break;
+    case 'edit-exception':if(admin())exceptionModal({id:button.dataset.sourceId||button.dataset.id});break;
     case 'delete-exception':if(admin()){const next=copy();next.exceptions=next.exceptions.filter(e=>e.id!==button.dataset.id);await save(next,'Ändringen har tagits bort');$('#modal').close();}break;
     case 'settings':if(admin())teamSettings();break;
     case 'delete-team':if(admin())deleteTeamModal();break;

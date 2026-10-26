@@ -956,9 +956,17 @@ export const defaultWorkspace = {
         "date": "2026-11-21",
         "type": "vacation",
         "note": "ville ha semester"
+      },
+      {
+        "id": "b4f41b85-55b6-4a5c-84b7-5902457cac10",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-01",
+        "type": "vacation",
+        "note": ""
       }
     ],
-    "publishedAt": "2026-10-25T22:53:50.963Z",
+    "publishedAt": "2026-10-26T15:48:35.739Z",
     "departments": [
       {
         "id": "department-default",
@@ -2325,9 +2333,16 @@ export const defaultWorkspace = {
         "memberId": "member-1",
         "date": "2026-11-21",
         "type": "vacation"
+      },
+      {
+        "id": "b4f41b85-55b6-4a5c-84b7-5902457cac10",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-11-01",
+        "type": "vacation"
       }
     ],
-    "publishedAt": "2026-10-25T22:53:50.963Z",
+    "publishedAt": "2026-10-26T15:48:35.739Z",
     "departments": [
       {
         "id": "department-default",
@@ -2748,7 +2763,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 417,
+  "revision": 423,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"

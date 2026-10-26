@@ -371,6 +371,26 @@ function coversOnDate(state, date) {
   return covers;
 }
 
+// Replacement entries are views of the original booking, never extra exceptions.
+// This keeps editing/deleting a booking in sync for both people without adding hours twice.
+export function getChangeEntries(state) {
+  const entries = [...state.exceptions];
+  const dates = new Set(state.exceptions.filter(entry => entry.replacementId).map(entry => entry.date));
+  for (const date of dates) {
+    for (const cover of coversOnDate(state, date)) {
+      const member = state.employees?.find(person => person.id === cover.memberId)
+        || findMember(state, cover.memberId, date)?.member;
+      entries.push({
+        ...cover,
+        id: `cover:${cover.exceptionId}`,
+        sourceExceptionId: cover.exceptionId,
+        type: member?.role === 'part-time' ? 'cover' : 'overtime',
+      });
+    }
+  }
+  return entries;
+}
+
 function rawAssignments(state, date) {
   const scheduled = (state.teams || []).flatMap(team => team.members
     .map(member => adjustedShift(state, team.id, member.id, date)).filter(shift => shift.working));
