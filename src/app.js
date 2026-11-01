@@ -89,7 +89,7 @@ const admin = () => hasAdminRole() && adminUnlocked;
 const data = () => admin() && ui.editingSchedule ? workspace.working : workspace.published;
 const currentTeam = (state = ui.view === 'admin' ? workspace?.working : data()) => state?.teams.find(t => t.id === ui.teamId) || state?.teams[0];
 const currentMember = (team = currentTeam()) => team?.members.find(m => m.id === ui.memberId) || team?.members.find(m => !m.activeUntil || m.activeUntil > ui.date) || team?.members[0];
-const label = (value) => ({vacation:'Semester',sick:'Sjuk',leave:'Tjänstledig',parental:'Föräldraledig',pension:'Pensionsdag',overtime:'Övertid',custom:'Anpassat pass',off:'Ledig',cover:'Ersättningspass',shift:'Arbetar'}[value] || value);
+const label = (value) => ({vacation:'Semester',sick:'Sjuk',leave:'Tjänstledig',parental:'Föräldraledig',pension:'Pensionsdag',overtime:'Övertid',custom:'Anpassat pass',off:'Ledig',cover:'Ersättningspass',shift:'Arbetar',turbyte:'Turbyte'}[value] || value);
 
 function visibleScheduleGroup(state,g){return g?.showScheduleName!==false&&state.workTeams?.find(t=>t.id===g?.workTeamId)?.scheduleActive!==false;}
 function normalizeSelection() {
@@ -288,7 +288,21 @@ function scheduleView() {
   return heading(team, teams) + (groups.length?rosterView(team,groups):empty('Inga aktiva grupper','Aktivera en grupp under Team och scheman för att visa personalens schema.'));
 }
 function hours(minutes) { return new Intl.NumberFormat('sv-SE',{maximumFractionDigits:1}).format(minutes / 60); }
-function colorFor(team,date,code) { return model.activeVersion(team,date)?.shifts[code]?.color || 'mint'; }
+function colorFor(team,date,code) {
+  let c = model.activeVersion(team,date)?.shifts?.[code]?.color;
+  if (!c) {
+    const st = workspace.working || workspace.published;
+    const wt = st?.workTeams?.find(t => t.id === team?.workTeamId);
+    c = wt?.shifts?.[code]?.color;
+    if (!c) {
+      for (const g of st?.teams || []) {
+        const v = model.activeVersion(g, date);
+        if (v?.shifts?.[code]?.color) { c = v.shifts[code].color; break; }
+      }
+    }
+  }
+  return c || 'mint';
+}
 function rosterView(team, groups=[team], departmentScope=null) {
   const state=data(), dates=model.weekDates(ui.date), editable=admin()&&ui.editingSchedule;
   const assignments=Object.fromEntries(dates.map(d=>[d,groups.flatMap(g=>model.getDayAssignments(state,g.id,d))]));
@@ -325,14 +339,26 @@ function rosterView(team, groups=[team], departmentScope=null) {
       const offText=c.exception?label(c.exception.type):(c.active?label(c.main?.type||'off'):isHome?'Ej aktiv':'Inget pass');
       const content=c.shifts.length?c.shifts.map(a=>{
         const overtime=a.type==='overtime'||(a.type==='cover'&&(findMember(m.id)?.role||m.role)!=='part-time');
-        const color=esc(a.color||colorFor(state.teams.find(g=>g.id===a.teamId),c.date,a.code));
+        const isTurbyte=a.type==='turbyte'||c.exception?.type==='turbyte';
+        const shiftCode=isTurbyte?(a.code||c.exception?.code||a.originalCode):a.code;
+        const color=esc((isTurbyte?null:a.color)||colorFor(state.teams.find(g=>g.id===a.teamId),c.date,shiftCode)||a.color);
         if(overtime){
           const source=a.sourceMemberId?'Ersätter '+(findMember(a.sourceMemberId)?.name||'tidigare medarbetare'):'';
           return '<div class="roster-shift '+color+'"'+(source?' title="'+esc(source)+'"':'')+'><b>'+esc(a.code||'Pass')+'</b><small class="roster-shift-status roster-overtime-badge">Övertid</small><span>'+a.start+'–'+a.end+'</span></div>';
         }
+        if(a.type==='turbyte'||c.exception?.type==='turbyte'){
+          const origCode=a.originalCode||c.main?.originalCode||c.exception?.originalCode||c.main?.code||'';
+          const newCode=a.code||c.exception?.code||origCode;
+          const shiftTitle=(origCode&&newCode&&origCode!==newCode)
+            ?'<span class="roster-shift-original">'+esc(origCode)+'</span><span class="roster-shift-arrow"> → </span><span class="roster-shift-swapped">'+esc(newCode)+'</span>'
+            :esc(newCode||origCode||'Pass');
+          const partner=a.replacementId||c.exception?.replacementId?findMember(a.replacementId||c.exception?.replacementId):null;
+          const partnerTitle=partner?'Turbyte med '+esc(partner.name):'Turbyte';
+          return '<div class="roster-shift '+color+'" title="'+esc(partnerTitle)+'"><b>'+shiftTitle+'</b><span>'+a.start+'–'+a.end+'</span><small class="roster-shift-status">Turbyte</small></div>';
+        }
         return '<div class="roster-shift '+color+'"><b>'+esc(a.code||'↗')+(a.type==='cover'?' ↗':'')+'</b><span>'+a.start+'–'+a.end+'</span>'+(a.type==='cover'?'<small class="roster-shift-status">Ersättningspass</small>':c.exception?'<small class="roster-shift-status">'+label(c.exception.type)+'</small>':'')+'</div>';
       }).join(''):'<div class="roster-off'+(offText==='Ledig'?' roster-day-off':'')+'">'+(offText==='Ledig'?'':(c.exception||c.main?.personalSchedule)&&c.main?.code?'<b class="roster-absence-code">'+esc(c.main.code)+'</b>':'—')+'<span>'+offText+'</span></div>';
-      const replacement=c.exception?.replacementId?findMember(c.exception.replacementId):null;
+      const replacement=c.exception?.type!=='turbyte'&&c.exception?.replacementId?findMember(c.exception.replacementId):null;
       const replacementTime=c.exception?.replacementStart&&c.exception?.replacementEnd?'<small class="roster-cover-time">'+esc(c.exception.replacementStart)+'–'+esc(c.exception.replacementEnd)+'</small>':'';
       const replacementInfo=replacement?'<div class="roster-replacement"><span>Ersättare: <strong>'+esc(replacement.name)+'</strong></span>'+replacementTime+'</div>':editable&&c.main?.needsCoverage?'<div class="roster-replacement roster-needs-cover">Ersättare behövs</div>':'';
       const absenceCard=!c.shifts.length&&offText!=='Ledig'&&(replacementInfo||((c.exception||c.main?.personalSchedule)&&c.main?.code));
@@ -691,7 +717,7 @@ function changeResults(groups){
     .sort((a,b)=>a.entry.date.localeCompare(b.entry.date)||a.person.name.localeCompare(b.person.name,'sv')||(a.entry.start||'').localeCompare(b.entry.start||''));
   const uncoveredRows=allRows.filter(row=>row.shift.needsCoverage);
   const recentlyCoveredRows=allRows.filter(row=>changeCoverageFeedback.has(row.entry.id)&&!row.shift.needsCoverage);
-  const selectedFilter=ui.changeDayFilter==='all'?'all':'needed';
+  const selectedFilter=ui.changeDayFilter==='needed'?'needed':'all';
   const filteredRows=selectedFilter==='all'?allRows:[...uncoveredRows,...recentlyCoveredRows].sort((a,b)=>a.entry.date.localeCompare(b.entry.date)||a.person.name.localeCompare(b.person.name,'sv'));
   const needsTabCount=uncoveredRows.length+recentlyCoveredRows.length;
   const rowsByPerson=new Map();
@@ -707,14 +733,14 @@ function changeResults(groups){
     +'<label><input type="checkbox" data-change-role-filter value="member" '+(selectedKinds.has('member')?'checked':'')+'>Ordinarie</label></fieldset>':'';
   const tabs='<div class="change-view-tabs" role="group" aria-label="Filtrera dagar">'
     +'<button type="button" class="change-view-tab" aria-pressed="'+(selectedFilter==='all')+'" data-action="changes-filter" data-filter="all">Alla dagar <span>'+allRows.length+'</span></button>'
-    +'<button type="button" class="change-view-tab" aria-pressed="'+(selectedFilter==='needed')+'" data-action="changes-filter" data-filter="needed">Behöver ersättare <span>'+needsTabCount+'</span></button></div>';
+    +'<button type="button" class="change-view-tab" aria-pressed="'+(selectedFilter==='needed')+'" data-action="changes-filter" data-filter="needed" hidden>Behöver ersättare <span>'+needsTabCount+'</span></button></div>';
   const renderDayRow=({person,entry,isCover,shift})=>{
-    const feedback=changeCoverageFeedback.get(entry.id);
-    const detail=feedback?'Ersättare tilldelad':isCover?'Ersätter: '+(findMember(entry.sourceMemberId)?.name||'Tidigare medarbetare'):entry.replacementId?'Ersättare: '+(findMember(entry.replacementId)?.name||'Medarbetare'):shift.needsCoverage?'Ingen ersättare':'Ingen ersättare behövs';
-    const coverage=feedback?'confirmed':shift.needsCoverage?'needed':entry.replacementId||isCover?'covered':'none';
+    const feedback=changeCoverageFeedback.get(entry.id),isTurbyte=entry.type==='turbyte';
+    const detail=feedback?'Ersättare tilldelad':isCover?'Ersätter: '+(findMember(entry.sourceMemberId)?.name||'Tidigare medarbetare'):isTurbyte?(entry.replacementId?'Byter med: '+(findMember(entry.replacementId)?.name||'Kollega'):'Turbyte: '+(entry.code||'Nytt pass')):entry.replacementId?'Ersättare: '+(findMember(entry.replacementId)?.name||'Medarbetare'):shift.needsCoverage?'Ingen ersättare':'Ingen ersättare behövs';
+    const coverage=feedback?'confirmed':shift.needsCoverage?'needed':entry.replacementId||isCover||isTurbyte?'covered':'none';
     const subline=entry.start&&entry.end?entry.start+'–'+entry.end:'';
-    const secondary=feedback?'Ersättare: '+feedback.replacementName:shift.needsCoverage?'':isCover?label(entry.type)+' · '+hours(entry.minutes)+' timmar':entry.replacementId?'Bemanningen är klar':'';
-    const directAssignment=shift.needsCoverage&&!entry.replacementId&&!isCover&&!feedback;
+    const secondary=feedback?'Ersättare: '+feedback.replacementName:shift.needsCoverage?'':isTurbyte?(entry.originalCode&&entry.code?`${entry.originalCode} → ${entry.code}`:'Turbyte'):isCover?label(entry.type)+' · '+hours(entry.minutes)+' timmar':entry.replacementId?'Bemanningen är klar':'';
+    const directAssignment=shift.needsCoverage&&!entry.replacementId&&!isCover&&!feedback&&!isTurbyte;
     const candidates=directAssignment?changeReplacementCandidates(entry):[];
     const coverageMarkup=directAssignment
       ?'<span class="change-day-cover" data-coverage="needed"><select class="change-day-select" data-change-replacement="'+esc(entry.id)+'" aria-label="Välj ersättare för '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'" '+(candidates.length?'':'disabled')+'><option value="">'+(candidates.length?'Välj ersättare':selectedKinds.size?'Ingen tillgänglig ersättare':'Välj ersättartyp ovan')+'</option>'+candidates.map(candidate=>'<option value="'+esc(candidate.id)+'">'+esc(candidate.name)+'</option>').join('')+'</select>'+(secondary?'<small class="coverage-warning">'+esc(secondary)+'</small>':'')+'</span>'
@@ -740,10 +766,13 @@ function changeResults(groups){
         const periodNeeds=period.rows.filter(row=>row.shift.needsCoverage).length;
         const periodRecent=period.rows.filter(row=>changeCoverageFeedback.has(row.entry.id)).length;
         const periodCoverage=periodNeeds?'<span class="change-period-needs">'+icon('warning')+count(periodNeeds,'dag behöver','dagar behöver')+' ersättare</span>':periodRecent?'<span class="change-period-updated">'+icon('check')+count(periodRecent,'dag uppdaterad','dagar uppdaterade')+'</span>':'';
-        return '<section class="change-period-group"><div class="change-period-group-head">'
+        const periodId=person.id+':'+period.id;
+        const periodOpen=(ui.changeOpenPeriods||[]).includes(periodId);
+        return '<details class="change-period-group" data-change-period="'+esc(periodId)+'" '+(periodOpen?'open':'')+'>'
+          +'<summary class="change-period-group-head">'
           +'<span class="change-type change-type-'+esc(period.type)+'">'+esc(label(period.type))+'</span>'
-          +'<strong>'+changeRange(period.start,period.end)+'</strong><span class="change-period-group-count">'+count(period.rows.length,'dag','dagar')+'</span>'+periodCoverage+'</div>'
-          +'<div class="change-period-group-days">'+period.rows.map(renderDayRow).join('')+'</div></section>';
+          +'<strong>'+changeRange(period.start,period.end)+'</strong><span class="change-period-group-count">'+count(period.rows.length,'dag','dagar')+'</span>'+periodCoverage+icon('down')+'</summary>'
+          +'<div class="change-period-group-days">'+period.rows.map(renderDayRow).join('')+'</div></details>';
       }).join('')+'</div></details>';
   };
   const emptyMessage=!allRows.length
@@ -768,7 +797,7 @@ function changesAdmin(groups) {
     +'<div class="change-filters"><label class="change-search">Sök medarbetare<input id="changes-search" type="search" placeholder="Skriv ett namn…" value="'+esc(ui.changeQuery||'')+'"></label>'
     +'<label>År<select id="changes-year"><option value="">Alla år</option>'+years.map(value=>'<option value="'+esc(value)+'" '+(ui.changeYear===value?'selected':'')+'>'+esc(value)+'</option>').join('')+'</select></label>'
     +'<label>Månad<select id="changes-month"><option value="">'+(ui.changeYear?'Hela året':'Alla månader')+'</option>'+Array.from({length:12},(_,i)=>{const value=String(i+1).padStart(2,'0');return '<option value="'+value+'" '+(ui.changeMonth===value?'selected':'')+'>'+fmt('2026-'+value+'-01',{month:'long'})+'</option>';}).join('')+'</select></label>'
-    +'<label>Typ av ändring<select id="changes-type"><option value="">Alla typer</option>'+['vacation','sick','leave','parental','overtime','cover',...(workspace.working.exceptions.some(entry=>entry.type==='pension')?['pension']:[]),'off'].map(type=>'<option value="'+type+'" '+(ui.changeType===type?'selected':'')+'>'+label(type)+'</option>').join('')+'</select></label>'
+    +'<label>Typ av ändring<select id="changes-type"><option value="">Alla typer</option>'+['vacation','sick','leave','parental','overtime','turbyte','cover',...(workspace.working.exceptions.some(entry=>entry.type==='pension')?['pension']:[]),'off'].map(type=>'<option value="'+type+'" '+(ui.changeType===type?'selected':'')+'>'+label(type)+'</option>').join('')+'</select></label>'
     +'<button class="text-button" data-action="changes-reset">Rensa filter</button></div><div id="change-results">'+changeResults(groups)+'</div>'
     +'</section>';
 }
@@ -842,7 +871,7 @@ function exceptionModal(options={}) {
   if(!members.length){toast('Lägg till en medarbetare först.',true);return;}
   const date=existing?.date||options.date||ui.date;
   const people=[...new Map([...workspace.working.teams.flatMap(t=>t.members.map(m=>({...m,teamName:t.name}))),...(workspace.working.employees||[]).filter(e=>e.role==='part-time').map(e=>({...e,teamName:'Timmis'}))].map(m=>[m.id,m])).values()];
-  let selectedMember=memberId,month=date.slice(0,7)+'-01',navigationDate=date,anchor=null,batchNumber=0,deleting=false,saving=false;
+  let selectedMember=memberId,month=date.slice(0,7)+'-01',navigationDate=date,anchor=null,batchNumber=0,deleting=false,saving=false,swapScope='group';
   const selected=new Set(memberId&&(existing||options.date)?[date]:[]),drafts=new Map();
   const colors=['#176c58','#6a65a3','#ae7042','#387b9b','#9b5978'];
   const personName=id=>people.find(person=>person.id===id)?.name||'Ingen ersättare';
@@ -870,6 +899,57 @@ function exceptionModal(options={}) {
     if(!selected.size)throw new Error('Markera minst en dag i kalendern.');
     const type=f.get('type')||'',replacementId=f.get('replacement')||'',partial=replacementId&&f.get('coverMode')==='partial';
     if(!type)throw new Error('Välj typ av ändring först.');
+    if(type==='turbyte'){
+      const swapShiftRaw=f.get('swapShift')||'';const swapShift=swapShiftRaw.includes(':')?swapShiftRaw.split(':')[0]:swapShiftRaw;const swapShiftMemberId=swapShiftRaw.includes(':')?swapShiftRaw.split(':').slice(1).join(':'):'';if(swapShiftMemberId&&!replacementId)f.set('replacement',swapShiftMemberId);
+      const replacementId2=f.get('replacement')||replacementId;
+      if(!replacementId2&&!swapShift)throw new Error('Välj ett pass att byta till eller en kollega att byta med.');
+      const dates=[...selected].sort(),entries=[];
+      for(const d of dates){
+        const group=groupFor(selectedMember,d);
+        if(!group)throw new Error(`Medarbetaren saknar grupp den ${d}.`);
+        const origBase=model.getReplacementShift(workspace.working,group.id,selectedMember,d);
+        const origCode=origBase?.code||'';
+        const version=model.activeVersion(group,d);
+        let targetCode=swapShift,targetStart='',targetEnd='',partnerGroup=null,partnerCode='',partnerStart='',partnerEnd='';
+        if(replacementId2){
+          partnerGroup=groupFor(replacementId2,d);
+          if(!partnerGroup)throw new Error(`Kollegan saknar grupp den ${d}.`);
+          const partnerBase=model.getReplacementShift(workspace.working,partnerGroup.id,replacementId2,d);
+          partnerCode=partnerBase?.code||'';partnerStart=partnerBase?.start||'';partnerEnd=partnerBase?.end||'';
+          if(!targetCode){targetCode=partnerCode;targetStart=partnerStart;targetEnd=partnerEnd;}
+        }
+        if(targetCode&&(!targetStart||!targetEnd)){
+          const shiftInfo=version?.shifts?.[targetCode]||(partnerGroup&&model.activeVersion(partnerGroup,d)?.shifts?.[targetCode]);
+          if(shiftInfo){targetStart=shiftInfo.start;targetEnd=shiftInfo.end;}
+        }
+        if(!targetCode)throw new Error(`Kunde inte fastställa pass att byta till den ${d}.`);
+        if(!targetStart||!targetEnd)throw new Error(`Pass ${targetCode} saknar start- eller sluttid.`);
+        const note=String(f.get('note')||'').trim();
+        entries.push({memberId:selectedMember,teamId:group.id,date:d,type:'turbyte',code:targetCode,originalCode:origCode,start:targetStart,end:targetEnd,...(replacementId2?{replacementId2}:{}),note});
+        if(replacementId2&&partnerGroup){
+          let pTargetCode=origCode,pTargetStart=origBase?.start||'',pTargetEnd=origBase?.end||'';
+          if(!pTargetStart||!pTargetEnd){
+            const origShiftInfo=version?.shifts?.[pTargetCode];
+            if(origShiftInfo){pTargetStart=origShiftInfo.start;pTargetEnd=origShiftInfo.end;}
+          }
+          if(pTargetCode&&pTargetStart&&pTargetEnd){
+            entries.push({memberId:replacementId2,teamId:partnerGroup.id,date:d,type:'turbyte',code:pTargetCode,originalCode:partnerCode,start:pTargetStart,end:pTargetEnd,replacementId2:selectedMember,note});
+          }
+        }
+      }
+      const combined=new Map([...drafts.values()].map(item=>[draftKey(item.entry.memberId,item.entry.date),item.entry]));for(const entry of entries)combined.set(draftKey(entry.memberId,entry.date),entry);
+      const allGroupIds=[...new Set([...groups.map(g=>g.id),...entries.map(e=>e.teamId)])];
+      const result=model.applyExceptionDrafts(workspace.working,[...combined.values()],{groupIds:allGroupIds});
+      const applied=new Map(result.entries.map(entry=>[draftKey(entry.memberId,entry.date),entry])),batch=batchNumber++;
+      for(const entry of entries)if(applied.has(draftKey(entry.memberId,entry.date))){
+        const appliedEntry={...applied.get(draftKey(entry.memberId,entry.date))};
+        if(!workspace.working.exceptions.some(saved=>saved.id===appliedEntry.id))delete appliedEntry.id;
+        drafts.set(draftKey(entry.memberId,entry.date),{entry:appliedEntry,batch});
+      }
+      selected.clear();anchor=null;
+      render();
+      return;
+    }
     const replacementStart=partial?f.get('coverStart'):'',replacementEnd=partial?f.get('coverEnd'):'';
     const workTimes=type==='overtime'?{start:f.get('workStart')||'',end:f.get('workEnd')||''}:{};
     if(type==='overtime'&&(!workTimes.start||!workTimes.end))throw new Error('Ange när passet börjar och slutar för övertid.');
@@ -898,7 +978,8 @@ function exceptionModal(options={}) {
     saving=true;render();
     try{
       if(selected.size)assignSelection(f);
-      const result=model.applyExceptionDrafts(workspace.working,[...drafts.values()].map(item=>item.entry),{groupIds:groups.map(group=>group.id)});
+      const allGroupIds=[...new Set([...groups.map(g=>g.id),...[...drafts.values()].map(item=>item.entry.teamId)])];
+      const result=model.applyExceptionDrafts(workspace.working,[...drafts.values()].map(item=>item.entry),{groupIds:allGroupIds});
       await save(result.state,`Ändringar för ${dayCount(result.entries.length)} har sparats`);
       drafts.clear();selected.clear();anchor=null;
     }catch(error){
@@ -910,7 +991,8 @@ function exceptionModal(options={}) {
     if(saving||!drafts.size)return;
     saving=true;
     try{
-      const result=model.applyExceptionDrafts(workspace.working,[...drafts.values()].map(item=>item.entry),{groupIds:groups.map(group=>group.id)});
+      const allGroupIds=[...new Set([...groups.map(g=>g.id),...[...drafts.values()].map(item=>item.entry.teamId)])];
+      const result=model.applyExceptionDrafts(workspace.working,[...drafts.values()].map(item=>item.entry),{groupIds:allGroupIds});
       await save(result.state,`Ändringar för ${dayCount(drafts.size)} har sparats`);
       drafts.clear();selected.clear();anchor=null;
     }finally{saving=false;}
@@ -922,7 +1004,7 @@ function exceptionModal(options={}) {
     $('#modal').querySelector('.secondary-btn[data-action="close-modal"]')?.focus();
     return false;
   }
-  modal(existing?'Redigera frånvaro och ersättare':'Planera frånvaro och ersättare','',`<div class="exception-editor"><section class="exception-calendar-pane" aria-label="Personens månadskalender"><div id="exception-month">${monthMarkup()}</div><div class="exception-calendar-tools"><button type="button" class="text-button" id="exception-select-days" data-exception-action="${selected.size?'clear':'workdays'}">${selected.size?'Rensa markering':'Markera månadens arbetsdagar'}</button><button type="button" class="text-button danger-text" id="exception-delete" data-exception-action="delete" ${removableDates().length?'':'hidden'}>Ta bort alla ändringar</button></div></section><section class="exception-settings" aria-label="Ändring för markerade dagar"><div class="exception-step"><h3>Ändring för valda dagar</h3></div><label for="exception-member-search">Medarbetare</label><div class="exception-member-picker" data-person-picker="member"><input id="exception-member-search" name="memberSearch" type="text" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="exception-member-options" placeholder="Skriv ett namn" value="${esc(members.find(member=>member.id===selectedMember)?.name||'')}"><button type="button" id="exception-member-toggle" class="exception-member-toggle" data-exception-action="member-toggle" aria-label="Visa medarbetare">${icon('down')}</button><div id="exception-member-options" class="exception-member-options" role="listbox" aria-label="Medarbetare" hidden></div></div><select name="member" hidden tabindex="-1" aria-hidden="true"><option value="" ${!selectedMember?'selected':''}>Välj medarbetare</option>${members.map(m=>`<option value="${esc(m.id)}" ${m.id===selectedMember?'selected':''}>${esc(m.name)}</option>`).join('')}</select><label>Typ av ändring<select name="type"><option value="" disabled hidden ${!existing?'selected':''}>Välj typ av ändring</option>${['vacation','sick','leave','parental','overtime',...(existing?.type==='pension'?['pension']:[]),...(existing?.type==='custom'?['custom']:[]),'off'].map(type=>`<option value="${type}" ${existing?.type===type?'selected':''}>${label(type)}</option>`).join('')}</select></label><div class="form-grid" id="exception-work-times" ${existing?.type==='overtime'?'':'hidden'}><label>Passet börjar<input name="workStart" type="time" value="${esc(existing?.type==='overtime'?existing.start||'':'')}" ${existing?.type==='overtime'?'':'disabled'}></label><label>Passet slutar<input name="workEnd" type="time" value="${esc(existing?.type==='overtime'?existing.end||'':'')}" ${existing?.type==='overtime'?'':'disabled'}></label></div><div class="exception-replacement-heading" data-person-picker="replacement"><label for="exception-replacement-search">Ersättare</label><fieldset class="exception-replacement-filters" aria-label="Visa ersättare"><label><input type="checkbox" name="replacementPartTime" checked> Timmis</label><label><input type="checkbox" name="replacementRegular"> Ordinarie</label></fieldset></div><div class="exception-member-picker" data-person-picker="replacement"><input id="exception-replacement-search" name="replacementSearch" type="text" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="exception-replacement-options" placeholder="Välj ersättare" value="${existing?esc(personName(existing.replacementId)):''}"><button type="button" id="exception-replacement-toggle" class="exception-member-toggle" data-exception-action="replacement-toggle" aria-label="Visa ersättare">${icon('down')}</button><div id="exception-replacement-options" class="exception-member-options" role="listbox" aria-label="Ersättare" hidden></div></div><select name="replacement" hidden tabindex="-1" aria-hidden="true"><option value="" disabled hidden ${!existing?'selected':''}>Välj ersättare</option><option value="" ${existing&&!existing.replacementId?'selected':''}>Ingen ersättare</option>${people.map(person=>`<option value="${esc(person.id)}" ${person.id===existing?.replacementId?'selected':''} ${person.id===selectedMember?'disabled':''}>${esc(person.name)} · ${esc(personContext(person.id))}</option>`).join('')}</select><div id="exception-cover-options" ${!existing?.replacementId?'hidden':''}><label>Omfattning<select name="coverMode"><option value="full">Hela passet</option><option value="partial" ${existing?.replacementStart?'selected':''}>Del av passet</option></select></label><div class="form-grid" id="exception-cover-times" ${!existing?.replacementStart?'hidden':''}><label>Ersätter från<input name="coverStart" type="time" value="${existing?.replacementStart||''}"></label><label>Ersätter till<input name="coverEnd" type="time" value="${existing?.replacementEnd||''}"></label></div></div><label>Privat administratörsanteckning<textarea name="note" rows="2" maxlength="500" placeholder="Valfritt">${esc(existing?.note||'')}</textarea></label><button type="button" class="primary-btn" id="exception-assign" data-exception-action="assign">Tilldela valda dagar</button></section></div>`,saveChanges,{extra:`<span id="exception-footer-summary" class="exception-footer-summary" aria-live="polite">Inga ändringar sparade ännu</span>`,submit:'Spara ändringar',hideTitle:true,onRequestClose:requestExceptionClose});
+  modal(existing?'Redigera frånvaro och ersättare':'Planera frånvaro och ersättare','',`<div class="exception-editor"><section class="exception-calendar-pane" aria-label="Personens månadskalender"><div id="exception-month">${monthMarkup()}</div><div class="exception-calendar-tools"><button type="button" class="text-button" id="exception-select-days" data-exception-action="${selected.size?'clear':'workdays'}">${selected.size?'Rensa markering':'Markera månadens arbetsdagar'}</button><button type="button" class="text-button danger-text" id="exception-delete" data-exception-action="delete" ${removableDates().length?'':'hidden'}>Ta bort alla ändringar</button></div></section><section class="exception-settings" aria-label="Ändring för markerade dagar"><div class="exception-step"><h3>Ändring för valda dagar</h3></div><label for="exception-member-search">Medarbetare</label><div class="exception-member-picker" data-person-picker="member"><input id="exception-member-search" name="memberSearch" type="text" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="exception-member-options" placeholder="Skriv ett namn" value="${esc(members.find(member=>member.id===selectedMember)?.name||'')}"><button type="button" id="exception-member-toggle" class="exception-member-toggle" data-exception-action="member-toggle" aria-label="Visa medarbetare">${icon('down')}</button><div id="exception-member-options" class="exception-member-options" role="listbox" aria-label="Medarbetare" hidden></div></div><select name="member" hidden tabindex="-1" aria-hidden="true"><option value="" ${!selectedMember?'selected':''}>Välj medarbetare</option>${members.map(m=>`<option value="${esc(m.id)}" ${m.id===selectedMember?'selected':''}>${esc(m.name)}</option>`).join('')}</select><label>Typ av ändring<select name="type"><option value="" disabled hidden ${!existing?'selected':''}>Välj typ av ändring</option>${['vacation','sick','leave','parental','overtime','turbyte',...(existing?.type==='pension'?['pension']:[]),...(existing?.type==='custom'?['custom']:[]),'off'].map(type=>`<option value="${type}" ${existing?.type===type?'selected':''}>${label(type)}</option>`).join('')}</select></label><div class="form-grid" id="exception-work-times" ${existing?.type==='overtime'?'':'hidden'}><label>Passet börjar<input name="workStart" type="time" value="${esc(existing?.type==='overtime'?existing.start||'':'')}" ${existing?.type==='overtime'?'':'disabled'}></label><label>Passet slutar<input name="workEnd" type="time" value="${esc(existing?.type==='overtime'?existing.end||'':'')}" ${existing?.type==='overtime'?'':'disabled'}></label></div><div id="exception-turbyte-options" ${existing?.type==='turbyte'?'':'hidden'}><fieldset class="exception-swap-scope"><label><input type="radio" name="swapScope" value="department"> Avdelning</label><label><input type="radio" name="swapScope" value="team"> Team</label><label><input type="radio" name="swapScope" value="group" checked> Grupp</label></fieldset><label>Byt till pass<select name="swapShift"><option value="">Välj pass (eller välj kollega nedan)</option></select></label></div><div class="exception-replacement-heading" data-person-picker="replacement"><label for="exception-replacement-search" id="exception-replacement-label">${existing?.type==='turbyte'?'Byt med kollega':'Ersättare'}</label><fieldset class="exception-replacement-filters" aria-label="Visa ersättare"><label><input type="checkbox" name="replacementPartTime" ${existing?.type==='turbyte'?'':'checked'}> Timmis</label><label><input type="checkbox" name="replacementRegular" checked> Ordinarie</label></fieldset></div><div class="exception-member-picker" data-person-picker="replacement"><input id="exception-replacement-search" name="replacementSearch" type="text" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="exception-replacement-options" placeholder="Välj ersättare" value="${existing?esc(personName(existing.replacementId)):''}"><button type="button" id="exception-replacement-toggle" class="exception-member-toggle" data-exception-action="replacement-toggle" aria-label="Visa ersättare">${icon('down')}</button><div id="exception-replacement-options" class="exception-member-options" role="listbox" aria-label="Ersättare" hidden></div></div><select name="replacement" hidden tabindex="-1" aria-hidden="true"><option value="" disabled hidden ${!existing?'selected':''}>Välj ersättare</option><option value="" ${existing&&!existing.replacementId?'selected':''}>Ingen ersättare</option>${people.map(person=>`<option value="${esc(person.id)}" ${person.id===existing?.replacementId?'selected':''} ${person.id===selectedMember?'disabled':''}>${esc(person.name)} · ${esc(personContext(person.id))}</option>`).join('')}</select><div id="exception-cover-options" ${!existing?.replacementId?'hidden':''}><label>Omfattning<select name="coverMode"><option value="full">Hela passet</option><option value="partial" ${existing?.replacementStart?'selected':''}>Del av passet</option></select></label><div class="form-grid" id="exception-cover-times" ${!existing?.replacementStart?'hidden':''}><label>Ersätter från<input name="coverStart" type="time" value="${existing?.replacementStart||''}"></label><label>Ersätter till<input name="coverEnd" type="time" value="${existing?.replacementEnd||''}"></label></div></div><label>Privat administratörsanteckning<textarea name="note" rows="2" maxlength="500" placeholder="Valfritt">${esc(existing?.note||'')}</textarea></label><button type="button" class="primary-btn" id="exception-assign" data-exception-action="assign">Tilldela valda dagar</button></section></div>`,saveChanges,{extra:`<span id="exception-footer-summary" class="exception-footer-summary" aria-live="polite">Inga ändringar sparade ännu</span>`,submit:'Spara ändringar',hideTitle:true,onRequestClose:requestExceptionClose});
   const form=$('#modal-form'),node=selector=>form.querySelector(selector),field=name=>node('[name="'+name+'"]');
   let previousSelection='';
   const personPickers={member:{suggestions:[],activeIndex:-1,query:''},replacement:{suggestions:[],activeIndex:-1,query:''}};
@@ -962,6 +1044,11 @@ function exceptionModal(options={}) {
   }
   function replacementAvailabilityMarkup(id){
     if(!selected.size)return '';
+    if(field('type')?.value==='turbyte'){
+      const first=[...selected].sort()[0],pGroup=groupFor(id,first),pShift=pGroup?model.getShift(workspace.working,pGroup.id,id,first):null;
+      if(pShift?.working&&pShift.code)return `<span class="exception-replacement-availability"><span class="exception-availability-status" data-availability="available">Pass ${esc(pShift.code)} (${esc(pShift.start)}–${esc(pShift.end)})</span></span>`;
+      return '<span class="exception-replacement-availability"><span class="exception-availability-status" data-availability="off">Ledig</span></span>';
+    }
     if(!replacementAvailability){
       const state={...workspace.working,exceptions:[...workspace.working.exceptions]};
       for(const {entry} of drafts.values()){
@@ -1051,12 +1138,17 @@ function exceptionModal(options={}) {
     if(!form?.querySelector)return;
     replacementAvailability=null;
     closePersonSuggestions('replacement');
+    const isTurbyte=field('type').value==='turbyte';
     const replacement=field('replacement').value,partial=field('coverMode').value==='partial',overtime=field('type').value==='overtime';
     node('#exception-work-times').hidden=!overtime;
+    const turbyteBlock=node('#exception-turbyte-options');if(turbyteBlock)turbyteBlock.hidden=!isTurbyte;
+    const replacementLabel=node('#exception-replacement-label');if(replacementLabel)replacementLabel.textContent=isTurbyte?'Byt med kollega':'Ersättare';
     for(const name of ['workStart','workEnd'])field(name).disabled=!overtime;
-    node('#exception-cover-options').hidden=!replacement;node('#exception-cover-times').hidden=!partial;
-    for(const name of ['coverStart','coverEnd'])field(name).disabled=!replacement||!partial;
+    node('#exception-cover-options').hidden=isTurbyte||!replacement;node('#exception-cover-times').hidden=isTurbyte||!partial;
+    for(const name of ['coverStart','coverEnd'])field(name).disabled=isTurbyte||!replacement||!partial;
+    if(isTurbyte&&!field('replacementRegular').checked)field('replacementRegular').checked=true;
     const first=[...selected].sort()[0],group=first&&groupFor(selectedMember,first),pass=group?model.getShift(workspace.working,group.id,selectedMember,first):{},planned=group?model.getReplacementShift(workspace.working,group.id,selectedMember,first):{};
+    if(isTurbyte&&first){const currentGroupId=groupFor(selectedMember,first)?.id;const dayShifts=model.getActiveDayShifts(workspace.working,first,{memberId:selectedMember,scope:swapScope,teamId:currentGroupId});const swapSel=node('select[name="swapShift"]');if(swapSel){const prevVal=swapSel.value;swapSel.innerHTML='<option value="">Välj pass (eller välj kollega nedan)</option>'+dayShifts.map(s=>`<option value="${esc(s.value)}">${esc(s.label)}</option>`).join('');if(prevVal&&[...swapSel.options].some(o=>o.value===prevVal))swapSel.value=prevVal;else if(existing?.type==='turbyte'&&existing?.code){const match=dayShifts.find(s=>s.code===existing.code);if(match)swapSel.value=match.value;}}}
     const selectionKey=selectedMember+':'+(first||'');
     if(selectionKey!==previousSelection){
       if(previousSelection){field('coverStart').value=pass.originalStart||pass.start||planned.start||'';field('coverEnd').value=pass.originalEnd||pass.end||planned.end||'';}
@@ -1124,6 +1216,7 @@ function exceptionModal(options={}) {
               if(typeField.options&&![...typeField.options].some(option=>option.value===entry.type))typeField.insertAdjacentHTML('beforeend',`<option value="${esc(entry.type)}">${esc(label(entry.type))}</option>`);
               field('type').value=entry.type;field('replacement').value=entry.replacementId||'';field('coverMode').value=entry.replacementStart?'partial':'full';field('note').value=entry.note||'';
               noReplacementSelected=!entry.replacementId;
+              if(field('swapShift'))field('swapShift').value='';
               field('workStart').value=entry.type==='overtime'?entry.start||'':'';field('workEnd').value=entry.type==='overtime'?entry.end||'':'';
               previousSelection=selectedMember+':'+d;field('coverStart').value=entry.replacementStart||'';field('coverEnd').value=entry.replacementEnd||'';
             }
@@ -1145,7 +1238,13 @@ function exceptionModal(options={}) {
         const next=copy(),count=next.exceptions.filter(matches).length;
         if(count){
           deleting=true;node('#exception-delete').disabled=true;
-          try{next.exceptions=next.exceptions.filter(entry=>!matches(entry));await save(next,`${count===1?'Ändringen har':'De '+count+' ändringarna har'} tagits bort`);}
+          try{
+            const removedEntries=next.exceptions.filter(matches);
+            const partnerMatches=entry=>removedEntries.some(r=>r.type==='turbyte'&&r.replacementId===entry.memberId&&r.date===entry.date&&entry.type==='turbyte'&&entry.replacementId===r.memberId);
+            for(const r of removedEntries)if(r.type==='turbyte'&&r.replacementId)drafts.delete(draftKey(r.replacementId,r.date));
+            next.exceptions=next.exceptions.filter(entry=>!matches(entry)&&!partnerMatches(entry));
+            await save(next,`${count===1?'Ändringen har':'De '+count+' ändringarna har'} tagits bort`);
+          }
           finally{deleting=false;node('#exception-delete').disabled=false;}
         }
         for(const d of dates){drafts.delete(draftKey(selectedMember,d));selected.delete(d);}anchor=null;
@@ -1168,6 +1267,8 @@ function exceptionModal(options={}) {
         field('workStart').value=pass.start||pass.originalStart||planned.start||'';field('workEnd').value=pass.end||pass.originalEnd||planned.end||'';
       }
       updateCover();
+    }else if(event.target.name==='swapScope'){swapScope=event.target.value;updateCover();
+    }else if(event.target.name==='swapShift'){const val=event.target.value;if(val&&val.includes(':')){const memberId=val.split(':').slice(1).join(':');if(memberId&&memberId!==selectedMember&&people.some(p=>p.id===memberId)){field('replacement').value=memberId;noReplacementSelected=false;updateCover();}}
     }else if(['replacement','coverMode','coverStart','coverEnd'].includes(event.target.name)){
       if(event.target.name==='replacement')noReplacementSelected=!event.target.value;
       updateCover();
@@ -1465,7 +1566,16 @@ async function handleAction(button) {
     case 'edit-shift':if(admin())shiftModal(button.dataset.code);break;
     case 'exception':if(admin())exceptionModal({date:button.dataset.date,memberId:button.dataset.member});break;
     case 'edit-exception':if(admin())exceptionModal({id:button.dataset.sourceId||button.dataset.id});break;
-    case 'delete-exception':if(admin()){const next=copy();next.exceptions=next.exceptions.filter(e=>e.id!==button.dataset.id);await save(next,'Ändringen har tagits bort');$('#modal').close();}break;
+    case 'delete-exception':if(admin()){
+      const next=copy();
+      const target=next.exceptions.find(e=>e.id===button.dataset.id);
+      if(target?.type==='turbyte'&&target.replacementId){
+        next.exceptions=next.exceptions.filter(e=>!(e.id===target.id||(e.type==='turbyte'&&e.memberId===target.replacementId&&e.date===target.date&&e.replacementId===target.memberId)));
+      }else{
+        next.exceptions=next.exceptions.filter(e=>e.id!==button.dataset.id);
+      }
+      await save(next,'Ändringen har tagits bort');$('#modal').close();
+    }break;
     case 'settings':if(admin())teamSettings();break;
     case 'delete-team':if(admin())deleteTeamModal();break;
     case 'edit-schedule':if(admin()){ui.editingSchedule=true;ui.view='schedule';shell();}break;

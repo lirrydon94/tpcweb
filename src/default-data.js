@@ -964,9 +964,33 @@ export const defaultWorkspace = {
         "date": "2026-11-01",
         "type": "vacation",
         "note": ""
+      },
+      {
+        "id": "2e3a0636-2034-45cc-8783-5b02e58e5d04",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-15",
+        "type": "turbyte",
+        "code": "C",
+        "originalCode": "F",
+        "start": "11:30",
+        "end": "20:30",
+        "note": ""
+      },
+      {
+        "id": "64184076-e812-42bb-9c4d-0665499be18d",
+        "teamId": "team-1",
+        "memberId": "member-7",
+        "date": "2026-12-15",
+        "type": "turbyte",
+        "code": "F",
+        "originalCode": "C",
+        "start": "08:00",
+        "end": "17:00",
+        "note": ""
       }
     ],
-    "publishedAt": "2026-10-26T15:48:35.739Z",
+    "publishedAt": "2026-11-01T14:06:49.276Z",
     "departments": [
       {
         "id": "department-default",
@@ -2340,9 +2364,31 @@ export const defaultWorkspace = {
         "memberId": "member-1",
         "date": "2026-11-01",
         "type": "vacation"
+      },
+      {
+        "id": "2e3a0636-2034-45cc-8783-5b02e58e5d04",
+        "teamId": "team-1",
+        "memberId": "member-1",
+        "date": "2026-12-15",
+        "type": "turbyte",
+        "code": "C",
+        "originalCode": "F",
+        "start": "11:30",
+        "end": "20:30"
+      },
+      {
+        "id": "64184076-e812-42bb-9c4d-0665499be18d",
+        "teamId": "team-1",
+        "memberId": "member-7",
+        "date": "2026-12-15",
+        "type": "turbyte",
+        "code": "F",
+        "originalCode": "C",
+        "start": "08:00",
+        "end": "17:00"
       }
     ],
-    "publishedAt": "2026-10-26T15:48:35.739Z",
+    "publishedAt": "2026-11-01T14:06:49.276Z",
     "departments": [
       {
         "id": "department-default",
@@ -2763,7 +2809,7 @@ export const defaultWorkspace = {
       }
     ]
   },
-  "revision": 423,
+  "revision": 431,
   "appliedFixes": [
     "lopare-start-date-2026-10-12",
     "confirmed-cover-2026-11-21-niklas"

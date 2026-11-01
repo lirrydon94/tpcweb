@@ -1,6 +1,6 @@
 // Civil dates use UTC internally so rotations do not change at daylight-saving boundaries.
 const DAY = 86_400_000;
-const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave', 'parental']);
+const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave', 'parental', 'turbyte']);
 export const PERSONAL_ABSENCE_TYPES = ['off', 'leave', 'vacation', 'sick', 'pension'];
 
 export function uid() {
@@ -241,19 +241,21 @@ export function applyExceptionDrafts(state, drafts, { groupIds } = {}) {
       : next.exceptions.find(entry => entry.teamId === group.id && entry.memberId === memberId && entry.date === date);
     if (draft.id && (!previous || previous.memberId !== memberId)) throw new Error('Ändringen kunde inte hittas. Öppna den igen.');
     const scheduled = getReplacementShift(next, group.id, memberId, date).working;
-    if (draft.replacementId && !scheduled) throw new Error(`Det finns inget ordinarie pass att ersätta den ${date}.`);
+    if (draft.replacementId && !scheduled && type !== 'turbyte') throw new Error(`Det finns inget ordinarie pass att ersätta den ${date}.`);
     if (['vacation', 'sick'].includes(type) && !scheduled) { skippedDates.push(date); continue; }
     const start = draft.start ?? (previous?.type === type ? previous.start : '') ?? '';
     const end = draft.end ?? (previous?.type === type ? previous.end : '') ?? '';
-    if ((start || end || ['custom','overtime'].includes(type)) && !duration(start, end)) throw new Error('Ändrade pass måste ha giltiga och olika start- och sluttider.');
+    if ((start || end || ['custom','overtime','turbyte'].includes(type)) && !duration(start, end)) throw new Error('Ändrade pass måste ha giltiga och olika start- och sluttider.');
     if (start && ['sick', 'vacation', 'off', 'parental'].includes(type)) throw new Error('Välj Anpassat pass eller Övertid när du anger arbetstider.');
     if (draft.replacementId === memberId) throw new Error('Välj en annan person som ersättare.');
-    if (draft.replacementId && (draft.replacementStart || draft.replacementEnd)
+    if (type !== 'turbyte' && draft.replacementId && (draft.replacementStart || draft.replacementEnd)
       && !duration(draft.replacementStart, draft.replacementEnd)) {
       throw new Error('Ersättningspass måste ha giltiga och olika start- och sluttider.');
     }
     const entry = {
       id: previous?.id || uid(), teamId: group.id, memberId, date, type,
+      ...(draft.code || (previous?.type === type ? previous.code : '') ? { code: draft.code || previous.code } : {}),
+      ...(draft.originalCode || (previous?.type === type ? previous.originalCode : '') ? { originalCode: draft.originalCode || previous.originalCode } : {}),
       ...(start && end ? { start, end } : {}),
       ...(draft.replacementId ? { replacementId: draft.replacementId,
         ...(draft.replacementStart && draft.replacementEnd ? { replacementStart: draft.replacementStart, replacementEnd: draft.replacementEnd } : {}) } : {}),
@@ -305,7 +307,7 @@ function adjustedShift(state, teamId, memberId, date) {
   const exception = currentExceptions(state, date).find(item => item.teamId === teamId && item.memberId === memberId);
   if (!exception) return base;
   const planned = getReplacementShift(state, teamId, memberId, date);
-  const works = ['custom', 'pension', 'overtime'].includes(exception.type) && duration(exception.start, exception.end) > 0;
+  const works = ['custom', 'pension', 'overtime', 'turbyte'].includes(exception.type) && duration(exception.start, exception.end) > 0;
   const result = {
     ...base,
     type: exception.type,
@@ -319,6 +321,28 @@ function adjustedShift(state, teamId, memberId, date) {
     exceptionId: exception.id,
     replacementId: exception.replacementId || null,
   };
+  if (exception.type === 'turbyte') {
+    result.originalCode = exception.originalCode || planned.code || base.code;
+    result.code = exception.code || result.originalCode;
+    result.needsCoverage = false;
+    result.uncoveredMinutes = 0;
+    const team = state.teams?.find(item => item.id === teamId);
+    const version = activeVersion(team, date);
+    let shiftColor = version?.shifts?.[result.code]?.color;
+    if (!shiftColor) {
+      for (const g of state.teams || []) {
+        const v = activeVersion(g, date);
+        if (v?.shifts?.[result.code]?.color) { shiftColor = v.shifts[result.code].color; break; }
+      }
+    }
+    if (!shiftColor) {
+      for (const wt of state.workTeams || []) {
+        if (wt.shifts?.[result.code]?.color) { shiftColor = wt.shifts[result.code].color; break; }
+      }
+    }
+    if (shiftColor) result.color = shiftColor;
+    return result;
+  }
   if (planned.working) {
     const occupied = [];
     const original = interval(planned);
@@ -345,6 +369,7 @@ function adjustedShift(state, teamId, memberId, date) {
 function coversOnDate(state, date) {
   const covers = [];
   for (const exception of currentExceptions(state, date)) {
+    if (exception.type === 'turbyte') continue;
     if (!exception.replacementId || exception.replacementId === exception.memberId
       || !replacementAvailable(state, exception.replacementId, date)) continue;
     const base = getReplacementShift(state, exception.teamId, exception.memberId, date);
@@ -375,7 +400,7 @@ function coversOnDate(state, date) {
 // This keeps editing/deleting a booking in sync for both people without adding hours twice.
 export function getChangeEntries(state) {
   const entries = [...state.exceptions];
-  const dates = new Set(state.exceptions.filter(entry => entry.replacementId).map(entry => entry.date));
+  const dates = new Set(state.exceptions.filter(entry => entry.replacementId && entry.type !== 'turbyte').map(entry => entry.date));
   for (const date of dates) {
     for (const cover of coversOnDate(state, date)) {
       const member = state.employees?.find(person => person.id === cover.memberId)
@@ -441,6 +466,67 @@ export function getShift(state, teamId, memberId, date, { draft = false } = {}) 
 export function getDayAssignments(state, teamId, date) {
   const targetDate = dateString(civilDate(date));
   return assignmentsWithConflicts(state, targetDate).filter(record => record.teamId === teamId);
+}
+
+export function getActiveDayShifts(state, date, { memberId = null, scope = 'group', teamId = null } = {}) {
+  if (!date) return [];
+  const targetDate = dateString(civilDate(date));
+  let currentGroup = teamId ? state.teams.find(g => g.id === teamId) : null;
+  if (!currentGroup && memberId) {
+    currentGroup = state.teams.find(g => belongsToGroup(state, memberId, g.id, targetDate))
+      || state.teams.find(g => g.members.some(m => m.id === memberId));
+  }
+  if (!currentGroup) currentGroup = state.teams[0];
+
+  const currentWorkTeamId = currentGroup?.workTeamId;
+  const currentWorkTeam = state.workTeams?.find(t => t.id === currentWorkTeamId);
+  const currentDeptId = currentWorkTeam?.departmentId || state.departments?.[0]?.id;
+
+  let candidateGroups = [];
+  if (scope === 'group') {
+    candidateGroups = currentGroup ? [currentGroup] : state.teams;
+  } else if (scope === 'team') {
+    candidateGroups = currentWorkTeamId ? state.teams.filter(g => g.workTeamId === currentWorkTeamId) : (currentGroup ? [currentGroup] : state.teams);
+  } else {
+    const deptWorkTeamIds = new Set((state.workTeams || []).filter(wt => !currentDeptId || wt.departmentId === currentDeptId).map(wt => wt.id));
+    candidateGroups = state.teams.filter(g => deptWorkTeamIds.size === 0 || deptWorkTeamIds.has(g.workTeamId));
+    if (!candidateGroups.length) candidateGroups = state.teams;
+  }
+
+  const results = [];
+  const seen = new Set();
+  for (const group of candidateGroups) {
+    for (const member of group.members || []) {
+      if (memberId && member.id === memberId) continue;
+      const inGroup = belongsToGroup(state, member.id, group.id, targetDate) || (!state.employees?.some(e => e.id === member.id));
+      if (!isActive(member, targetDate) || !inGroup) continue;
+      const shift = getShift(state, group.id, member.id, targetDate);
+      if (!shift || !shift.working || !shift.code) continue;
+
+      const key = `${member.id}:${shift.code}:${shift.start}:${shift.end}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const emp = state.employees?.find(e => e.id === member.id);
+      const name = emp?.name || member.name || 'Kollega';
+      const turLabel = /tur$/i.test(shift.code) ? shift.code : `${shift.code}-tur`;
+      const label = `${name} ${turLabel} ( ${shift.start} - ${shift.end} )`;
+
+      results.push({
+        memberId: member.id,
+        memberName: name,
+        code: shift.code,
+        start: shift.start,
+        end: shift.end,
+        groupId: group.id,
+        groupName: group.name,
+        label,
+        value: `${shift.code}:${member.id}`,
+      });
+    }
+  }
+
+  return results.sort((a, b) => a.start.localeCompare(b.start) || a.memberName.localeCompare(b.memberName, 'sv'));
 }
 
 export function getCoworkers(state, teamId, memberId, date) {
@@ -757,7 +843,7 @@ export function validateState(state) {
       const replacement = allMembers.get(exception.replacementId);
       if (replacement && !isActive(replacement, exception.date)) {
         errors.push(`${replacement.name}: ersättningsdatumet ligger utanför medarbetarens aktiva period.`);
-      } else if (replacement && !errors.length && unavailableForCover(state, replacement.id, exception.date)) {
+      } else if (replacement && !errors.length && exception.type !== 'turbyte' && unavailableForCover(state, replacement.id, exception.date)) {
         errors.push(`${replacement.name}: kan inte arbeta som ersättare den ${exception.date} på grund av frånvaro.`);
       }
       if ((exception.replacementStart || exception.replacementEnd) && !duration(exception.replacementStart, exception.replacementEnd)) {
@@ -768,7 +854,7 @@ export function validateState(state) {
   // Each regular rotation produces one shift per person. Covers can introduce a
   // second assignment, so inspect only their dates, including overnight overlap.
   if (!errors.length) {
-    const replacementDates = [...new Set(state.exceptions.filter(item => item.replacementId).map(item => item.date))];
+    const replacementDates = [...new Set(state.exceptions.filter(item => item.replacementId && item.type !== 'turbyte').map(item => item.date))];
     const reported = new Set();
     for (const date of replacementDates) {
       for (const assignment of assignmentsWithConflicts(state, date)) {
