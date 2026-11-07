@@ -88,6 +88,12 @@ window.addEventListener('beforeinstallprompt', event => {
 window.addEventListener('appinstalled', () => {
   pendingPrompt = undefined;
   rememberDismissal();
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', 'app_installed', {
+      event_category: 'PWA',
+      event_label: 'Added to Home Screen'
+    });
+  }
   // Android fires this before its app package is ready, and installation can
   // still fail later. Keep recovery help available in the browser tab.
   if (android) {

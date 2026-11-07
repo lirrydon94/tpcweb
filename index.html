@@ -8,7 +8,10 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-6TDEN53CCG');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    gtag('config', 'G-6TDEN53CCG', {
+      user_type: isStandalone ? 'App user' : 'Web user'
+    });
   </script>
   <meta name="google-site-verification" content="Xqcea0B2Sx0tb9kWprxkCw5gFAyyowiVji4QTnjAOto" />
   <meta charset="UTF-8">
