@@ -19,7 +19,8 @@ const icons = {
   close:'<path d="m6 6 12 12M18 6 6 18"/>', moon:'<path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z"/>',
   refresh:'<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18a8 8 0 0 1-13-2"/>',
   logout:'<path d="M9 5H4v14h5m5-14 7 7-7 7m-6-7h13"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
-  down:'<path d="m6 9 6 6 6-6"/>'
+  down:'<path d="m6 9 6 6 6-6"/>',
+  trash:'<path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/>'
 };
 const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.calendar}</svg>`;
 const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -499,7 +500,7 @@ function departmentPeople(employees,state) {
   columns.push(hourly);
   const lanes = organizeColumnsIntoLanes(columns, getStaffColumnsOrder());
   const collapsedSet = new Set(getStaffColumnsCollapsed());
-  return `<section class="admin-panel"><div class="panel-heading"><div><h2>Dina medarbetare</h2></div><div class="staff-add-actions"><button class="primary-btn" data-action="add-person">${icon('plus')} Lägg till personal</button><button class="primary-btn" data-action="add-hourly">${icon('plus')} Lägg till timmis</button></div></div>${lanes.length?`<div class="staff-board">${lanes.map(lane=>`<div class="staff-lane">${lane.map(column=>`<section class="staff-column ${collapsedSet.has(column.id)?'staff-column-collapsed':''}" data-column-id="${esc(column.id)}" aria-label="${esc(column.name)}"><header class="staff-column-heading" draggable="false" tabindex="0" role="button" aria-expanded="${!collapsedSet.has(column.id)}" title="Klicka för att fälla ihop eller dra för att flytta"><h3><span class="staff-drag-handle" aria-hidden="true">⠿</span> ${esc(column.name)}</h3><div class="staff-heading-meta"><span aria-label="${column.people.length} medarbetare">${column.people.length}</span><span class="staff-collapse-icon" aria-hidden="true">${icon('down')}</span></div></header><div class="staff-column-people">${column.people.length?column.people.map(({employee:e})=>{
+  return `<section class="admin-panel"><div class="panel-heading"><div><h2>Dina medarbetare</h2></div><div class="staff-add-actions"><button class="primary-btn" data-action="add-person">${icon('plus')} Lägg till personal</button></div></div>${lanes.length?`<div class="staff-board">${lanes.map(lane=>`<div class="staff-lane">${lane.map(column=>`<section class="staff-column ${collapsedSet.has(column.id)?'staff-column-collapsed':''}" data-column-id="${esc(column.id)}" aria-label="${esc(column.name)}"><header class="staff-column-heading" draggable="false" tabindex="0" role="button" aria-expanded="${!collapsedSet.has(column.id)}" title="Klicka för att fälla ihop eller dra för att flytta"><h3><span class="staff-drag-handle" aria-hidden="true">⠿</span> ${esc(column.name)}</h3><div class="staff-heading-meta"><span aria-label="${column.people.length} medarbetare">${column.people.length}</span><span class="staff-collapse-icon" aria-hidden="true">${icon('down')}</span></div></header><div class="staff-column-people">${column.people.length?column.people.map(({employee:e})=>{
     const skills=e.role==='part-time'?teams.filter(t=>e.skilledTeamIds?.includes(t.id)).map(t=>t.name).join(' · '):'';
     return `<button class="staff-person-card" data-action="edit-person" data-member="${esc(e.id)}" aria-label="Redigera person eller schema för ${esc(e.name)}"><span class="staff-person-details"><strong>${esc(e.name)}</strong>${skills?`<small>${esc(skills)}</small>`:''}</span>${icon('edit')}</button>`;
   }).join(''):'<p class="staff-column-empty">Ingen personal placerad ännu.</p>'}</div></section>`).join('')}</div>`).join('')}</div>`:empty('Ingen personal ännu','Lägg till avdelningens medarbetare. Du kan placera dem i grupper senare.')}</section>`;
@@ -520,8 +521,10 @@ function personModal(memberId, hourly=false) {
   const {state,department}=organizationSelection(),employee=state.employees.find(e=>e.id===memberId),placement=model.placementOn(employee,today());
   const teams=state.workTeams.filter(t=>t.departmentId===department.id);
   const options=()=>`<option value="">Placera senare</option>${teams.filter(t=>state.teams.some(g=>g.workTeamId===t.id)).map(t=>`<optgroup label="${esc(t.name)}">${state.teams.filter(g=>g.workTeamId===t.id).map(g=>`<option value="group:${esc(g.id)}" ${placement?.groupId===g.id?'selected':''}>${esc(t.name)} / ${esc(g.name)}</option>`).join('')}</optgroup>`).join('')}`;
-  const skills=`<fieldset id="person-skills" class="person-skills" ${hourly||employee?.role==='part-time'?'':'hidden'}><legend>Kunskaper</legend><p class="field-note">Markera de arbetsområden timmisen kan arbeta inom.</p><div class="person-skill-options">${teams.map(t=>`<label><input type="checkbox" name="skilledTeamIds" value="${esc(t.id)}" ${employee?.skilledTeamIds?.includes(t.id)?'checked':''}> <span>${esc(t.name)}</span></label>`).join('')||'<p class="field-note">Lägg till team under Team och scheman för att kunna välja kunskaper.</p>'}</div></fieldset>`;
-  modal(employee?'Redigera medarbetare':hourly?'Lägg till timmis':'Lägg till personal','', `<label>Namn<input name="name" required maxlength="60" value="${esc(employee?.name||'')}"></label><label>Anställningstyp<select id="person-role" name="role"><option value="member">Ordinarie</option><option value="part-time" ${(employee?.role==='part-time'||hourly)?'selected':''}>Timvikarie</option></select></label>${hourly||employee?.role==='part-time'?'<p class="field-note">Timmisen tillhör avdelningen och bokas som ersättare utan fast team eller grupp.</p>':`<label>Team och grupp<select name="placement">${options()}</select></label>`}${skills}${personalScheduleLink(employee,state)}`,async f=>{
+  const isHourly=Boolean(hourly||employee?.role==='part-time');
+  const placementField=`<label id="person-placement" ${isHourly?'hidden':''}>Team och grupp<select name="placement">${options()}</select></label>`;
+  const skills=`<fieldset id="person-skills" class="person-skills" ${isHourly?'':'hidden'}><legend>Kunskaper</legend><div class="person-skill-options">${teams.map(t=>`<label><input type="checkbox" name="skilledTeamIds" value="${esc(t.id)}" ${employee?.skilledTeamIds?.includes(t.id)?'checked':''}> <span>${esc(t.name)}</span></label>`).join('')||'<p class="field-note">Lägg till team under Team och scheman för att kunna välja kunskaper.</p>'}</div></fieldset>`;
+  modal(employee?'Redigera medarbetare':hourly?'Lägg till timmis':'Lägg till personal','', `<label>Namn<input name="name" required maxlength="60" value="${esc(employee?.name||'')}"></label><label>Anställningstyp<select id="person-role" name="role"><option value="member">Ordinarie</option><option value="part-time" ${isHourly?'selected':''}>Timvikarie</option></select></label>${placementField}${skills}${personalScheduleLink(employee,state)}`,async f=>{
     const next=copy(),name=f.get('name').trim();if(!name)throw new Error('Ange ett namn.');
     const from=today();
     let target=next.employees.find(e=>e.id===memberId);
@@ -747,7 +750,7 @@ function changeResults(groups){
       :'<span class="change-day-cover" data-coverage="'+coverage+'"><strong>'+(feedback?icon('check'):'')+esc(detail)+'</strong>'+(secondary?'<small class="'+(shift.needsCoverage&&!feedback?'coverage-warning':'')+'">'+esc(secondary)+'</small>':'')+'</span>';
     return '<div class="change-day-row'+(feedback?' is-recently-covered':'')+'" data-change-row-id="'+esc(entry.id)+'">'
       +'<span class="change-list-date"><strong>'+fmt(entry.date,{weekday:'short',day:'numeric',month:'short',year:'numeric'})+'</strong>'+(subline?'<small>'+esc(subline)+'</small>':'')+'</span>'
-      +coverageMarkup+'<button type="button" class="change-row-edit" data-action="edit-exception" data-id="'+esc(entry.id)+'"'+(isCover?' data-source-id="'+esc(entry.sourceExceptionId)+'"':'')+' aria-label="Redigera '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'">'+icon('edit')+'</button></div>';
+      +coverageMarkup+'<div class="change-row-actions"><button type="button" class="change-row-edit" data-action="edit-exception" data-id="'+esc(entry.id)+'"'+(isCover?' data-source-id="'+esc(entry.sourceExceptionId)+'"':'')+' aria-label="Redigera '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'">'+icon('edit')+'</button><button type="button" class="change-row-delete" data-action="delete-exception" data-id="'+esc(entry.id)+'"'+(isCover?' data-source-id="'+esc(entry.sourceExceptionId)+'"':'')+' aria-label="Ta bort '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'" title="Ta bort">'+icon('trash')+'</button></div></div>';
   };
   const renderPerson=person=>{
     const personRows=rowsByPerson.get(person.id)||[],rowsById=new Map(personRows.map(row=>[row.entry.id,row]));
@@ -1568,13 +1571,14 @@ async function handleAction(button) {
     case 'edit-exception':if(admin())exceptionModal({id:button.dataset.sourceId||button.dataset.id});break;
     case 'delete-exception':if(admin()){
       const next=copy();
-      const target=next.exceptions.find(e=>e.id===button.dataset.id);
+      const id=button.dataset.sourceId||button.dataset.id;
+      const target=next.exceptions.find(e=>e.id===id);
       if(target?.type==='turbyte'&&target.replacementId){
         next.exceptions=next.exceptions.filter(e=>!(e.id===target.id||(e.type==='turbyte'&&e.memberId===target.replacementId&&e.date===target.date&&e.replacementId===target.memberId)));
       }else{
-        next.exceptions=next.exceptions.filter(e=>e.id!==button.dataset.id);
+        next.exceptions=next.exceptions.filter(e=>e.id!==id);
       }
-      await save(next,'Ändringen har tagits bort');$('#modal').close();
+      await save(next,'Ändringen har tagits bort');if($('#modal').open)$('#modal').close();
     }break;
     case 'settings':if(admin())teamSettings();break;
     case 'delete-team':if(admin())deleteTeamModal();break;
@@ -1645,7 +1649,10 @@ document.addEventListener('change',async e=>{
       }catch(error){if(target.isConnected){target.value='';target.disabled=false;}throw error;}
     }
     else if(target.id==='person-role'&&admin()){
-      const skills=$('#person-skills');if(skills)skills.hidden=target.value!=='part-time';
+      const isHourly=target.value==='part-time';
+      const skills=$('#person-skills');if(skills)skills.hidden=!isHourly;
+      const placement=$('#person-placement');if(placement)placement.hidden=isHourly;
+
     }
     else if(['changes-year','changes-month','changes-type','changes-search'].includes(target.id)&&admin()){
       ui[{'changes-year':'changeYear','changes-month':'changeMonth','changes-type':'changeType','changes-search':'changeQuery'}[target.id]]=target.value;ui.changePage=0;if(target.id==='changes-year')shell();else refreshChangeResults();

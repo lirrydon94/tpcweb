@@ -88,6 +88,25 @@ test('a new hourly employee can have several skills and failed saving preserves 
   assert.deepEqual(page.getWorkspace().working.employees.find(e=>e.id===hourly.id).skilledTeamIds,hourly.skilledTeamIds);
 });
 
+test('selecting hourly in person modal hides team/group placement and shows skills', async () => {
+  const page = await openApp('admin');
+  await page.click('admin'); await page.submit('lirrydoz');
+  await page.click('add-person');
+  assert.equal(page.dialog.open, true);
+  assert.match(page.dialog.innerHTML, /id="person-placement"\s*>/);
+  assert.match(page.dialog.innerHTML, /id="person-skills"[^>]*hidden/);
+  assert.doesNotMatch(page.dialog.innerHTML, /Timmisen tillhör avdelningen och bokas som ersättare utan fast team eller grupp/);
+  assert.doesNotMatch(page.dialog.innerHTML, /Markera de arbetsområden timmisen kan arbeta inom/);
+
+  await page.change({ id: 'person-role', value: 'part-time' });
+  assert.equal(page.placementEl.hidden, true);
+  assert.equal(page.skillsEl.hidden, false);
+
+  await page.change({ id: 'person-role', value: 'member' });
+  assert.equal(page.placementEl.hidden, false);
+  assert.equal(page.skillsEl.hidden, true);
+});
+
 test('viewers cannot open personal schedule editing', async()=>{
   const page=await openApp('viewer');
   await page.click('person-schedule',undefined,{member:'member-1'});
@@ -179,7 +198,8 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     querySelector: selector => selector === '.form-error' ? error : null,
     addEventListener() {},
   };
-  const elements = { '#app': app, '#modal': dialog, '#modal-form': form, '#toast': {}, '#exception-type': { closest: () => ({ before() {} }) } };
+  const placementEl = { hidden: false }, skillsEl = { hidden: true };
+  const elements = { '#app': app, '#modal': dialog, '#modal-form': form, '#toast': {}, '#exception-type': { closest: () => ({ before() {} }) }, '#person-placement': placementEl, '#person-skills': skillsEl };
   elements['#change-results']={set innerHTML(value){app.innerHTML=app.innerHTML.replace(/(<div id="change-results">)[\s\S]*(<\/div><\/section>)/,(_match,start,end)=>start+value+end);}};
   const context = vm.createContext({
     model,
@@ -214,10 +234,11 @@ async function openApp(role = 'admin', initial = defaultWorkspace, preferences =
     setToday: date => { currentDate = date; },
     getWorkspace: () => structuredClone(saved),
     failPublish: message => { publishError = message; },
-    change: target => listeners.change({ target }),
+    change: target => listeners.change({ target: { matches: () => false, ...target } }),
     input: target => listeners.input({ target }),
     toggle: target => listeners.toggle({ target }),
     click: (action, view, extra = {}) => listeners.click({ target: { closest: () => ({ dataset: { action, view, ...extra } }) } }),
+    placementEl, skillsEl,
     openException: options => context.openExceptionForTest(options),
     submit: (values = {}) => form.onsubmit({ preventDefault() {}, submitter: {}, target: typeof values === 'string' ? { password: values } : values }),
   };
@@ -319,6 +340,34 @@ test('deleting an individual change keeps Hantera and its tab after a file-trigg
   await reloaded.click('view', 'schedule');
   const schedule = await openApp('admin', page.getWorkspace(), preferences, search, navigation);
   assert.doesNotMatch(schedule.app.innerHTML, /<h1>Hantera avdelningen<\/h1>/);
+});
+
+test('row delete button removes exception directly from the changes list', async () => {
+  const state = model.organizeState(model.seedState());
+  state.exceptions = [{ id: 'remove-direct', teamId: 'team-1', memberId: 'member-1', date: '2026-10-14', type: 'vacation' }];
+  const initial = { working: state, published: model.publishState(state), revision: 1 };
+  const page = await openApp('admin', initial);
+  await page.click('admin'); await page.submit('lirrydoz');
+  await page.click('admin-tab', undefined, { tab: 'changes' });
+  assert.match(page.app.innerHTML, /class="change-row-delete"[^>]*data-action="delete-exception"[^>]*data-id="remove-direct"/);
+  await page.click('delete-exception', undefined, { id: 'remove-direct' });
+  assert.equal(page.getWorkspace().working.exceptions.length, 0);
+  assert.doesNotMatch(page.app.innerHTML, /data-id="remove-direct"/);
+});
+
+test('row delete button removes turbyte swap partners directly from the changes list', async () => {
+  const state = model.organizeState(model.seedState());
+  state.exceptions = [
+    { id: 'swap-1', teamId: 'team-1', memberId: 'member-1', date: '2026-10-14', type: 'turbyte', code: 'C', originalCode: 'A', replacementId: 'member-2' },
+    { id: 'swap-2', teamId: 'team-1', memberId: 'member-2', date: '2026-10-14', type: 'turbyte', code: 'A', originalCode: 'C', replacementId: 'member-1' },
+  ];
+  const initial = { working: state, published: model.publishState(state), revision: 1 };
+  const page = await openApp('admin', initial);
+  await page.click('admin'); await page.submit('lirrydoz');
+  await page.click('admin-tab', undefined, { tab: 'changes' });
+  assert.match(page.app.innerHTML, /class="change-row-delete"[^>]*data-action="delete-exception"[^>]*data-id="swap-1"/);
+  await page.click('delete-exception', undefined, { id: 'swap-1' });
+  assert.equal(page.getWorkspace().working.exceptions.length, 0);
 });
 
 test('remembered navigation does not unlock Hantera or grant a viewer admin access', async () => {
