@@ -1,6 +1,6 @@
 // Civil dates use UTC internally so rotations do not change at daylight-saving boundaries.
 const DAY = 86_400_000;
-const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave', 'parental', 'turbyte']);
+const ABSENCE_TYPES = new Set(['vacation', 'sick', 'pension', 'overtime', 'custom', 'off', 'leave', 'parental', 'turbyte', 'vab', 'training']);
 export const PERSONAL_ABSENCE_TYPES = ['off', 'leave', 'vacation', 'sick', 'pension'];
 
 export function uid() {
@@ -468,7 +468,7 @@ export function getDayAssignments(state, teamId, date) {
   return assignmentsWithConflicts(state, targetDate).filter(record => record.teamId === teamId);
 }
 
-export function getActiveDayShifts(state, date, { memberId = null, scope = 'group', teamId = null } = {}) {
+export function getActiveDayShifts(state, date, { memberId = null, scope = 'group', teamId = null, turbyte = false } = {}) {
   if (!date) return [];
   const targetDate = dateString(civilDate(date));
   let currentGroup = teamId ? state.teams.find(g => g.id === teamId) : null;
@@ -500,7 +500,12 @@ export function getActiveDayShifts(state, date, { memberId = null, scope = 'grou
       if (memberId && member.id === memberId) continue;
       const inGroup = belongsToGroup(state, member.id, group.id, targetDate) || (!state.employees?.some(e => e.id === member.id));
       if (!isActive(member, targetDate) || !inGroup) continue;
-      const shift = getShift(state, group.id, member.id, targetDate);
+      // In turbyte mode use the base rotation shift so that a colleague on
+      // vacation/leave still appears as a swap partner (the shift still needs
+      // to be covered even though they are absent and have no replacement).
+      const shift = turbyte
+        ? getReplacementShift(state, group.id, member.id, targetDate)
+        : getShift(state, group.id, member.id, targetDate);
       if (!shift || !shift.working || !shift.code) continue;
 
       const key = `${member.id}:${shift.code}:${shift.start}:${shift.end}`;

@@ -144,6 +144,50 @@ test('turbyte roster markup renders original shift with lower opacity, arrow, ne
   assert.ok(html.includes('title="Turbyte med Sara"'));
 });
 
+test('getActiveDayShifts with turbyte:true includes colleagues on vacation whose base shift has no replacement', () => {
+  // Reproduce the bug: Liridon has shift A3 on a date but is on vacation with
+  // no replacement. Without turbyte:true the shift is invisible to Emil who
+  // wants to swap into it.
+  const state = setupState();
+  const group = state.teams[0];
+
+  // Find a date where member-1 (Du) has A3 in the rotation (position 1 → week 7, Saturday = index 5).
+  // Week 7 of the seed rotation is row index 6: ['A2','A','A','','B','A3','C']
+  // referenceMonday is the monday of referenceDate 2026-10-12 → 2026-10-12 itself.
+  // Week 7 starts on 2026-10-12 + 6*7 = 2026-11-23; Saturday of that week is +5 days → 2026-11-28.
+  // But member-1 position=1 so week 7 of the rotation (index 6) starts 6 weeks after referenceMonday.
+  // Easier: find member-1's A3 date dynamically via getReplacementShift scanning.
+  // For the test we just put member-1 (Du) on vacation on 2026-10-12 and check that
+  // member-1's shift (C, position 1, week 1, Monday) still appears for member-2 when turbyte=true.
+
+  const liridon = group.members[0]; // member-1, shift C on 2026-10-12 (pos 1 → week 1 → Mon = C)
+  const baseShift = model.getReplacementShift(state, group.id, liridon.id, '2026-10-12');
+  assert.equal(baseShift.working, true); // sanity: has a base shift
+
+  // Put liridon on vacation with no replacement
+  state.exceptions.push({
+    id: 'vac-liridon',
+    teamId: group.id,
+    memberId: liridon.id,
+    date: '2026-10-12',
+    type: 'vacation',
+    note: '',
+  });
+
+  // Without turbyte flag: liridon's shift is NOT visible
+  const withoutFlag = model.getActiveDayShifts(state, '2026-10-12', { memberId: 'member-2', scope: 'group', teamId: group.id });
+  assert.ok(!withoutFlag.some(s => s.memberId === liridon.id),
+    'liridon must not appear without turbyte flag (he is on vacation)');
+
+  // With turbyte:true: liridon's base shift IS visible so Emil can swap into it
+  const withFlag = model.getActiveDayShifts(state, '2026-10-12', { memberId: 'member-2', scope: 'group', teamId: group.id, turbyte: true });
+  const liridonEntry = withFlag.find(s => s.memberId === liridon.id);
+  assert.ok(liridonEntry, 'liridon must appear with turbyte:true even though he is on vacation');
+  assert.equal(liridonEntry.code, baseShift.code);
+  assert.equal(liridonEntry.start, baseShift.start);
+  assert.equal(liridonEntry.end, baseShift.end);
+});
+
 test('getActiveDayShifts returns only active working coworkers on that day with coworker name and shift details', () => {
   const state = setupState();
   const shifts = model.getActiveDayShifts(state, '2026-10-12', { memberId: 'member-1', scope: 'group', teamId: 'team-1' });
