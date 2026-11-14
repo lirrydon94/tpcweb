@@ -259,6 +259,7 @@ export function applyExceptionDrafts(state, drafts, { groupIds } = {}) {
       ...(start && end ? { start, end } : {}),
       ...(draft.replacementId ? { replacementId: draft.replacementId,
         ...(draft.replacementStart && draft.replacementEnd ? { replacementStart: draft.replacementStart, replacementEnd: draft.replacementEnd } : {}) } : {}),
+      ...(type !== 'turbyte' && !draft.replacementId && (draft.coverageWaived || (previous?.coverageWaived && previous.type === type)) ? { coverageWaived: true } : {}),
       note: String(draft.note || '').trim(),
     };
     next.exceptions = next.exceptions.filter(item => item.id !== entry.id
@@ -361,7 +362,7 @@ function adjustedShift(state, teamId, memberId, date) {
       lastEnd = Math.max(lastEnd, end);
     }
     result.uncoveredMinutes = Math.max(0, planned.minutes - covered);
-    result.needsCoverage = result.uncoveredMinutes > 0;
+    result.needsCoverage = result.uncoveredMinutes > 0 && !exception.coverageWaived;
   }
   return result;
 }

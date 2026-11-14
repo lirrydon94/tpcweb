@@ -388,6 +388,7 @@ body.staff-is-dragging, body.staff-is-dragging * { cursor:grabbing !important; u
 .roster-replacement>span{display:block;font-weight:500}
 .roster-replacement .roster-cover-time{font-size:10px;padding:2px 0 0}
 .roster-needs-cover{color:var(--muted)}
+.roster-no-cover{color:var(--muted)}
 .roster-shift-status{font-size:10px;font-weight:500}
 .roster-absence-card{min-height:55px;min-width:0;padding:4px 7px;display:flex;flex-direction:column;justify-content:center;gap:1px;text-align:center}
 .roster-absence-card .roster-off{min-height:0;padding:0;flex-direction:column;align-items:center;justify-content:center;gap:0;font-size:11px;line-height:18px;color:inherit}
@@ -449,7 +450,13 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
 .change-overview .panel-heading p{max-width:none;line-height:1.6}
 .change-filters{display:flex;align-items:end;gap:16px;padding:0 28px 24px;flex-wrap:wrap}
 .change-filters label{display:block;font-size:12px;font-weight:550;color:var(--ink);min-width:150px}
-.change-filters .change-search{flex:1;min-width:210px}
+.change-filters .change-search{position:relative;z-index:1;flex:1;min-width:210px}
+.change-filters .change-search:focus-within{z-index:5}
+.change-search-control{position:relative}
+.change-search-suggestions{position:absolute;top:calc(100% + 4px);right:0;left:0;z-index:10;max-height:260px;overflow:auto;padding:4px;border:1px solid #dce5df;border-radius:8px;background:#fff;box-shadow:0 8px 20px rgba(29,55,42,.12)}
+.change-search-suggestions[hidden]{display:none}
+.change-search-suggestion{display:block;width:100%;min-height:36px;padding:8px 10px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.change-search-suggestion:hover,.change-search-suggestion:focus-visible{outline:0;background:#f1f6f2;color:var(--green)}
 .change-filters input,.change-filters select{display:block;width:100%;height:43px;margin-top:8px;padding:10px 12px;border:1px solid #dce5df;border-radius:8px;background:#fff;color:var(--ink);font-size:13px;font-weight:400}
 .change-filters input::placeholder{color:#8b9690}
 .change-filters .text-button{height:43px;white-space:nowrap}
@@ -476,14 +483,19 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
 .change-person-name strong{display:block;font-size:14px;font-weight:600;overflow-wrap:anywhere}
 .change-person-name small,.change-person-count small{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.45}
 .change-person-count strong{display:block;font-size:13px;font-weight:550}
-.change-person-coverage{font-size:12px;line-height:1.5}
+.change-person-coverage{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;font-size:12px;line-height:1.5}
 .change-coverage-badge,.change-covered{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid transparent;border-radius:7px;font-size:12px;font-weight:650;line-height:1.4}
 .change-coverage-badge{border-color:#edc284;background:#fff0d8;color:#824807}
 .change-covered{border-color:#badbce;background:#eaf6ef;color:#24654d}
+.change-no-cover{display:inline-flex;align-items:center;padding:7px 10px;border:1px solid #dce5df;border-radius:7px;background:#f4f7f4;color:var(--muted);font-size:12px;font-weight:600;line-height:1.4}
 .change-coverage-badge>.icon,.change-covered>.icon{width:16px;height:16px}
 .change-person>summary>.icon{width:17px;color:#85988d;transition:transform .15s}
 .change-person[open]>summary>.icon{transform:rotate(180deg)}
 .change-periods{display:grid;gap:7px;padding:2px 0 14px 42px}
+.change-year-group{display:grid;gap:7px;padding-top:8px;border-top:1px solid var(--line)}
+.change-year-group:first-child{padding-top:0;border-top:0}
+.change-year-heading{margin:0;color:var(--ink);font-size:12px;font-weight:650;line-height:1.3}
+.change-year-periods{display:grid;gap:7px}
 .change-period-group{overflow:hidden;border:1px solid var(--line);border-radius:9px;background:#fff}
 .change-period-group>summary{cursor:pointer;list-style:none;user-select:none}
 .change-period-group>summary::-webkit-details-marker{display:none}
@@ -492,11 +504,13 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
 .change-period-group-head{display:flex;align-items:center;gap:9px;min-height:38px;flex-wrap:wrap;padding:6px 10px;background:#fafcf9;border-bottom:1px solid var(--line)}
 .change-period-group-head>.icon{width:15px;height:15px;color:#85988d;transition:transform .15s;flex-shrink:0}
 .change-period-group[open]>summary>.icon{transform:rotate(180deg)}
-.change-period-group-head>strong{font-size:12px;font-weight:550}
+.change-period-dates{display:flex;min-width:0;line-height:1.2}
+.change-period-dates>strong{font-size:12px;font-weight:550}
 .change-period-group-count{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}
-.change-period-needs,.change-period-updated{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;white-space:nowrap}
+.change-period-needs,.change-period-updated,.change-period-waived{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;white-space:nowrap}
 .change-period-needs{color:#824807}
 .change-period-updated{color:#24654d}
+.change-period-waived{color:var(--muted)}
 .change-period-needs .icon,.change-period-updated .icon{width:14px;height:14px}
 .change-period-group-days{padding:0}
 .change-day-row{min-height:52px;padding:5px 10px;border-top:1px solid var(--line);transition:opacity .28s ease,transform .28s ease}
@@ -520,11 +534,14 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
 .change-type-off{background:#e9eeea;color:#69746c}
 .change-day-cover{display:flex;flex-direction:column;align-items:flex-start;font-size:12px;min-width:0;width:fit-content;max-width:100%;justify-self:end;padding:5px 8px;border:1px solid transparent;border-radius:7px;overflow-wrap:anywhere}
 .change-day-cover strong{font-size:12px;font-weight:650}
-.change-day-cover[data-coverage="needed"]{flex-direction:row;align-items:center;gap:8px;background:transparent;border-color:transparent;color:var(--ink)}
+.change-day-cover[data-coverage="needed"],.change-day-cover[data-coverage="waived"]{flex-direction:row;align-items:center;gap:8px}
+.change-day-cover[data-coverage="needed"]{background:transparent;border-color:transparent;color:var(--ink)}
 .change-day-cover[data-coverage="covered"]{background:#eaf6ef;border-color:#badbce;color:#24654d}
 .change-day-cover[data-coverage="confirmed"]{background:#eaf6ef;border-color:#badbce;color:#24654d}
+.change-day-cover[data-coverage="waived"]{background:#f4f7f4;border-color:#dce5df;color:var(--muted)}
 .change-day-cover[data-coverage="covered"] small{color:#24654d;font-size:11px}
 .change-day-cover[data-coverage="confirmed"] small{color:#24654d;font-size:11px}
+.change-day-cover[data-coverage="waived"] small{color:var(--muted);font-size:11px}
 .change-day-cover small{display:block;margin-top:2px;color:var(--muted);font-size:10px}
 .change-day-cover .coverage-warning{margin-top:0;color:#824807;font-size:10px;font-weight:600;white-space:nowrap}
 .change-day-select{display:block;flex:0 1 280px;width:280px;min-width:150px;max-width:100%;height:30px;padding:4px 8px;border:1px solid #dce5df;border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:12px}
@@ -558,14 +575,14 @@ dialog:has(.personal-schedule-editor){width:1180px;max-width:calc(100vw - 40px)}
   .change-person>summary{grid-template-columns:minmax(0,1fr) 70px 18px;gap:10px;padding:14px 0}
   .change-person-name strong{font-size:13px}
   .change-person-count{text-align:right}
-  .change-person-coverage{grid-row:2;grid-column:1 / 3;padding-left:50px}
+  .change-person-coverage{grid-row:2;grid-column:1 / 3;justify-content:flex-start;padding-left:50px}
   .change-person>summary>.icon{grid-row:1;grid-column:3}
   .change-periods{padding-left:0}
   .change-period-group-head{gap:8px;padding:8px 10px}
   .change-day-row{grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;padding:6px 10px}
   .change-list-date{grid-column:1}
   .change-day-cover{grid-column:1;grid-row:2;width:100%;justify-self:stretch;padding:5px 7px}
-  .change-day-cover[data-coverage="needed"]{flex-direction:column;align-items:stretch;gap:2px}
+  .change-day-cover[data-coverage="needed"],.change-day-cover[data-coverage="waived"]{flex-direction:column;align-items:stretch;gap:2px}
   .change-day-cover .coverage-warning{white-space:normal}
   .change-day-select{flex:0 1 auto;width:100%;min-width:0}
   .change-row-actions,.change-row-edit{grid-column:2;grid-row:1;align-self:center}

@@ -62,6 +62,7 @@ function rememberNavigation() {
 }
 let workspace;
 const changeCoverageFeedback = new Map();
+const NO_REPLACEMENT_VALUE = '__no_replacement__';
 const adminRememberKey = 'skift-admin-remembered';
 try { localStorage.removeItem?.(adminRememberKey); } catch {}
 const rememberedAdmin = () => { try { return sessionStorage.getItem(adminRememberKey) === 'true'; } catch { return false; } };
@@ -361,7 +362,7 @@ function rosterView(team, groups=[team], departmentScope=null) {
       }).join(''):'<div class="roster-off'+(offText==='Ledig'?' roster-day-off':'')+'">'+(offText==='Ledig'?'':(c.exception||c.main?.personalSchedule)&&c.main?.code?'<b class="roster-absence-code">'+esc(c.main.code)+'</b>':'—')+'<span>'+offText+'</span></div>';
       const replacement=c.exception?.type!=='turbyte'&&c.exception?.replacementId?findMember(c.exception.replacementId):null;
       const replacementTime=c.exception?.replacementStart&&c.exception?.replacementEnd?'<small class="roster-cover-time">'+esc(c.exception.replacementStart)+'–'+esc(c.exception.replacementEnd)+'</small>':'';
-      const replacementInfo=replacement?'<div class="roster-replacement"><span>Ersättare: <strong>'+esc(replacement.name)+'</strong></span>'+replacementTime+'</div>':editable&&c.main?.needsCoverage?'<div class="roster-replacement roster-needs-cover">Ersättare behövs</div>':'';
+      const replacementInfo=replacement?'<div class="roster-replacement"><span>Ersättare: <strong>'+esc(replacement.name)+'</strong></span>'+replacementTime+'</div>':c.exception?.coverageWaived?'<div class="roster-replacement roster-no-cover">Ingen ersättare</div>':editable&&c.main?.needsCoverage?'<div class="roster-replacement roster-needs-cover">Ersättare behövs</div>':'';
       const absenceCard=!c.shifts.length&&offText!=='Ledig'&&(replacementInfo||((c.exception||c.main?.personalSchedule)&&c.main?.code));
       const cellContent=absenceCard?'<div class="roster-shift roster-absence-card '+esc(colorFor(c.group,c.date,c.main?.code))+'">'+content+replacementInfo+'</div>':content+replacementInfo;
       return '<td class="'+(isToday?'roster-today':'')+(editable&&c.active&&c.group?' roster-editable':'')+'"'+editAttr+'>'+cellContent+'</td>';
@@ -689,6 +690,11 @@ function changeRange(start,end){
   const date=value=>fmt(value,{day:'numeric',month:'short',year:'numeric'});
   return start===end?date(start):date(start)+' – '+date(end);
 }
+function changePeriodRangeMarkup(start,end){
+  const date=value=>fmt(value,{day:'numeric',month:'short'});
+  const range=start===end?date(start):date(start)+' – '+date(end);
+  return '<span class="change-period-dates" aria-label="'+esc(changeRange(start,end))+'"><strong>'+esc(range)+'</strong></span>';
+}
 function changeReplacementCandidates(entry){
   const state=workspace.working;
   const availability=model.getReplacementAvailability(state,entry.teamId,entry.memberId,entry.date);
@@ -739,44 +745,53 @@ function changeResults(groups){
     +'<button type="button" class="change-view-tab" aria-pressed="'+(selectedFilter==='needed')+'" data-action="changes-filter" data-filter="needed" hidden>Behöver ersättare <span>'+needsTabCount+'</span></button></div>';
   const renderDayRow=({person,entry,isCover,shift})=>{
     const feedback=changeCoverageFeedback.get(entry.id),isTurbyte=entry.type==='turbyte';
-    const detail=feedback?'Ersättare tilldelad':isCover?'Ersätter: '+(findMember(entry.sourceMemberId)?.name||'Tidigare medarbetare'):isTurbyte?(entry.replacementId?'Byter med: '+(findMember(entry.replacementId)?.name||'Kollega'):'Turbyte: '+(entry.code||'Nytt pass')):entry.replacementId?'Ersättare: '+(findMember(entry.replacementId)?.name||'Medarbetare'):shift.needsCoverage?'Ingen ersättare':'Ingen ersättare behövs';
-    const coverage=feedback?'confirmed':shift.needsCoverage?'needed':entry.replacementId||isCover||isTurbyte?'covered':'none';
+    const detail=feedback?'Ersättare tilldelad':entry.coverageWaived?'Ingen ersättare':isCover?'Ersätter: '+(findMember(entry.sourceMemberId)?.name||'Tidigare medarbetare'):isTurbyte?(entry.replacementId?'Byter med: '+(findMember(entry.replacementId)?.name||'Kollega'):'Turbyte: '+(entry.code||'Nytt pass')):entry.replacementId?'Ersättare: '+(findMember(entry.replacementId)?.name||'Medarbetare'):shift.needsCoverage?'Ingen ersättare':'Ingen ersättare behövs';
+    const coverage=feedback?'confirmed':entry.coverageWaived?'waived':shift.needsCoverage?'needed':entry.replacementId||isCover||isTurbyte?'covered':'none';
     const subline=entry.start&&entry.end?entry.start+'–'+entry.end:'';
-    const secondary=feedback?'Ersättare: '+feedback.replacementName:shift.needsCoverage?'':isTurbyte?(entry.originalCode&&entry.code?`${entry.originalCode} → ${entry.code}`:'Turbyte'):isCover?label(entry.type)+' · '+hours(entry.minutes)+' timmar':entry.replacementId?'Bemanningen är klar':'';
-    const directAssignment=shift.needsCoverage&&!entry.replacementId&&!isCover&&!feedback&&!isTurbyte;
-    const candidates=directAssignment?changeReplacementCandidates(entry):[];
-    const coverageMarkup=directAssignment
-      ?'<span class="change-day-cover" data-coverage="needed"><select class="change-day-select" data-change-replacement="'+esc(entry.id)+'" aria-label="Välj ersättare för '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'" '+(candidates.length?'':'disabled')+'><option value="">'+(candidates.length?'Välj ersättare':selectedKinds.size?'Ingen tillgänglig ersättare':'Välj ersättartyp ovan')+'</option>'+candidates.map(candidate=>'<option value="'+esc(candidate.id)+'">'+esc(candidate.name)+'</option>').join('')+'</select>'+(secondary?'<small class="coverage-warning">'+esc(secondary)+'</small>':'')+'</span>'
+    const secondary=feedback?'Ersättare: '+feedback.replacementName:entry.coverageWaived?'Ingen ersättare har tilldelats':shift.needsCoverage?'':isTurbyte?(entry.originalCode&&entry.code?`${entry.originalCode} → ${entry.code}`:'Turbyte'):isCover?label(entry.type)+' · '+hours(entry.minutes)+' timmar':entry.replacementId?'Bemanningen är klar':'';
+    const directAssignment=shift.needsCoverage&&!entry.coverageWaived&&!entry.replacementId&&!isCover&&!feedback&&!isTurbyte;
+    const showReplacementSelect=(directAssignment||entry.coverageWaived)&&!entry.replacementId&&!isCover&&!isTurbyte;
+    const candidates=showReplacementSelect?changeReplacementCandidates(entry):[];
+    const coverageMarkup=showReplacementSelect
+      ?'<span class="change-day-cover" data-coverage="'+(entry.coverageWaived?'waived':'needed')+'"><select class="change-day-select" data-change-replacement="'+esc(entry.id)+'" aria-label="Välj ersättare för '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'"><option value="" '+(entry.coverageWaived?'':'selected')+'>'+(candidates.length?'Välj ersättare':selectedKinds.size?'Ingen tillgänglig ersättare':'Välj ersättartyp ovan')+'</option><option value="'+NO_REPLACEMENT_VALUE+'" '+(entry.coverageWaived?'selected':'')+'>Ingen ersättare</option>'+candidates.map(candidate=>'<option value="'+esc(candidate.id)+'">'+esc(candidate.name)+'</option>').join('')+'</select>'+(secondary&&!entry.coverageWaived?'<small class="coverage-warning">'+esc(secondary)+'</small>':'')+'</span>'
       :'<span class="change-day-cover" data-coverage="'+coverage+'"><strong>'+(feedback?icon('check'):'')+esc(detail)+'</strong>'+(secondary?'<small class="'+(shift.needsCoverage&&!feedback?'coverage-warning':'')+'">'+esc(secondary)+'</small>':'')+'</span>';
     return '<div class="change-day-row'+(feedback?' is-recently-covered':'')+'" data-change-row-id="'+esc(entry.id)+'">'
-      +'<span class="change-list-date"><strong>'+fmt(entry.date,{weekday:'short',day:'numeric',month:'short',year:'numeric'})+'</strong>'+(subline?'<small>'+esc(subline)+'</small>':'')+'</span>'
+      +'<span class="change-list-date"><strong>'+fmt(entry.date,{weekday:'short',day:'numeric',month:'short'})+'</strong>'+(subline?'<small>'+esc(subline)+'</small>':'')+'</span>'
       +coverageMarkup+'<div class="change-row-actions"><button type="button" class="change-row-edit" data-action="edit-exception" data-id="'+esc(entry.id)+'"'+(isCover?' data-source-id="'+esc(entry.sourceExceptionId)+'"':'')+' aria-label="Redigera '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'">'+icon('edit')+'</button><button type="button" class="change-row-delete" data-action="delete-exception" data-id="'+esc(entry.id)+'"'+(isCover?' data-source-id="'+esc(entry.sourceExceptionId)+'"':'')+' aria-label="Ta bort '+esc(person.name)+', '+esc(changeRange(entry.date,entry.date))+'" title="Ta bort">'+icon('trash')+'</button></div></div>';
   };
   const renderPerson=person=>{
     const personRows=rowsByPerson.get(person.id)||[],rowsById=new Map(personRows.map(row=>[row.entry.id,row]));
-    const periods=person.periods.map(period=>({...period,rows:period.entries.map(entry=>rowsById.get(entry.id)).filter(Boolean)})).filter(period=>period.rows.length);
+    const visiblePeriods=person.periods.map(period=>({...period,rows:period.entries.map(entry=>rowsById.get(entry.id)).filter(Boolean)})).filter(period=>period.rows.length);
+    const periods=visiblePeriods.flatMap(period=>{
+      const byYear=new Map();
+      for(const row of period.rows){const year=row.entry.date.slice(0,4);if(!byYear.has(year))byYear.set(year,[]);byYear.get(year).push(row);}
+      return [...byYear.entries()].map(([year,rows])=>({...period,id:period.id+':'+year,year,start:rows[0].entry.date,end:rows[rows.length-1].entry.date,rows}));
+    });
+    const periodsByYear=new Map();
+    for(const period of periods){if(!periodsByYear.has(period.year))periodsByYear.set(period.year,[]);periodsByYear.get(period.year).push(period);}
     const personDays=new Set(personRows.map(row=>row.entry.date)).size;
     const types=[...new Set(personRows.map(row=>label(row.entry.type)))].join(' · ');
     const initials=person.name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('');
-    const needs=personRows.filter(row=>row.shift.needsCoverage).length,recent=personRows.filter(row=>changeCoverageFeedback.has(row.entry.id)).length;
-    const coverage=needs?'<span class="change-coverage-badge">'+icon('warning')+'<span>'+count(needs,'dag','dagar')+' behöver ersättare</span></span>':recent?'<span class="change-covered">'+icon('check')+'<span>Bemanningen uppdaterad</span></span>':'<span class="change-covered">'+icon('check')+'<span>Inget behov av ersättare</span></span>';
+    const needs=personRows.filter(row=>row.shift.needsCoverage).length,recent=personRows.filter(row=>changeCoverageFeedback.has(row.entry.id)).length,waived=personRows.filter(row=>row.entry.coverageWaived).length;
+    const coverage=(needs?'<span class="change-coverage-badge">'+icon('warning')+'<span>'+count(needs,'dag','dagar')+' behöver ersättare</span></span>':'')+(waived?'<span class="change-no-cover">'+count(waived,'dag utan ersättare','dagar utan ersättare')+'</span>':'')+(!needs&&!waived&&recent?'<span class="change-covered">'+icon('check')+'<span>Bemanningen uppdaterad</span></span>':'')+(!needs&&!waived&&!recent?'<span class="change-covered">'+icon('check')+'<span>Inget behov av ersättare</span></span>':'');
     const open=(ui.changeOpenPeople||[]).includes(person.id)||(!Array.isArray(ui.changeOpenPeople)&&filteredPeople.length===1);
     return '<details class="change-person" data-change-person="'+esc(person.id)+'" '+(open?'open':'')+'><summary>'
       +'<span class="change-person-name"><span class="avatar">'+esc(initials)+'</span><span><strong>'+esc(person.name)+'</strong><small>'+esc(types)+'</small></span></span>'
-      +'<span class="change-person-count"><strong>'+count(personDays,'dag','dagar')+'</strong><small>'+count(periods.length,'period','perioder')+'</small></span>'
+      +'<span class="change-person-count"><strong>'+count(personDays,'dag','dagar')+'</strong><small>'+count(visiblePeriods.length,'period','perioder')+'</small></span>'
       +'<span class="change-person-coverage">'+coverage+'</span>'+icon('down')+'</summary>'
-      +'<div class="change-periods">'+periods.map(period=>{
+      +'<div class="change-periods">'+[...periodsByYear.entries()].map(([year,yearPeriods])=>'<section class="change-year-group"><h3 class="change-year-heading">'+esc(year)+'</h3><div class="change-year-periods">'+yearPeriods.map(period=>{
         const periodNeeds=period.rows.filter(row=>row.shift.needsCoverage).length;
         const periodRecent=period.rows.filter(row=>changeCoverageFeedback.has(row.entry.id)).length;
-        const periodCoverage=periodNeeds?'<span class="change-period-needs">'+icon('warning')+count(periodNeeds,'dag behöver','dagar behöver')+' ersättare</span>':periodRecent?'<span class="change-period-updated">'+icon('check')+count(periodRecent,'dag uppdaterad','dagar uppdaterade')+'</span>':'';
+        const periodWaived=period.rows.filter(row=>row.entry.coverageWaived).length;
+        const periodCoverage=periodNeeds?'<span class="change-period-needs">'+icon('warning')+count(periodNeeds,'dag behöver','dagar behöver')+' ersättare</span>':periodWaived?'<span class="change-period-waived">'+count(periodWaived,'dag utan ersättare','dagar utan ersättare')+'</span>':periodRecent?'<span class="change-period-updated">'+icon('check')+count(periodRecent,'dag uppdaterad','dagar uppdaterade')+'</span>':'';
         const periodId=person.id+':'+period.id;
         const periodOpen=(ui.changeOpenPeriods||[]).includes(periodId);
         return '<details class="change-period-group" data-change-period="'+esc(periodId)+'" '+(periodOpen?'open':'')+'>'
           +'<summary class="change-period-group-head">'
           +'<span class="change-type change-type-'+esc(period.type)+'">'+esc(label(period.type))+'</span>'
-          +'<strong>'+changeRange(period.start,period.end)+'</strong><span class="change-period-group-count">'+count(period.rows.length,'dag','dagar')+'</span>'+periodCoverage+icon('down')+'</summary>'
+          +changePeriodRangeMarkup(period.start,period.end)+'<span class="change-period-group-count">'+count(period.rows.length,'dag','dagar')+'</span>'+periodCoverage+icon('down')+'</summary>'
           +'<div class="change-period-group-days">'+period.rows.map(renderDayRow).join('')+'</div></details>';
-      }).join('')+'</div></details>';
+      }).join('')+'</div></section>').join('')+'</div></details>';
   };
   const emptyMessage=!allRows.length
     ?empty('Inga individuella ändringar',ui.changeQuery||ui.changeYear||ui.changeMonth||ui.changeType?'Inga ändringar matchar dina filter. Prova en annan sökning eller visa alla datum.':'Lägg till en ändring när någon är frånvarande eller behöver andra arbetstider.')
@@ -786,9 +801,25 @@ function changeResults(groups){
   const pagination=filteredPeople.length?'<div class="change-pagination"><span>Visar '+(first+1)+'–'+Math.min(first+size,filteredPeople.length)+' av '+count(filteredPeople.length,'medarbetare','medarbetare')+'</span><div><button class="icon-btn" data-action="changes-page" data-step="-1" aria-label="Föregående medarbetare" '+(ui.changePage===0?'disabled':'')+'>'+icon('left')+'</button><span>'+(ui.changePage+1)+' / '+pages+'</span><button class="icon-btn" data-action="changes-page" data-step="1" aria-label="Nästa medarbetare" '+(ui.changePage===pages-1?'disabled':'')+'>'+icon('right')+'</button></div></div>':'';
   return tabs+(visible.length?'<div class="change-day-table"><div class="change-day-table-head"><span>Datum</span><span class="change-staff-heading"><span>Bemanning</span>'+replacementFilters+'</span><span></span></div><div class="change-people">'+visible.map(renderPerson).join('')+'</div>'+pagination:emptyMessage);
 }
+function hideChangeSearchSuggestions(){
+  const input=$('#changes-search'),list=$('#changes-search-suggestions');
+  if(list)list.hidden=true;
+  input?.setAttribute('aria-expanded','false');
+}
+function refreshChangeSearchSuggestions(){
+  const input=$('#changes-search'),list=$('#changes-search-suggestions'),results=$('#change-results');
+  if(!input||!list||!results)return;
+  const names=[...new Set($$('.change-person-name strong',results).map(node=>node.textContent.trim()).filter(Boolean))];
+  const query=input.value.trim().toLocaleLowerCase('sv');
+  const suggestions=names.filter(name=>!query||name.toLocaleLowerCase('sv').includes(query));
+  const open=document.activeElement===input&&suggestions.length>0;
+  list.innerHTML=suggestions.map(name=>'<button type="button" role="option" class="change-search-suggestion" data-change-search-suggestion="'+esc(name)+'">'+esc(name)+'</button>').join('');
+  list.hidden=!open;
+  input.setAttribute('aria-expanded',String(open));
+}
 function refreshChangeResults(){
   const target=$('#change-results');
-  if(target){target.innerHTML=changeResults(organizationSelection().groups);rememberNavigation();}
+  if(target){target.innerHTML=changeResults(organizationSelection().groups);refreshChangeSearchSuggestions();rememberNavigation();}
 }
 function changesAdmin(groups) {
   if(ui.changeType==='custom'){ui.changeType='';ui.changePage=0;}
@@ -797,7 +828,7 @@ function changesAdmin(groups) {
     .map(entry=>entry.date.slice(0,4)))].sort();
   if(ui.changeYear&&!years.includes(ui.changeYear)){ui.changeYear='';ui.changePage=0;}
   return '<section class="admin-panel change-overview"><div class="panel-heading"><div><h2>Frånvaro och ersättare</h2></div><button class="primary-btn" data-action="exception">'+icon('plus')+' Lägg till ändring</button></div>'
-    +'<div class="change-filters"><label class="change-search">Sök medarbetare<input id="changes-search" type="search" placeholder="Skriv ett namn…" value="'+esc(ui.changeQuery||'')+'"></label>'
+    +'<div class="change-filters"><label class="change-search">Sök medarbetare<div class="change-search-control"><input id="changes-search" type="search" placeholder="Skriv ett namn…" value="'+esc(ui.changeQuery||'')+'" role="combobox" aria-autocomplete="list" aria-controls="changes-search-suggestions" aria-expanded="false"><div id="changes-search-suggestions" class="change-search-suggestions" role="listbox" aria-label="Medarbetare i listan" hidden></div></div></label>'
     +'<label>År<select id="changes-year"><option value="">Alla år</option>'+years.map(value=>'<option value="'+esc(value)+'" '+(ui.changeYear===value?'selected':'')+'>'+esc(value)+'</option>').join('')+'</select></label>'
     +'<label>Månad<select id="changes-month"><option value="">'+(ui.changeYear?'Hela året':'Alla månader')+'</option>'+Array.from({length:12},(_,i)=>{const value=String(i+1).padStart(2,'0');return '<option value="'+value+'" '+(ui.changeMonth===value?'selected':'')+'>'+fmt('2026-'+value+'-01',{month:'long'})+'</option>';}).join('')+'</select></label>'
     +'<label>Typ av ändring<select id="changes-type"><option value="">Alla typer</option>'+['vacation','sick','vab','leave','parental','training','overtime','turbyte','cover',...(workspace.working.exceptions.some(entry=>entry.type==='pension')?['pension']:[]),'off'].map(type=>'<option value="'+type+'" '+(ui.changeType===type?'selected':'')+'>'+label(type)+'</option>').join('')+'</select></label>'
@@ -1609,6 +1640,23 @@ document.addEventListener('input',event=>{
     ui.changeQuery=event.target.value;ui.changePage=0;refreshChangeResults();
   }
 });
+document.addEventListener('focusin',event=>{
+  if(event.target.id==='changes-search')refreshChangeSearchSuggestions();
+  else if(!event.target.closest?.('.change-search'))hideChangeSearchSuggestions();
+});
+document.addEventListener('pointerdown',event=>{
+  if(event.target.closest?.('[data-change-search-suggestion]'))event.preventDefault();
+  else if(!event.target.closest?.('.change-search'))hideChangeSearchSuggestions();
+});
+document.addEventListener('click',event=>{
+  const suggestion=event.target.closest?.('[data-change-search-suggestion]');
+  if(suggestion){
+    const input=$('#changes-search');
+    if(!input)return;
+    input.value=suggestion.dataset.changeSearchSuggestion;
+    ui.changeQuery=input.value;ui.changePage=0;refreshChangeResults();input.focus();hideChangeSearchSuggestions();
+  }else if(!event.target.closest?.('.change-search'))hideChangeSearchSuggestions();
+});
 document.addEventListener('toggle',event=>{
   for(const [attribute,key] of [['changePerson','changeOpenPeople'],['changePeriod','changeOpenPeriods']]){
     const id=event.target.dataset?.[attribute];if(!id)continue;
@@ -1628,14 +1676,28 @@ document.addEventListener('change',async e=>{
     }
     else if(target.matches('[data-change-replacement]')&&admin()){
       const replacementId=target.value;
-      if(!replacementId)return;
+      if(!replacementId&&!workspace.working.exceptions.find(item=>item.id===target.dataset.changeReplacement)?.coverageWaived)return;
       target.disabled=true;
       try{
         const next=copy(),entry=next.exceptions.find(item=>item.id===target.dataset.changeReplacement);
         if(!entry)throw new Error('Ändringen kunde inte hittas. Uppdatera sidan och försök igen.');
+        if(!replacementId){
+          delete entry.coverageWaived;
+          await save(next,'Ändringen behöver nu en ersättare');
+          refreshChangeResults();
+          return;
+        }
+        if(replacementId===NO_REPLACEMENT_VALUE){
+          delete entry.replacementId;delete entry.replacementStart;delete entry.replacementEnd;
+          entry.coverageWaived=true;
+          await save(next,'Ändringen har sparats utan ersättare');
+          refreshChangeResults();
+          return;
+        }
         const availability=model.getReplacementAvailability(next,entry.teamId,entry.memberId,entry.date);
         if(availability.get(replacementId)!=='available')throw new Error('Ersättaren är inte längre tillgänglig den dagen.');
         entry.replacementId=replacementId;
+        delete entry.coverageWaived;
         delete entry.replacementStart;delete entry.replacementEnd;
         const rowId=entry.id,replacementName=findMember(replacementId)?.name||'Ersättare';
         changeCoverageFeedback.set(rowId,{replacementName});
