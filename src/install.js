@@ -11,7 +11,7 @@ const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const android = /Android/i.test(navigator.userAgent);
 const samsung = /SamsungBrowser/i.test(navigator.userAgent);
-const dismissalKey = `rssb-install-dismissed:${new URL('../', import.meta.url).pathname}`;
+const dismissalKey = `skooda-install-dismissed:${new URL('../', import.meta.url).pathname}`;
 const week = 7 * 24 * 60 * 60 * 1000;
 let pendingPrompt;
 let installed = false;
@@ -30,7 +30,7 @@ function rememberDismissal() {
 function update() {
   entry.hidden = standalone() || !mobile.matches || !(ios || android || pendingPrompt);
   document.querySelector('#install-open').textContent = installationRequested
-    ? 'Installationshjälp för RSSB' : 'Lägg till RSSB på hemskärmen';
+    ? 'Installationshjälp för Skooda' : 'Lägg till Skooda på hemskärmen';
   confirm.textContent = pendingPrompt ? 'Installera appen' : 'Visa hur du installerar';
   if (standalone() && dialog.open) dialog.close();
 }
@@ -52,7 +52,7 @@ function showRequested() {
   guide.hidden = true;
   confirm.hidden = true;
   help.hidden = false;
-  status.textContent = 'Installationen har begärts. Följ statusen i telefonens aviseringar. När den är klar hittar du RSSB på hemskärmen eller i applistan. Om ingen ikon dyker upp eller installationen misslyckas, tryck på Problem med installationen?';
+  status.textContent = 'Installationen har begärts. Följ statusen i telefonens aviseringar. När den är klar hittar du Skooda på hemskärmen eller i applistan. Om ingen ikon dyker upp eller installationen misslyckas, tryck på Problem med installationen?';
   dismiss.textContent = 'Fortsätt till schemat';
   update();
 }
@@ -60,12 +60,12 @@ function showGuide(troubleshooting = false) {
   guide.innerHTML = ios
     ? '<ol><li>Öppna sidan i <strong>Safari</strong> om den visas i en annan app.</li><li>Tryck på <strong>Dela</strong> (fyrkanten med pil uppåt). Den kan ligga under menyn med tre punkter.</li><li>Välj <strong>Lägg till på hemskärmen</strong>. Välj Visa mer om det behövs.</li><li>Låt <strong>Öppna som webbapp</strong> vara aktiverat om valet visas, och tryck på <strong>Lägg till</strong>.</li></ol>'
     : samsung
-      ? '<ol><li>I <strong>Samsung Internet</strong>: tryck på installationsikonen i adressfältet om den visas, eller öppna menyn <strong>☰</strong> och välj <strong>Lägg till sida i → Hemskärm</strong> om valet finns.</li><li>Bekräfta och följ statusen i telefonens aviseringar. Öppna sedan <strong>RSSB</strong> från hemskärmen eller applistan.</li><li>Om installationen misslyckas: kopiera sidans adress, öppna samma adress i <strong>Google Chrome</strong> och välj <strong>⋮ → Lägg till på startskärmen → Installera</strong>. Menyn kan också heta <strong>Installera appen</strong>.</li></ol>'
-      : '<ol><li>Öppna sidans adress direkt i <strong>Google Chrome</strong> om sidan visas inne i kamera- eller QR-appen.</li><li>Öppna webbläsarens meny <strong>⋮</strong>.</li><li>Välj <strong>Installera appen</strong> eller <strong>Lägg till på startskärmen</strong> och sedan Installera om valet visas.</li><li>Följ statusen i telefonens aviseringar. Öppna sedan <strong>RSSB</strong> från hemskärmen eller applistan.</li></ol>';
+      ? '<ol><li>I <strong>Samsung Internet</strong>: tryck på installationsikonen i adressfältet om den visas, eller öppna menyn <strong>☰</strong> och välj <strong>Lägg till sida i → Hemskärm</strong> om valet finns.</li><li>Bekräfta och följ statusen i telefonens aviseringar. Öppna sedan <strong>Skooda</strong> från hemskärmen eller applistan.</li><li>Om installationen misslyckas: kopiera sidans adress, öppna samma adress i <strong>Google Chrome</strong> och välj <strong>⋮ → Lägg till på startskärmen → Installera</strong>. Menyn kan också heta <strong>Installera appen</strong>.</li></ol>'
+      : '<ol><li>Öppna sidans adress direkt i <strong>Google Chrome</strong> om sidan visas inne i kamera- eller QR-appen.</li><li>Öppna webbläsarens meny <strong>⋮</strong>.</li><li>Välj <strong>Installera appen</strong> eller <strong>Lägg till på startskärmen</strong> och sedan Installera om valet visas.</li><li>Följ statusen i telefonens aviseringar. Öppna sedan <strong>Skooda</strong> från hemskärmen eller applistan.</li></ol>';
   if (android) {
     guide.innerHTML += '<p>Om installationen fortfarande misslyckas: uppdatera webbläsaren och försök igen, eller prova samma adress i en annan webbläsare, till exempel Chrome eller Samsung Internet. Schemat går att använda direkt på den här sidan under tiden.</p>';
   }
-  if (troubleshooting) status.textContent = 'Ingen RSSB-ikon eller ett meddelande om att installationen misslyckades? Prova stegen nedan.';
+  if (troubleshooting) status.textContent = 'Ingen Skooda-ikon eller ett meddelande om att installationen misslyckades? Prova stegen nedan.';
   guide.hidden = false;
   confirm.hidden = true;
   help.hidden = true;

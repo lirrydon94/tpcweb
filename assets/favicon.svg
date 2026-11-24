@@ -1,5 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="17" fill="#176c58"/>
-  <path d="M19 21h26M19 29h26M19 37h26M19 45h26" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M37 17v32" fill="none" stroke="#b7ebc8" stroke-width="4.5" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="26" fill="#176c58"/>
+  <!-- Rad 1: Amber pill + Mint dot -->
+  <rect x="23" y="26" width="34" height="12" rx="6" fill="#fcf0da"/>
+  <circle cx="71" cy="32" r="6" fill="#c0ebd2"/>
+  <!-- Rad 2: Amber dot + Blå pill -->
+  <circle cx="29" cy="50" r="6" fill="#fcf0da"/>
+  <rect x="43" y="44" width="34" height="12" rx="6" fill="#e8f0fc"/>
+  <!-- Rad 3: Mint pill + Blå dot -->
+  <rect x="23" y="62" width="34" height="12" rx="6" fill="#c0ebd2"/>
+  <circle cx="71" cy="68" r="6" fill="#e8f0fc"/>
 </svg>

@@ -8,7 +8,7 @@ const source = (await readFile(new URL('../src/install.js', import.meta.url), 'u
 
 function setup({ ios = false, userAgent, standalone = false, dismissed = false, desktop = false, storageBlocked = false } = {}) {
   const listeners = {}, elements = {}, media = {}, timers = [];
-  const stored = new Map(dismissed ? [['rssb-install-dismissed:/tpcweb/', String(Date.now())]] : []);
+  const stored = new Map(dismissed ? [['skooda-install-dismissed:/tpcweb/', String(Date.now())]] : []);
   for (const id of ['install-dialog', 'install-entry', 'install-confirm', 'install-dismiss', 'install-guide', 'install-status', 'install-open', 'install-help']) {
     elements[`#${id}`] = {
       hidden: false, open: false, textContent: '', handlers: {},
@@ -166,7 +166,7 @@ test('iPhone shows manual instructions and can reopen after dismissal', async ()
   assert.match(el['#install-guide'].innerHTML, /Lägg till på hemskärmen/);
   assert.equal(el['#install-confirm'].hidden, true);
   el['#install-dismiss'].handlers.click();
-  assert.ok(stored.has('rssb-install-dismissed:/tpcweb/'));
+  assert.ok(stored.has('skooda-install-dismissed:/tpcweb/'));
   el['#install-open'].handlers.click();
   assert.equal(el['#install-dialog'].open, true);
 });

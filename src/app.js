@@ -141,7 +141,7 @@ function shell() {
   const team = currentTeam(), member = currentMember(team);
   const nav = (mobile = false) => [['schedule','calendar','Schema'],...(hasAdminRole() ? [['admin','settings','Hantera']] : [])].map(([view,ico,text]) => `<button class="nav-item ${ui.view === view ? 'active' : ''}" data-action="view" data-view="${view}">${icon(ico)}<span>${text}</span>${!mobile && ui.view === view ? '<span class="nav-dot"></span>' : ''}</button>`).join('');
   $('#app').innerHTML = `<div class="app-shell">
-    <aside class="sidebar"><a class="brand" href="./" aria-label="RSSB startsida"><img class="brand-mark" src="./assets/favicon.svg?v=2" width="38" height="38" alt="">RSSB</a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav>${workspace.mode === 'cloud' ? `<div class="sidebar-bottom"><button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button></div>` : ''}</aside>
+    <aside class="sidebar"><a class="brand" href="./" aria-label="Skooda startsida"><img class="brand-mark" src="./assets/favicon.svg?v=3" width="38" height="38" alt="">Skooda</a><div class="workspace-label">DIN ARBETSPLATS</div><nav aria-label="Huvudnavigation">${nav()}</nav>${workspace.mode === 'cloud' ? `<div class="sidebar-bottom"><button class="icon-btn" data-action="logout" aria-label="Logga ut">${icon('logout')}</button></div>` : ''}</aside>
     <div class="main-shell">
     <main id="content" tabindex="-1">${ui.view==='admin' ? adminView() : team ? scheduleView() : emptyWorkspace()}</main>
     <footer class="page-footer"><span></span><span></span></footer>
@@ -1349,7 +1349,7 @@ function deleteTeamModal() {
 
 function download(content,type,name) {const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function renderLogin(error='') {
-  $('#app').innerHTML=`<main class="login-page"><a class="brand" href="./"><img class="brand-mark" src="./assets/favicon.svg?v=2" width="38" height="38" alt="">RSSB</a><section class="login-card"><h1>Ditt nästa pass<br>börjar här.</h1><p>Logga in för att se ditt schema och vilka du ska arbeta med.</p><form id="login-form"><label>E-post<input name="email" type="email" autocomplete="username" required placeholder="du@exempel.se"></label><label>Lösenord<input name="password" type="password" autocomplete="current-password" required minlength="6"></label><p class="form-error" role="alert">${esc(error)}</p><button class="primary-btn" type="submit">Logga in ${icon('arrow')}</button></form><small>Din administratör skapar ditt konto. Kontakta administratören om du behöver åtkomst eller ett nytt lösenord.</small></section><p class="login-caption">Ett tydligt schema. En lugnare vecka.</p></main>`;
+  $('#app').innerHTML=`<main class="login-page"><a class="brand" href="./"><img class="brand-mark" src="./assets/favicon.svg?v=3" width="38" height="38" alt="">Skooda</a><section class="login-card"><h1>Ditt nästa pass<br>börjar här.</h1><p>Logga in för att se ditt schema och vilka du ska arbeta med.</p><form id="login-form"><label>E-post<input name="email" type="email" autocomplete="username" required placeholder="du@exempel.se"></label><label>Lösenord<input name="password" type="password" autocomplete="current-password" required minlength="6"></label><p class="form-error" role="alert">${esc(error)}</p><button class="primary-btn" type="submit">Logga in ${icon('arrow')}</button></form><small>Din administratör skapar ditt konto. Kontakta administratören om du behöver åtkomst eller ett nytt lösenord.</small></section><p class="login-caption">Ett tydligt schema. En lugnare vecka.</p></main>`;
   $('#login-form').onsubmit=async e=>{e.preventDefault();e.submitter.disabled=true;const f=new FormData(e.target);try{workspace=await store.login(f.get('email'),f.get('password'));shell();}catch(err){renderLogin(err.message);}};
 }
 
@@ -1616,7 +1616,7 @@ async function handleAction(button) {
     case 'settings':if(admin())teamSettings();break;
     case 'delete-team':if(admin())deleteTeamModal();break;
     case 'edit-schedule':if(admin()){ui.editingSchedule=true;ui.view='schedule';shell();}break;
-    case 'export':if(admin())download(JSON.stringify(workspace.working,null,2),'application/json',`rssb-backup-${today()}.json`);break;
+    case 'export':if(admin())download(JSON.stringify(workspace.working,null,2),'application/json',`skooda-backup-${today()}.json`);break;
     case 'sync-project':
       if(admin()&&!ui.busy){ui.busy=true;try{workspace=await store.syncProject();shell();toast(workspace.fileSync.message,workspace.fileSync.state==='browser');}finally{ui.busy=false;}}
       break;
@@ -1745,7 +1745,7 @@ document.addEventListener('change',async e=>{
     else if(target.id==='jump-date'){if(target.value){ui.date=target.value;shell();scrollToDate(ui.date,true);}}
     else if(target.classList.contains('rotation-cell')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);editingVersion(team).rotation[Number(target.dataset.row)][Number(target.dataset.day)]=target.value;await save(next,'Passet har uppdaterats');}
     else if(target.classList.contains('position-select')&&admin()){const next=copy(),team=next.teams.find(t=>t.id===workingTeam().id);if(Number(target.value))editingVersion(team).positions[target.dataset.member]=Number(target.value);else delete editingVersion(team).positions[target.dataset.member];await save(next,'Startpositionen har uppdaterats');}
-    else if(target.id==='import-file'&&admin()&&target.files[0]){let state;try{state=JSON.parse(await target.files[0].text());}catch{throw new Error('Filen kunde inte läsas. Välj en giltig säkerhetskopia från RSSB.');}const errors=model.validateState(state);if(errors.length)throw new Error(errors[0]);modal('Ersätta schemat?','Säkerhetskopian ersätter det aktuella schemat och publiceras direkt när du bekräftar.',`<p>${state.teams.length} team i säkerhetskopian.</p>`,async()=>{await save(state,'Säkerhetskopian har importerats');ui.teamId=undefined;editingVersionId=undefined;shell();},{submit:'Importera schema'});}
+    else if(target.id==='import-file'&&admin()&&target.files[0]){let state;try{state=JSON.parse(await target.files[0].text());}catch{throw new Error('Filen kunde inte läsas. Välj en giltig säkerhetskopia från Skooda.');}const errors=model.validateState(state);if(errors.length)throw new Error(errors[0]);modal('Ersätta schemat?','Säkerhetskopian ersätter det aktuella schemat och publiceras direkt när du bekräftar.',`<p>${state.teams.length} team i säkerhetskopian.</p>`,async()=>{await save(state,'Säkerhetskopian har importerats');ui.teamId=undefined;editingVersionId=undefined;shell();},{submit:'Importera schema'});}
   }catch(error){toast(error.message,true);shell();}
 });
 $('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const rect=e.target.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)requestModalClose();}});
