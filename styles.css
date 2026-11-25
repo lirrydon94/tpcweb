@@ -659,7 +659,7 @@ dialog:has(.exception-editor) .modal-description{max-width:850px;line-height:1.6
 .exception-day.is-selected:hover{background:#d5eade}
 .exception-day.is-unavailable{background:#f7f8f5;color:#9aa49d;border-style:dashed}
 .exception-day.is-unavailable:disabled{opacity:.65}
-.exception-day-empty{min-height:91px;border-radius:9px;background:#f8faf7}
+.exception-day-empty{min-height:91px;border-radius:9px;background-color:#f4f6f4;background-image:repeating-linear-gradient(135deg,#d4d9d4 0,#d4d9d4 1px,transparent 0,transparent 50%);background-size:10px 10px}
 .exception-calendar-tools{display:flex;gap:8px 18px;flex-wrap:wrap;align-items:center;margin-top:9px}
 .exception-calendar-tools .text-button{font-size:10px;min-height:30px}
 .exception-legend{display:flex;gap:9px 17px;flex-wrap:wrap;margin-top:10px;font-size:10px;color:var(--muted);line-height:1.5}
